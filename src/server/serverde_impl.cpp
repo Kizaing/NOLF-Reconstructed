@@ -21,6 +21,7 @@
 #include "genericprop_setup.h"
 #include "impl_common.h"
 #include "packet.h"
+#include "game_serialize.h"
 
 // Talon object-creation property (CServerMgr::m_pCurProps list).
 struct PropEntry
@@ -37,8 +38,6 @@ public:
 	virtual LTRESULT	ShellMessageFn(char *pMsg, uint32 nLen);
 };
 
-LTRESULT	sm_SaveObjects(CServerMgr *pServerMgr, ILTStream *pStream, ObjectList *pList, uint32 dwParam, uint32 flags);
-LTRESULT	sm_RestoreObjects(CServerMgr *pServerMgr, ILTStream *pStream, uint32 dwParam, uint32 flags);
 ILTStream*	streamsim_Open(const char *pFilename, const char *pAccess);
 LTRESULT	sm_SetPortalFlags(CServerMgr *pServerMgr, const char *pPortalName, uint32 flags);
 LTBOOL		ServerIntersectSegment(IntersectQuery *pQuery, IntersectInfo *pInfo);

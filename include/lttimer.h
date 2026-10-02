@@ -1,5 +1,5 @@
 // LT timers (Jupiter runtime/shared/src/lttimer.h). Methods at 0x0044d0c0-0x0044d190.
-// servermgr.h's ClientTimer (Client::m_Timer) is this class.
+// Client::m_Timer (servermgr.h) is one.
 #ifndef __LTTIMER_H__
 #define __LTTIMER_H__
 

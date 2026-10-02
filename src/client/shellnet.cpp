@@ -17,6 +17,7 @@
 #include "model.h"
 #include "sprite.h"
 #include "iltclient.h"
+#include "setupobject.h"
 
 #define SMSG_NETPROTOCOLVERSION		4
 #define SMSG_UNLOADWORLD			5
@@ -47,10 +48,6 @@
 #define LTEVENT_DISCONNECT			1
 
 void cs_UnloadWorld(CClientShell *pShell);		// 0x00416160 (clientshell.cpp)
-// 0x00489970 (setupobject.cpp; error name "LoadModel2")
-LTRESULT cm_LoadModel2(CClientMgr *pClientMgr, FileRef *pRef, FileIdentifier **ppIdent, Model **ppModel,
-	LTBOOL bTryLoad, uint32 flags);
-void cm_RemoveModelObjects(CClientMgr *pClientMgr, Model *pModel, void *pRef);		// 0x0048a090
 void r_UnbindTexture(SharedTexture *pTexture);		// 0x0046f660
 
 #define TYPECODE_MODEL		1
@@ -266,7 +263,7 @@ LTRESULT OnMessagePacket(CClientShell *pShell, CPacket *pPacket)
 		messageID = 0;
 	}
 
-	pShell->m_pClientMgr->SetupMessage(pPacket);
+	pShell->m_pClientMgr->SetupPacketMessage(pPacket);
 	pShell->m_pClientMgr->m_pClientShell->OnMessage(messageID, &pPacket->m_Message);
 	return LT_OK;
 }
@@ -344,7 +341,7 @@ LTRESULT OnInstantSpecialEffect(CClientShell *pShell, CPacket *pPacket)
 	pClientShell = pShell->m_pClientMgr->m_pClientShell;
 	if(pClientShell)
 	{
-		pShell->m_pClientMgr->SetupMessage(pPacket);
+		pShell->m_pClientMgr->SetupPacketMessage(pPacket);
 		pClientShell->SpecialEffectNotify(LTNULL, &pPacket->m_Message);
 	}
 
@@ -415,7 +412,7 @@ LTRESULT OnThreadLoadPacket(CClientShell *pShell, CPacket *pPacket)
 
 	if(fileType == FT_MODEL)
 	{
-		cm_LoadModel2(pShell->m_pClientMgr, &ref, &pIdent, &pModel, LTTRUE, 0);
+		cm_LoadModel2(pShell->m_pClientMgr, &ref, &pModel, &pIdent, LTTRUE, LTFALSE);
 		return LT_OK;
 	}
 	else if(fileType == FT_TEXTURE)

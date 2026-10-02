@@ -19,6 +19,7 @@
 #include "de_file.h"
 #include "server_filemgr.h"
 #include "client_filemgr.h"
+#include "effects.h"
 
 // Other modules' init/term functions.
 void str_Init();
@@ -43,7 +44,6 @@ int sb_LoadShellModule(const char *pModuleName, const char *pShellName, ShellBin
 void sb_GetShellFunctions(ShellBindModule *pModule, CreateShellFn *pCreate, DeleteShellFn *pDelete);	// 0x0048a790
 
 void sm_SetupError(CServerMgr *pServerMgr, LTRESULT err, ...);
-void cm_InitClientShellVars(CClientMgr *pClientMgr);	// 0x004360a0
 
 // Render DLL exports.
 typedef RMode* (*GetSupportedModesFn)();
@@ -594,7 +594,7 @@ LTRESULT dsi_InitClientShellDE(CClientMgr *pClientMgr)
 				RETURN_ERROR(1, InitClientShellDE, LT_CANTCREATECLIENTSHELL);
 			}
 
-			cm_InitClientShellVars(pClientMgr);
+			se_AddSurfaceEffects(pClientMgr);
 			return LT_OK;
 		}
 

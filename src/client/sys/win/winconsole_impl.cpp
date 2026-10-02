@@ -13,6 +13,7 @@
 #include "renderstruct.h"
 #include "clientmgr.h"
 #include "iltclient.h"
+#include "interface_helpers.h"
 
 // Constants
 #define SEPERATOR_CHARACTERS " .()\""
@@ -42,8 +43,6 @@ extern int32 g_CV_ConsoleBottom;
 
 // 0x00435240
 void* dsi_GetMainWindow();
-// 0x0040c880
-void cis_DeleteSurface(HSURFACE hSurface);
 
 // Default empty iterator
 // FUNCTION: LITHTECH 0x004206d0 _$E4

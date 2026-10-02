@@ -14,6 +14,7 @@
 #include "cloaderthread.h"
 #include "nexus.h"
 #include "animtracker.h"
+#include "dutil.h"
 #include "../../build/proj/LT2/lithshared/stdlith/helpers.h"
 
 #define TYPECODE_MODEL		1
@@ -88,7 +89,6 @@ LTRESULT LoadSprite(CClientMgr *pClientMgr, FileRef *pFilename, Sprite **ppSprit
 
 
 LTRESULT cm_LoadModelData(CClientMgr *pClientMgr, char *pFilename, FileIdentifier *pIdent, Model *&pModel);	// 0x00489ca0
-LTRESULT cm_BindModel(CClientMgr *pClientMgr, Model *pModel, FileIdentifier *pIdent, LTBOOL bUpdateObjects);	// 0x00489f50
 
 // Loads the model now, or has the loader thread load it.
 // FUNCTION: LITHTECH 0x004898b0
@@ -370,17 +370,11 @@ LTBOOL cm_IsModelReferenced(CClientMgr *pClientMgr, Model *pModel)
 }
 
 
-// A model reference (clientmgr.cpp).
-struct ClientModelRef
-{
-	Model		*m_pModel;		// 0x00
-};
-
 LTRESULT cm_RemoveObjectFromClientWorld(CClientMgr *pClientMgr, LTObject *pObject);	// 0x00412820
 
 // Removes the client objects that use pModel.
 // FUNCTION: LITHTECH 0x0048a090
-void cm_RemoveModelObjects(CClientMgr *pClientMgr, Model *pModel, ClientModelRef *pRef)
+void cm_RemoveModelObjects(CClientMgr *pClientMgr, Model *pModel, FileIdentifier *pIdent)
 {
 	LTLink *pCur, *pNext, *pListHead;
 	LTObject *pObject;
@@ -398,7 +392,7 @@ void cm_RemoveModelObjects(CClientMgr *pClientMgr, Model *pModel, ClientModelRef
 		pCur = pNext;
 	}
 
-	pRef->m_pModel = LTNULL;
+	pIdent->m_pData = LTNULL;
 
 	if (!cm_IsModelReferenced(pClientMgr, pModel))
 	{
@@ -407,7 +401,6 @@ void cm_RemoveModelObjects(CClientMgr *pClientMgr, Model *pModel, ClientModelRef
 }
 
 
-LTBOOL du_UpperStrcmp(const char *pInputString, const char *pUpperString);	// 0x00435960
 LTRESULT cm_AddSharedTexture2(CClientMgr *pClientMgr, FileRef *pRef, SharedTexture *&pTexture);	// 0x00426010
 
 // Sets a model skin from a .dtx or the current frame of a .spr.

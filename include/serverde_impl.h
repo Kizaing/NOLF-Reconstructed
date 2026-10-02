@@ -13,6 +13,8 @@
 #include "interlink.h"
 #include "de_world.h"
 #include "de_mainworld.h"
+#include "s_client.h"
+#include "server_extradata.h"
 
 class CServerMgr;
 
@@ -207,7 +209,6 @@ void		GetAttachmentTransform(LTObject *pParent, Attachment *pAttachment, LTVecto
 #define SMSG_SFXMESSAGE		18
 
 class CPacket;
-void		sm_SendToClient(CServerMgr *pServerMgr, Client *pClient, uint8 msgID, CPacket *pPacket, uint32 flags);	// 0x00475660
 void		sm_SendSFXMessage(CServerMgr *pServerMgr, uint8 msgID, CPacket *pPacket, LTObject *pObj, LTVector *pPos, uint32 flags);	// 0x00486ab0
 void		sm_SetObjectSpecialEffectMessage(CServerMgr *pServerMgr, LTObject *pObj, class CPacket *pPacket);	// 0x00477e80 (s_object)
 
@@ -220,11 +221,6 @@ LTRESULT	sm_AddObjectToWorld(CServerMgr *pServerMgr, LPBASECLASS pObject, ClassD
 #define SMSG_THREADLOAD		23
 #define SMSG_UNLOAD			24
 
-LTRESULT	SendToClient(CServerMgr *pServerMgr, Client *pClient, uint8 msgID, CPacket *pPacket,
-	LTBOOL bSendToChildren, uint32 flags);	// 0x004755d0 (s_net)
-LTRESULT	se_GetModel(CServerMgr *pServerMgr, char *pFilename, class Model **ppModel, UsedFile **ppFile,
-	LTBOOL bAddRef, uint32 flags);			// 0x004788c0 (server_extradata)
-LTRESULT	se_UncacheModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile *pFile);	// 0x00478a20
 
 // Function pointer targets that live in other units.
 void		ic_StartCounter(LTCounter *pCounter);	// 0x00473ac0 (folded with every empty void function)

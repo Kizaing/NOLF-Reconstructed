@@ -60,6 +60,7 @@ public:
 
 	// 0x00411c50: a fresh packet for a message.
 	class CPacket*	AllocPacket();
+	// Gives a received message the client's LMessageHelper (LMessageImpl::m_Unknown04).
 	void			SetupPacketMessage(class CPacket *pPacket);			// 0x00411cb0
 
 	// cobject.cpp: updates animations, particle systems, poly grids, line systems and models.
@@ -90,8 +91,6 @@ public:
 	void			ProcessAllInput(LTBOOL bForceClear);			// 0x004110b0
 	LTRESULT		PlaySound(PlaySoundInfo *pPlaySoundInfo, FileRef *pFile, float fOffsetTime);	// 0x004111b0
 	void			UpdateAllSounds(float fFrameTime);				// 0x00411260
-	// Gives a received message the client's LMessageHelper (LMessageImpl::m_Unknown04).
-	void			SetupMessage(class CPacket *pPacket);			// 0x00411cb0 (name unknown)
 					~CClientMgr();									// 0x00411720 (Ghidra: CClientMgr::Term)
 
 	// clientmgr.cpp, used by the ci_ interface functions.

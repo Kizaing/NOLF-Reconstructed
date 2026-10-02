@@ -7,9 +7,7 @@
 #include "de_objects.h"
 #include "clientmgr.h"
 #include "sprite.h"
-
-// 0x00435960. Returns TRUE if the strings match (case-insensitive).
-LTBOOL du_UpperStrcmp(const char *pInputString, const char *pUpperString);
+#include "dutil.h"
 
 // 0x00489710
 LTRESULT LoadSprite(CClientMgr *pClientMgr, FileRef *pFilename, Sprite **ppSprite);

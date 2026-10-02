@@ -25,6 +25,7 @@
 #include "cloaderthread.h"
 #include "counter.h"
 #include "setupobject.h"
+#include "effects.h"
 #include "servermgr.h"
 #include "../../build/proj/LT2/lithshared/stdlith/struct_bank.h"
 
@@ -183,8 +184,6 @@ public:
 
 // Empty memory failure callback (folded with the other empty functions at 0x004359b0).
 void cm_OnMemoryFailure(void *pUser);
-// 0x004360d0
-void cm_TermDebug(CClientMgr *pClientMgr);
 LTRESULT om_Init(ObjectMgr *pMgr, LTBOOL bClient);	// 0x004685d0
 LTRESULT om_Term(ObjectMgr *pMgr);					// 0x00468710
 
@@ -198,8 +197,6 @@ static void FreeSpriteList(LTList *pList);
 // The client manager's CSoundMgr (CClientMgr::m_SoundMgr).
 #define SOUNDMGR(pMgr)	((CSoundMgr*)(pMgr)->m_SoundMgr)
 
-// 0x00489f50: a file the loader thread finished (FT_ type, identifier).
-void cm_OnLoaderFileLoaded(CClientMgr *pClientMgr, uint32 fileType, FileIdentifier *pIdent, LTBOOL bLoaded);
 
 // Empty in this build (folded into 0x00473ac0); called after binding a texture (cutil.cpp).
 void cm_OnTextureBound(CClientMgr *pClientMgr);
@@ -682,7 +679,7 @@ void CClientMgr::ProcessLoaderMessage(LThreadMessage &msg)
 {
 	if(msg.m_ID == CLT_LOADEDFILE && msg.m_Data[0].m_dwData == 0)
 	{
-		cm_OnLoaderFileLoaded(this, msg.m_Data[2].m_dwData, (FileIdentifier*)msg.m_Data[1].m_pData, LTTRUE);
+		cm_BindModel(this, (Model*)msg.m_Data[2].m_pData, (FileIdentifier*)msg.m_Data[1].m_pData, LTTRUE);
 	}
 }
 
@@ -1042,7 +1039,7 @@ CClientMgr::~CClientMgr()
 	// Stop getting input.
 	m_InputMgr->Term(m_InputMgr);
 
-	cm_TermDebug(this);
+	se_RemoveSurfaceEffects(this);
 
 	memset(m_SkyObjects, 0xFF, sizeof(m_SkyObjects));
 
@@ -1764,28 +1761,21 @@ void cm_FreeSurfaceSprites(CClientMgr *pClientMgr)
 }
 
 
-// A model user hook entry: m_pRef points at the model reference being dropped.
-struct ClientModelRef
-{
-	Model			*m_pModel;		// 0x00
-};
-
+// A model user hook entry (the Leech cm_BindModel puts on the model's nexus): m_pRef is the
+// leech's user data, the model's FileIdentifier, whose m_pData is the model.
 struct ClientModelUser
 {
 	void			*m_pOwner;		// 0x00
-	ClientModelRef	*m_pRef;		// 0x04
+	FileIdentifier	*m_pRef;		// 0x04
 };
-
-// 0x0048a090: removes the client objects that use pModel.
-void cm_RemoveModelObjects(CClientMgr *pClientMgr, Model *pModel, ClientModelRef *pRef);
 
 // Called (through the hook at 0x004d03f8) when a model reference goes away.
 // FUNCTION: LITHTECH 0x00412930
 LTRESULT cm_OnModelRefRemoved(void *pUser, ClientModelUser *pUser2, LTBOOL bServer)
 {
-	if(!bServer && pUser2->m_pRef && pUser2->m_pRef->m_pModel)
+	if(!bServer && pUser2->m_pRef && pUser2->m_pRef->m_pData)
 	{
-		cm_RemoveModelObjects(g_pClientMgr, pUser2->m_pRef->m_pModel, pUser2->m_pRef);
+		cm_RemoveModelObjects(g_pClientMgr, (Model*)pUser2->m_pRef->m_pData, pUser2->m_pRef);
 	}
 
 	return LT_OK;

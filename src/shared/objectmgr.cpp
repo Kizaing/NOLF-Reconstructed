@@ -25,10 +25,6 @@ inline WorldTreeNode* GetRootNode(WorldTree *pTree)
 
 void dfree(void *ptr);
 
-// World BSP leaf object lists (world code before de_objects.cpp; names unknown).
-void w_RemoveObjectFromLeaf(LTObject *pObj);					// 0x00430680
-void w_AddObjectToLeaf(WorldBsp *pBsp, LTObject *pObj);		// 0x004305f0
-
 
 // GLOBAL: LITHTECH 0x004e45b8
 LTLink g_ObjectMgrs(LTLink_Init);

@@ -107,7 +107,6 @@ void		sm_TracePacket(CServerMgr *pServerMgr, CPacket *pPacket);	// 0x00471680
 extern int32 g_CV_STracePackets;
 // GLOBAL: LITHTECH 0x004d213c
 extern int32 g_CV_DelimitPackets;
-LTBOOL		sm_SetClientState(CServerMgr *pServerMgr, Client *pClient, int state);
 LTRESULT	sm_UpdatePuttingInWorld(CServerMgr *pServerMgr, Client *pClient);
 LTRESULT	sm_ConnectClientToWorld(CServerMgr *pServerMgr, Client *pClient);
 void		sm_GetClientOutOfWorld(CServerMgr *pServerMgr, Client *pClient);

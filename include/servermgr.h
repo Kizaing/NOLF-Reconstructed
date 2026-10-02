@@ -13,6 +13,7 @@
 #include "world_tree.h"
 #include "de_mainworld.h"
 #include "objectmgr.h"
+#include "lttimer.h"
 #include "ltdynarray.h"
 #include "../../build/proj/LT2/lithshared/stdlith/stringholder.h"
 #include "../../build/proj/LT2/lithshared/stdlith/object_bank.h"
@@ -106,17 +107,6 @@ struct SentList
 	uint16		*m_ObjectIDs;		// 0x04
 };
 
-// 0x10 bytes at Client 0x118: a Counter plus two values (constructor 0x0044d0c0, Init 0x0044d0e0).
-struct ClientTimer
-{
-	ClientTimer();					// 0x0044d0c0
-	void		Init(float fInterval);	// 0x0044d0e0
-
-	uint32		m_Counter[2];		// 0x00 Counter
-	float		m_fInterval;		// 0x08
-	uint32		m_Unknown0C;		// 0x0c
-};
-
 // Client::m_PuttingIntoWorldStage.
 #define PUTTINGINTOWORLD_LOADINGWORLD	0
 #define PUTTINGINTOWORLD_LOADEDWORLD	1
@@ -130,7 +120,7 @@ struct Client
 	uint32		m_nLightAnimChanges;	// 0x10c
 	void		*m_pClientData;		// 0x110 data the client sent when it connected
 	uint32		m_ClientDataLen;	// 0x114
-	ClientTimer	m_Timer;			// 0x118
+	LTTimer		m_Timer;			// 0x118 (lttimer.h, 0x10 bytes)
 	float		m_Unknown128;		// 0x128 10.0f
 	float		m_Unknown12C;		// 0x12c 35.0f
 	uint32		m_Unknown130;		// 0x130

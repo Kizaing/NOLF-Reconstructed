@@ -381,7 +381,7 @@ static LTRESULT OnClientUpdatePacket(CServerMgr *pServerMgr, CPacket *pPacket, C
 	if (fRate != pClient->m_Unknown128)
 	{
 		pClient->m_Unknown128 = fRate;
-		pClient->m_Timer.Init(fRate);
+		pClient->m_Timer.SetUpdateRate(fRate);
 	}
 
 	// Read the commands that are on.

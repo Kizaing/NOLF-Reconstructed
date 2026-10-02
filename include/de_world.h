@@ -355,4 +355,9 @@ struct WorldData
 	WorldBsp		*m_pValidBsp;		// 0x0c
 };
 
+// World BSP leaf object lists (de_nodes.cpp).
+class LTObject;
+void	w_RemoveObjectFromLeaf(LTObject *pObj);					// 0x00430680
+Node*	w_AddObjectToLeaf(WorldBsp *pBsp, LTObject *pObj);		// 0x004305f0
+
 #endif  // __DE_WORLD_H__

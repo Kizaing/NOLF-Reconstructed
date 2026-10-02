@@ -11,6 +11,7 @@
 #include "packet.h"
 #include "iltmodel.h"
 #include "serverde_impl.h"
+#include "game_serialize.h"
 #include "server_filemgr.h"
 #include "de_world.h"
 #include "classbind.h"

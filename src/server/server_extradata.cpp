@@ -10,6 +10,7 @@
 #include "de_world.h"
 #include "dhashtable.h"
 #include "model.h"
+#include "server_extradata.h"
 
 class ExtraDataBackup;
 
@@ -44,7 +45,7 @@ char* se_FixSlashes(char *pFilename)
 }
 
 // STUB: LITHTECH 0x004784c0
-LTRESULT se_LoadModel(CServerMgr *pServerMgr, const char *pFilename, Model **ppModel)
+LTRESULT se_LoadModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile *pFile, Model **ppModel)
 {
 	return LT_OK;
 }

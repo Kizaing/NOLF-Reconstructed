@@ -5,6 +5,7 @@
 // FLAGS: /O2 /GX-
 #include <windows.h>
 #include <string.h>
+#include "exceptionhandler.h"
 
 const int NumCodeBytes = 16;	// Number of code bytes to record.
 const int MaxStackDump = 2048;	// Maximum number of DWORDS in stack dumps.

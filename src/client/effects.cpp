@@ -10,6 +10,7 @@
 #include "de_world.h"
 #include "de_mainworld.h"
 #include "de_memory.h"
+#include "effects.h"
 
 LTBOOL ci_GetSurfaceBounds(SurfaceData *pSurface, LTVector *pMin, LTVector *pMax);	// 0x00407f60
 LTRESULT cm_AddSurfaceEffect(CClientMgr *pClientMgr, SurfaceEffectDesc *pDesc);		// 0x00425cd0

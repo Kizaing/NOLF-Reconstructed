@@ -201,8 +201,6 @@ void w_RemovePolyGridFromLeaves(LTPolyGrid *pGrid)
 	}
 }
 
-void w_RemoveObjectFromLeaf(LTObject *pObj);
-
 // FUNCTION: LITHTECH 0x004305f0
 Node* w_AddObjectToLeaf(WorldBsp *pBsp, LTObject *pObj)
 {

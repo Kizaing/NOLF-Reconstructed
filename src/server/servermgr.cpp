@@ -22,6 +22,9 @@
 #include "stringmgr.h"
 #include "sloaderthread.h"
 #include "packet.h"
+#include "s_client.h"
+#include "server_extradata.h"
+#include "fullintersectline.h"
 
 #define LoaderThread()	((CServerLoaderThread*)m_LoaderThread)
 
@@ -50,7 +53,6 @@ void sm_RemoveAllObjectsFromWorld(CServerMgr *pServerMgr, LTBOOL bRemoveStaticOb
 static void _ServerStringWhine(const char *pString, void *pUser);
 // An empty function (folded with every other empty void function at 0x00473ac0).
 void sm_TermDebug();
-LTRESULT se_LoadChildModels(CServerMgr *pServerMgr, Model *pModel, UsedFile *pFile, uint32 flags);
 
 // Loader thread message types (LThreadMessage::m_Data[0]).
 #define LOADERMSG_FILELOADED	0
@@ -70,10 +72,6 @@ extern uint32 g_Ticks_MoveObject;
 extern uint32 g_nMoveObjectCalls;
 // GLOBAL: LITHTECH 0x004e3804
 extern uint32 g_Counter3804;
-// GLOBAL: LITHTECH 0x004e3808
-extern uint32 g_Counter3808;
-// GLOBAL: LITHTECH 0x004e3814
-extern uint32 g_Counter3814;
 // GLOBAL: LITHTECH 0x004e5da0
 uint32 g_SphereFindTicks;
 // GLOBAL: LITHTECH 0x004e5db0
@@ -112,14 +110,10 @@ extern float g_ServerFPS;
 #define SIFLAG_FRAMESTEP		(1<<2)
 #define SIFLAG_FRAMESTEPRUN		(1<<3)
 
-LTBOOL ProcessIncomingPackets(CServerMgr *pServerMgr);	// 0x00476710
 
 void sm_RemoveAllUnusedSoundData(CServerMgr *pServerMgr);
 LTRESULT sm_CacheFile(CServerMgr *pServerMgr, uint32 fileType, char *pFilename);
 void sm_SendFileIOMessage(CServerMgr *pServerMgr, uint8 fileType, uint8 msgID, uint16 fileID, LTBOOL bTellLocal);
-LTRESULT SendToClient(CServerMgr *pServerMgr, Client *pClient, uint8 msgID, CPacket *pPacket,
-	LTBOOL bSendToChildren, uint32 flags);					// s_net, 0x004755d0
-LTRESULT se_UncacheModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile *pFile);
 void sm_ResetDeactivateTimer(LTObject *pObj);
 void ic_FreeFileList(FileEntry *pList);
 LTRESULT sm_InitExtraData(CServerMgr *pServerMgr, LTObject *pObject, ObjectCreateStruct *pStruct);
@@ -128,8 +122,6 @@ void InitialWorldModelRotate(WorldModelInstance *pInstance);		// 0x0045d570
 void DetachObjectStanding(LTObject *pObj);						// 0x0045d110
 void DetachObjectsStandingOn(LTObject *pObj);					// 0x0045d150
 void w_RemoveObjectFromLeaf(LTObject *pObj);					// 0x00430680
-void sm_SetSendSkyDef(CServerMgr *pServerMgr);					// 0x00473010
-LTRESULT sm_RemoveObjectFromSky(CServerMgr *pServerMgr, LTObject *pObj);	// 0x004733f0
 
 #define CF_KILLSOUNDLOOP		(1<<5)
 #define CFLAG_SENDGLOBALLIGHT	(1<<10)
@@ -138,7 +130,6 @@ LTRESULT sm_RemoveObjectFromSky(CServerMgr *pServerMgr, LTObject *pObj);	// 0x00
 
 #define MAX_OBJECTIDS				0xfff
 #define CLIENT_WAITINGTOENTERWORLD	1
-void sm_SetClientState(CServerMgr *pServerMgr, Client *pClient, int state);	// s_client, 0x00471160
 void s_DisassociateClientsFromObjects(CServerMgr *pServerMgr);
 void sm_RemoveAllUnusedSoundTracks(CServerMgr *pServerMgr);
 void sm_UncacheModels(CServerMgr *pServerMgr);
@@ -158,19 +149,12 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 #define LOADWORLD_LOADWORLDOBJECTS	(1<<0)
 #define LOADWORLD_RUNWORLD			(1<<1)
 #define LOADWORLD_KEEPGEOMETRY		(1<<2)
-void sm_SendToClient(CServerMgr *pServerMgr, Client *pClient, uint8 msgID, CPacket *pPacket, uint32 packetFlags);	// s_net, 0x00475660
-void sm_SendToAllClients(CServerMgr *pServerMgr, uint8 msgID, CPacket *pPacket, uint32 packetFlags);	// s_net, 0x00475580
 #define SMSG_CONSOLETEXT	0xd
 #define PACKETFLAG_MESSAGE	(1<<0)	// CPacket::m_ErrorFlags: allocated for a game message
-CServerEvent* CreateServerEvent(CServerMgr *pServerMgr, int eventType);	// s_net, 0x00475890
 void model_FreeUnusedChildModels();					// 0x00416820
 void* dsi_GetLoadUser();							// 0x00416740
 void dsi_LoadProgress(uint32 percent);				// 0x00416800
-LTRESULT se_GetModel(CServerMgr *pServerMgr, char *pFilename, Model **ppModel, UsedFile **ppFile,
-	LTBOOL bAddRef, uint32 flags);
 void sm_CacheSingleFile(CServerMgr *pServerMgr, uint16 fileType, uint16 fileID);
-void sm_SendCacheListToClient(CServerMgr *pServerMgr, Client *pClient, uint32 iStart);	// s_client, 0x0046f6a0
-void sm_SendToAllClientsInWorld(CServerMgr *pServerMgr, uint8 msgID, CPacket *pPacket);	// s_net, 0x00475830
 
 // GLOBAL: LITHTECH 0x004d2138
 extern LTBOOL g_CV_CacheFiles;
@@ -1068,9 +1052,9 @@ LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 	// Clear the profiling counters.
 	g_Ticks_MoveObject = 0;
 	g_nMoveObjectCalls = 0;
-	g_Counter3808 = 0;
+	g_nIntersectCalls = 0;
 	g_Counter3804 = 0;
-	g_Counter3814 = 0;
+	g_IntersectLineLen = 0.0f;
 	g_SphereFindTicks = 0;
 	g_SphereFindCount = 0;
 	g_PolyFindTicks = 0;

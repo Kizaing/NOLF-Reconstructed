@@ -8,6 +8,7 @@
 #include "stringmgr.h"
 #include "pixelformat.h"
 #include "iltclient.h"
+#include "interface_helpers.h"
 #include "../../build/proj/LT2/lithshared/stdlith/goodlinklist.h"
 
 
@@ -15,17 +16,6 @@ struct LTFont : public CGLLNode
 {
 	HFONT		m_hFont;		// 0x08
 };
-
-// Client surface (winclientde_impl). Only recovered members.
-struct CisSurface
-{
-	uint8		m_Pad00[0x10];
-	uint32		m_Width;		// 0x10
-	uint32		m_Height;		// 0x14
-};
-
-// winclientde_impl.
-CisSurface* cis_InternalCreateSurface(uint32 width, uint32 height);	// 0x0040c520
 
 
 // ----------------------------------------------------------------- //

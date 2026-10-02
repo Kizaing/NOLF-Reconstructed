@@ -18,13 +18,13 @@
 #include "geomroutines.h"
 
 #include "parse_world_info.h"
+#include "dutil.h"
 
 #define CURRENT_WORLD_VERSION	70
 
 // Which object array of the tree nodes the static lights go in.
 #define NOA_Lights		1
 
-uint32 du_UpperStrcmp(const char *pInputString, const char *pUpperString);	// 0x00435960
 uint32 SelectLMPlaneVector(LTVector vNormal);								// 0x00445060
 
 Node* w_NodeForIndex(Node *pList, uint32 listSize, int index);						// 0x00429d20

@@ -15,6 +15,7 @@
 #include "soundmgr.h"
 #include "iclientshell.h"
 #include "iltcursor.h"
+#include "exceptionhandler.h"
 #include "../../build/proj/LT2/lithshared/stdlith/helpers.h"
 #include "../../build/proj/LT2/lithshared/stdlith/struct_bank.h"
 
@@ -55,8 +56,6 @@ SMusicMgr* GetMusicMgr();
 // 0x00430710 (de_objects.cpp)
 void DebugOut(const char *pMsg, ...);
 
-// 0x00436270: writes crashlog.txt for an unhandled exception.
-int dsi_HandleException(EXCEPTION_POINTERS *pInfo, const char *pThreadName);
 
 
 // GLOBAL: LITHTECH 0x004debe0
@@ -746,7 +745,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	{
 		ret = ClientWinMain(hInstance, hPrevInstance, lpszCmdParam, nCmdShow);
 	}
-	__except(dsi_HandleException(GetExceptionInformation(), "main thread"))
+	__except(RecordExceptionInfo(GetExceptionInformation(), "main thread"))
 	{
 	}
 

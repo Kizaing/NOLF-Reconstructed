@@ -9,13 +9,12 @@
 #include "packet.h"
 #include "stringmgr.h"
 #include "s_object.h"
+#include "server_extradata.h"
 
 #define SLT_LOADFILE		0
 #define SLT_LOADEDFILE		1
 
 CBindModuleType* sb_GetModule(ShellBindModule *pModule);		// 0x0048a7b0
-// 0x004784c0 (server_extradata.cpp; its STUB there declares only three parameters)
-LTRESULT se_LoadModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile *pFile, Model **ppModel);
 
 
 // ------------------------------------------------------------------ //

@@ -114,6 +114,11 @@ extern PFormat g_ScreenFormat;
 extern uint32 g_nScreenPixelBytes;
 
 
+// Surface functions in winclientde_impl.
+CisSurface*	cis_InternalCreateSurface(uint32 width, uint32 height);	// 0x0040c520
+LTRESULT	cis_DeleteSurface(HSURFACE hSurface);					// 0x0040c880
+
+
 // ----------------------------------------------------------------- //
 // Helper functions.
 // ----------------------------------------------------------------- //

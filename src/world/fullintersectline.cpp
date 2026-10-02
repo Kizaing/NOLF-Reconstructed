@@ -12,6 +12,7 @@
 #include "de_world.h"
 #include "de_objects.h"
 #include "world_tree.h"
+#include "fullintersectline.h"
 
 
 // intersect_line.cpp
@@ -48,7 +49,7 @@ LTBOOL IntersectLineNode(Node *pRoot, IntersectRequest *pRequest);
 
 
 uint32 g_nIntersectCalls;
-float g_IntersectLineLen;	// Total length of all the segments tested (Talon).
+float g_IntersectLineLen;
 
 
 static void (*g_FindIntersectionsFn)(WorldBsp *pWorldBsp, Node **pNodeIntersectionPtr,

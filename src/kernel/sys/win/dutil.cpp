@@ -1,6 +1,7 @@
 // Jupiter runtime/kernel/src/sys/win/dutil.cpp (Talon has no du_strupr).
 // FLAGS: /O2 /GX-
 #include "bdefs.h"
+#include "dutil.h"
 
 inline char du_Toupper(char theChar)
 {
