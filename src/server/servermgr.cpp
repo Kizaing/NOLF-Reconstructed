@@ -625,7 +625,6 @@ LTBOOL CServerMgr::Listen(char *pDriverInfo, char *pListenInfo)
 	return LTTRUE;
 }
 
-// VC6 inlines CMoArray::Remove here; the original calls it (0x004322a0).
 // FUNCTION: LITHTECH 0x00482b90
 LTBOOL CServerMgr::TransferNetDriver(CBaseDriver *pDriver)
 {
