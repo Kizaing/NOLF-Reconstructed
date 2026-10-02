@@ -305,7 +305,7 @@ LTRESULT OnSkyDef(CClientShell *pShell, CPacket *pPacket)
 }
 
 
-// STUB: LITHTECH 0x0048d610
+// FUNCTION: LITHTECH 0x0048d610
 // The original calls CPacket::ReadType<float> (0x0048e900) out of line for the first two reads only.
 LTRESULT OnGlobalLight(CClientShell *pShell, CPacket *pPacket)
 {

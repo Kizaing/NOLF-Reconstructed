@@ -138,7 +138,7 @@ LTRESULT sm_SendCacheListToClient(CServerMgr *pServerMgr, Client *pClient, uint3
 }
 
 
-// STUB: LITHTECH 0x0046f730
+// FUNCTION: LITHTECH 0x0046f730
 // Inline budget: the original calls the first two WriteTypes out of line.
 static LTRESULT sm_SendCacheListSection(CServerMgr *pServerMgr, Client *pClient, uint32 nStartIndex,
 	CPacketRef &cPacket, uint8 nPacketID, uint16 nFileType)
