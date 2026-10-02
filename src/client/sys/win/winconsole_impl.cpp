@@ -17,10 +17,9 @@
 // Constants
 #define SEPERATOR_CHARACTERS " .()\""
 
-// The client manager pointer the console goes through for ILTClient (Jupiter: an ilt_client
-// holder). Not the g_pClientMgr of clientmgr.h (0x004defac); see the report.
-// GLOBAL: LITHTECH 0x004de30c
-extern CClientMgr *g_pConsoleClientMgr;
+// The console reaches the client manager through g_ClientGlob.m_pClientMgr (0x004de30c,
+// set by RunClientApp from cm_Init()).
+#include "dsys_interface.h"
 
 // GLOBAL: LITHTECH 0x004e370c
 extern int32 g_CV_TraceConsole;
@@ -870,9 +869,9 @@ void CConsole::SetBackgroundAlpha( float fValue )
 	m_fBackgroundAlpha = fValue;
 
 	if ( m_bBackgroundOptimized != LT_OK )
-		m_bBackgroundOptimized = g_pConsoleClientMgr->m_pClientDE->OptimizeSurface(m_hBackground, RGB(0,0,0));
+		m_bBackgroundOptimized = g_ClientGlob.m_pClientMgr->m_pClientDE->OptimizeSurface(m_hBackground, RGB(0,0,0));
 
-	g_pConsoleClientMgr->m_pClientDE->SetSurfaceAlpha( m_hBackground, fValue );
+	g_ClientGlob.m_pClientMgr->m_pClientDE->SetSurfaceAlpha( m_hBackground, fValue );
 }
 
 // FUNCTION: LITHTECH 0x00421bf0

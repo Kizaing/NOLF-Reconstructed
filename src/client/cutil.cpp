@@ -318,7 +318,7 @@ void cm_TagUsedTextures(CClientMgr *pClientMgr)
 	}
 
 	// Tag the textures in use by m_TextureUsers.
-	pListHead = &pClientMgr->m_TextureUsers.m_Head;
+	pListHead = &pClientMgr->m_TextureUsers;
 	for (pCur=pListHead->m_pNext; pCur != pListHead; pCur=pCur->m_pNext)
 	{
 		TagTexture(*(SharedTexture**)((uint8*)pCur->m_pData + 0xc0));

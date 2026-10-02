@@ -3,6 +3,7 @@
 #ifndef __INPUT_H__
 #define __INPUT_H__
 
+#include <stdio.h>
 #include "ltbasedefs.h"
 
 struct ConsoleState;
@@ -23,7 +24,8 @@ public:
 	LTBOOL		(*ClearBindings)(InputMgr *pMgr, char *pDeviceName, char *pTriggerName);	// 0x28
 	LTBOOL		(*AddBinding)(InputMgr *pMgr, char *pDeviceName, char *pTriggerName,
 					char *pActionName, float rangeLow, float rangeHigh);			// 0x2c
-	LTBOOL		(*ScaleTrigger)(InputMgr *pMgr, char *pDeviceName, char *pTriggerName, float scale);	// 0x30
+	LTBOOL		(*ScaleTrigger)(InputMgr *pMgr, char *pDeviceName, char *pTriggerName, float scale,
+					float fRangeScaleMin, float fRangeScaleMax, float fRangeScalePreCenterOffset);	// 0x30
 	DeviceBinding*	(*GetDeviceBindings)(uint32 nDevice);							// 0x34
 	void		(*FreeDeviceBindings)(DeviceBinding *pBindings);					// 0x38
 	LTBOOL		(*StartDeviceTrack)(InputMgr *pMgr, uint32 nDevices, uint32 nBufferSize);	// 0x3c
@@ -33,6 +35,14 @@ public:
 	void		(*FreeDeviceObjects)(DeviceObject *pList);							// 0x4c
 	LTBOOL		(*GetDeviceName)(uint32 nDeviceType, char *pStrBuffer, uint32 nBufferSize);	// 0x50
 	LTBOOL		(*IsDeviceEnabled)(char *pDeviceName);								// 0x54
+	LTBOOL		(*ShowDeviceObjects)(char *sDeviceName);							// 0x58
+	LTBOOL		(*ShowInputDevices)();												// 0x5c
 };
+
+// Get an input manager.
+LTRESULT input_GetManager(InputMgr **pMgr);
+
+// Saves the state of all the input bindings.
+void input_SaveBindings(FILE *fp);
 
 #endif  // __INPUT_H__

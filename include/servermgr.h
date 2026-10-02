@@ -49,17 +49,22 @@ inline void SetLinkID(LTLink *pLink, uint32 id)		{ pLink->m_pData = (void*)id; }
 
 // Server-side client (Jupiter s_client.h).
 // Client flags (Client::m_ClientFlags).
+#define CFLAG_WANTALLFILES			(1<<0)
 #define CFLAG_LOCAL					(1<<1)
 #define CFLAG_FULLRES				(1<<2)
 #define CFLAG_SENDCOBJROTATION		(1<<3)
 #define CFLAG_FORCENEXTUPDATE		(1<<4)
 #define CFLAG_VIRTUAL				(1<<6)
+#define CFLAG_GOT_HELLO				(1<<8)
 #define CFLAG_AUTOACTIVATEOBJECTS	(1<<9)
 
 #define MAX_CLIENT_COMMANDS	255
 
 // Client::m_State.
-#define CLIENT_INWORLD	3
+#define CLIENT_CONNECTED			0
+#define CLIENT_WAITINGTOENTERWORLD	1
+#define CLIENT_PUTTINGINWORLD		2
+#define CLIENT_INWORLD				3
 
 // What a client knows about an object ID (4 bytes).
 struct ObjInfo
@@ -68,28 +73,76 @@ struct ObjInfo
 	uint8		m_nSoundFlags;		// 0x02
 };
 
-// A client's outgoing packet buffer (0xc bytes).
+// A client's outgoing packet buffer (0xc bytes). The constructor is out of line (0x00470ba0).
 struct ClientPacketBuf
 {
-	class CPacket	*m_pPacket;		// 0x00
+	// Releases the packet (out of line, 0x00470b70).
+	void		Term()
+	{
+		m_pPacket = LTNULL;
+		m_Unknown4 = 0;
+		m_Unknown8 = 0;
+	}
+
+	CPacketRef	m_pPacket;			// 0x00
 	uint32		m_Unknown4;			// 0x04
-	uint32		m_Unknown8;			// 0x08
+	uint32		m_Unknown8;			// 0x08 packet flags it's sent with
 };
+
+// A light animation change waiting to be sent to a client (s_client 0x0046fd30).
+struct LightAnimChange
+{
+	uint16		m_iLightAnim;		// 0x00 index into CServerMgr::m_World.m_LightAnims
+	uint16		m_ChangeFlags;		// 0x02 LIGHTANIMF_
+};
+
+#define MAX_LIGHTANIM_CHANGES	64
+
+// The objects a client was sent last frame (Jupiter s_client.h).
+struct SentList
+{
+	uint16		m_nObjectIDs;		// 0x00
+	uint16		m_AllocatedSize;	// 0x02
+	uint16		*m_ObjectIDs;		// 0x04
+};
+
+// 0x10 bytes at Client 0x118: a Counter plus two values (constructor 0x0044d0c0, Init 0x0044d0e0).
+struct ClientTimer
+{
+	ClientTimer();					// 0x0044d0c0
+	void		Init(float fInterval);	// 0x0044d0e0
+
+	uint32		m_Counter[2];		// 0x00 Counter
+	float		m_fInterval;		// 0x08
+	uint32		m_Unknown0C;		// 0x0c
+};
+
+// Client::m_PuttingIntoWorldStage.
+#define PUTTINGINTOWORLD_LOADINGWORLD	0
+#define PUTTINGINTOWORLD_LOADEDWORLD	1
+#define PUTTINGINTOWORLD_PRELOADING		2
+#define PUTTINGINTOWORLD_PRELOADED		3
 
 struct Client
 {
 	LTLink		m_Link;				// 0x00 in CServerMgr::m_Clients
-	uint8		m_Pad0C[0x110 - 0xc];
+	LightAnimChange	m_LightAnimChanges[MAX_LIGHTANIM_CHANGES];	// 0x0c
+	uint32		m_nLightAnimChanges;	// 0x10c
 	void		*m_pClientData;		// 0x110 data the client sent when it connected
 	uint32		m_ClientDataLen;	// 0x114
-	uint8		m_Pad118[0x134 - 0x118];
+	ClientTimer	m_Timer;			// 0x118
+	float		m_Unknown128;		// 0x128 10.0f
+	float		m_Unknown12C;		// 0x12c 35.0f
+	uint32		m_Unknown130;		// 0x130
 	struct ClientPacketBuf	m_PacketBufs[2][2];	// 0x134 outgoing packets (reset by DoEndWorld)
-	uint8		m_Pad164[0x174 - 0x164];
+	LTLink		m_AttachmentLink;	// 0x164 in the parent's m_Attachments
+	Client		*m_pAttachmentParent;	// 0x170
 	LTVector	m_ViewPos;			// 0x174
-	uint8		m_Pad180[0x18c - 0x180];
+	LTLink		m_Attachments;		// 0x180 clients attached to this one
 	struct FTServ	*m_hFTServ;		// 0x18c file transfer server
 	struct ObjInfo	*m_ObjInfos;	// 0x190 per object ID (CServerMgr::m_nObjInfos)
-	uint8		m_Pad194[0x1a8 - 0x194];
+	SentList	m_SentLists[2];		// 0x194
+	uint32		m_iPrevSentList;	// 0x1a4
 	uint8		m_Commands[2][255];	// 0x1a8 command on/off, double-buffered by m_iCurCommands
 	uint8		m_Pad3A6[0x3a8 - 0x3a6];
 	uint32		m_iCurCommands;		// 0x3a8 which m_Commands row is current
@@ -98,11 +151,24 @@ struct Client
 	uint16		m_ClientID;			// 0x3b4
 	uint8		m_Pad3B6[0x3b8 - 0x3b6];
 	int			m_State;			// 0x3b8 CLIENT_
-	uint8		m_Pad3BC[0x3c0 - 0x3bc];
+	int			m_PuttingIntoWorldStage;	// 0x3bc PUTTINGINTOWORLD_
 	uint32		m_ClientFlags;		// 0x3c0 CFLAG_
 	char		*m_Name;			// 0x3c4
 	CBaseConn	*m_ConnectionID;	// 0x3c8
+	LTList		m_Events;			// 0x3cc CServerEvents to send
+	HHashTable	*m_hFileIDTable;	// 0x3dc FileIDInfo by file ID
+	uint32		m_Unknown3E0;		// 0x3e0
+	uint32		m_Unknown3E4;		// 0x3e4
 };
+
+#define CLIENT_CHECKOFFSET(member, ofs) 	typedef char CLIENT_CHECK_##member[(offsetof(Client, member) == (ofs)) ? 1 : -1];
+CLIENT_CHECKOFFSET(m_pClientData, 0x110)
+CLIENT_CHECKOFFSET(m_PacketBufs, 0x134)
+CLIENT_CHECKOFFSET(m_hFTServ, 0x18c)
+CLIENT_CHECKOFFSET(m_Commands, 0x1a8)
+CLIENT_CHECKOFFSET(m_ClientFlags, 0x3c0)
+CLIENT_CHECKOFFSET(m_hFileIDTable, 0x3dc)
+typedef char CLIENT_CHECK_SIZE[(sizeof(Client) == 0x3e8) ? 1 : -1];
 
 // The server's ILTSoundMgr implementation (embedded in CServerMgr at 0x04; lives in another unit).
 // Remembers a client's object across a world change (Jupiter s_client.h).
@@ -135,6 +201,9 @@ class CServerMgr
 public:
 	ClassBindModule*	GetClassModule()	{ return m_ClassMgr.m_ClassModule; }
 
+	// The MotionState at 0xa74 (motion.h; its m_Info.m_Force is m_GlobalForce).
+	struct MotionState*	GetMotionState()	{ return (struct MotionState*)m_PadA74; }
+
 	LTRESULT	DoStartWorld(char *pWorldName, uint32 flags, float curTime);
 	LTRESULT	DoRunWorld();				// 0x00485020
 	LTRESULT	CreateStringCRC();			// 0x00483a00
@@ -144,6 +213,12 @@ public:
 	void		SetGlobalLightObject(HOBJECT hObj);	// 0x00486fd0
 	class CPacket*	AllocPacket();				// 0x00486f60
 	void		SetupPacketMessage(class CPacket *pPacket);	// 0x00486fc0
+
+	// CNetHandler (slots of the vtable at 0x00; s_net.cpp). Declared non-virtual here because
+	// the layout keeps the vtable as m_Pad0.
+	LTBOOL		NewConnectionNotify(CBaseConn *id, LTBOOL bIsLocal);	// 0x00473ee0
+	void		DisconnectNotify(CBaseConn *id);	// 0x00473f10
+	void		HandleUnknownPacket(class CPacket *pPacket, uint8 senderAddr[4], uint16 senderPort);	// 0x00473f30
 
 	LTBOOL		Init();						// 0x004823b0
 	void		Term();						// 0x004827e0
@@ -164,6 +239,7 @@ public:
 	void		ResizeUpdateInfos(uint32 nAllocatedIDs);	// 0x00483d00
 	void		DoEndWorld(LTBOOL bKeepGeometryAround);	// 0x004850b0
 	void		ProcessClientCommands(Client *pClient, uint8 *pCommands, int nCommands);	// 0x00485990
+	void		OnPeerToPeerAuthPacket(Client *pClient, class CPacket *pPacket);	// 0x00487010 (WONAPI PeerAuthServer)
 	void		ClearChildModelLinks();			// 0x00484d70 (STLport)
 	LTBOOL		InitWorldObjects();				// 0x004856e0 (CreateVisContainerObjects)
 	CBaseDriver*	GetLocalDriver();			// 0x004859f0
@@ -189,7 +265,7 @@ public:
 	char		m_CRCString[0x400];		// 0x66c
 	uint32		m_StringCRC;			// 0xa6c
 	uint32		m_WorldCRC;				// 0xa70
-	uint8		m_PadA74[0xa88 - 0xa74];
+	uint8		m_PadA74[0xa88 - 0xa74];	// 0xa74 MotionState (GetMotionState)
 	LTVector	m_GlobalForce;			// 0xa88 (start of the MotionInfo?)
 	uint8		m_PadA94[0xab4 - 0xa94];
 	class SMoveAbstract	*m_MoveAbstract;	// 0xab4
@@ -219,8 +295,8 @@ public:
 	LTLink		m_RemovedObjectHead;	// 0xc4c objects to remove at the end of the frame
 	StructBank	m_InterLinkBank;		// 0xc58 InterLinks
 	StructBank	m_ClientStructNodeBank;	// 0xc74
-	StructBank	m_FileIDInfoBank;		// 0xc90 (0xc0-byte structs)
-	StructBank	m_BankCAC;				// 0xcac (10-byte structs)
+	StructBank	m_FileIDInfoBank;		// 0xc90 (0xc0-byte structs; serverde_impl allocates PropEntrys from it)
+	StructBank	m_BankCAC;				// 0xcac (10-byte structs): the real FileIDInfo bank (Client::m_hFileIDTable)
 	uint32		m_nObjInfos;			// 0xcc8
 	uint32		m_nAllocatedIDs;		// 0xccc
 	HHashTable	*m_hNameTable;			// 0xcd0 object names

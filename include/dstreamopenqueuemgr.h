@@ -75,9 +75,13 @@ private:
 };
 
 
+// 0x38 bytes.
 class CDStreamOpenQueueMgr
 {
 public:
+	CDStreamOpenQueueMgr() { m_bInitialized = LTFALSE; };
+	~CDStreamOpenQueueMgr() { if (m_bInitialized) Term(); };	// Talon's Init/Term never set it.
+
 	void Init(int nNumItems);
 	void Term();
 	CDStreamOpenQueueItem* Create(const char* sFileName = LTNULL);
@@ -97,6 +101,7 @@ private:
 	CDStreamOpenQueueList	m_lstOpenedItems;		// 0x18
 	CDStreamOpenQueueList	m_lstClosedItems;		// 0x24
 	unsigned int			m_nMaxOpenedItems;		// 0x30
+	LTBOOL					m_bInitialized;			// 0x34
 };
 
 #endif

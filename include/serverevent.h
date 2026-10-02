@@ -29,6 +29,7 @@ public:
 	// Objects that need to be told about the event.
 	LTList			m_ClientStructNodeList;		// 0x144
 	uint32			m_RefCount;					// 0x154
+	uint8			m_Pad158[0x164 - 0x158];	// (CreateServerEvent clears 0x164 bytes)
 };
 
 #endif  // __SERVER_EVENT_H__

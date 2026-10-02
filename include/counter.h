@@ -57,4 +57,26 @@ class CountAdder
 		uint32 *m_pNum;
 };
 
+
+// Measures the percentage of time spent inside a profiled section.
+class CountPercent
+{
+public:
+	CountPercent() : m_iDelayCount(0) { Clear(); }
+
+	float	CalcPercent();
+	// Clears the totals. 0x00423a00
+	void	Clear();
+
+	// Call to enter / exit the profiled section.
+	uint32	In();
+	uint32	Out();
+
+	unsigned long m_Finger[2];		// 0x00
+	unsigned long m_TotalIn[2];		// 0x08
+	unsigned long m_TotalOut[2];	// 0x10
+	uint32	m_iIn;					// 0x18
+	int		m_iDelayCount;			// 0x1c
+};
+
 #endif  // __COUNTER_H__

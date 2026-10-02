@@ -15,7 +15,7 @@ class ILTPhysics;
 #define MO_MOVESTANDINGONS	(1<<2)
 #define MO_TELEPORT			(1<<3)
 #define MO_GOTHRUWORLD		(1<<4)	// Don't do world collision.
-#define MO_NOSLIDING		(1<<5)	// Don't slide (client MoveObject, MOVEOBJECT_NCTELEPORT).
+#define MO_NOSLIDING		(1<<5)	// Talon: just set the position (no collisions), then update the BSP and world tree (MOVEOBJECT_NCTELEPORT).
 
 // The abstraction MoveObject uses to talk to the client or the server.
 class MoveAbstract
@@ -70,11 +70,59 @@ public:
 	LTObject		**m_CustomTestObjects;	// 0x10 Tells it to only test these objects for collision.
 	uint32			m_nCustomTestObjects;	// 0x14
 
+	void			SetupCall()
+	{
+		m_bServer = m_pAbstract->IsServer();
+	}
+
+	void			Inherit(MoveState *pOther, LTObject *pObj)
+	{
+		Setup(pOther->m_pWorldTree,
+			pOther->m_pAbstract, pObj, pOther->m_BPriority);
+	}
+
 // Used internally, don't set.
-	uint8			m_Pad18[0x64 - 0x18];
+	uint32			m_bServer;				// 0x18
+	const LTVector	*m_pStartPos;			// 0x1c
+	LTVector		m_vDestPos;				// 0x20
+	LTVector		m_vDeltaPos;			// 0x2c
+	LTVector		m_vMoveCenter;			// 0x38
+	float			m_fMoveRadius;			// 0x44
+	LTVector		m_vMoveMin;				// 0x48
+	LTVector		m_vMoveMax;				// 0x54
+	LTMatrix		*m_pWMObjectTransform;	// 0x60
 	uint32			m_Unknown64;			// 0x64
 	int				m_nRestart;				// 0x68
 };
+
+// LTObject::m_InternalFlags.
+#define IFLAG_MOVING		(1<<1)	// Set while MoveObject moves the object.
+
+// Change flags MoveObject sets (MoveAbstract::SetObjectChangeFlags).
+#ifndef CF_POSITION
+#define CF_POSITION			(1<<1)
+#endif
+#ifndef CF_TELEPORT
+#define CF_TELEPORT			(1<<9)
+#endif
+
+// Sets up the necessary structures to make pObj stand on pStandingOn (0x0045d190).
+void SetObjectStanding(LTObject *pObj, LTObject *pStandingOn, Node *pNode);
+
+// Detach this object from whatever it's standing on (0x0045d110).
+void DetachObjectStanding(LTObject *pObj);
+
+// Detach any objects standing on this object (0x0045d150).
+void DetachObjectsStandingOn(LTObject *pObj);
+
+// Retransforms a WorldModel's BSP to its current position/rotation (0x0045d1e0).
+void RetransformWorldModel(WorldModelInstance *pWorldModel);
+
+// Called when a WorldModel is created to setup its bounding box for its initial rotation (0x0045d570).
+void InitialWorldModelRotate(WorldModelInstance *pInstance);
+
+// Process a non-solid collision (0x0045ea50).
+void DoNonsolidCollision(MoveAbstract *pAbstract, LTObject *pObj1, LTObject *pObj2);
 
 // THE function to move an object (0x0045d5b0).
 void MoveObject(MoveState *pState, LTVector moveTo, uint32 flags);

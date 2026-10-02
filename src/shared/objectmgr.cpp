@@ -26,7 +26,7 @@ inline WorldTreeNode* GetRootNode(WorldTree *pTree)
 void dfree(void *ptr);
 
 // World BSP leaf object lists (world code before de_objects.cpp; names unknown).
-void DetachObjectsStandingOn(LTObject *pObj);					// 0x00430680
+void w_RemoveObjectFromLeaf(LTObject *pObj);					// 0x00430680
 void w_AddObjectToLeaf(WorldBsp *pBsp, LTObject *pObj);		// 0x004305f0
 
 
@@ -225,7 +225,7 @@ void LTObject::RemoveFromWorldTree()
 {
 	if (!(m_Flags & FLAG_REALLYCLOSE))
 	{
-		DetachObjectsStandingOn(this);
+		w_RemoveObjectFromLeaf(this);
 	}
 
 	WorldTreeObj::RemoveFromWorldTree();

@@ -11,6 +11,14 @@
 class TransformMaker
 {
 public:
+					TransformMaker()
+					{
+						m_NodeControlFn = LTNULL;
+						m_pNodeControlUserData = LTNULL;
+						m_nAnims = 0;
+						m_pStartMat = LTNULL;
+						m_pOutput = LTNULL;
+					}
 
 	LTBOOL			IsValid();
 	LTBOOL			SetupTransforms();

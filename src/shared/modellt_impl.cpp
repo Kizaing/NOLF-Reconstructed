@@ -734,7 +734,7 @@ class CModelRayIntersect
 public:
 	LTBOOL	Init(HOBJECT hModel, const LTVector &vCamPos, int32 nLODOffset);	// 0x0045af30
 	LTBOOL	Setup();																// 0x0045b0a0
-	void	Intersect(HMODELPIECE *aPieces, uint32 nPieceCount, ILTModel::LTRayResult *aRays, uint32 nRayCount);	// 0x0045b170
+	LTBOOL	Intersect(HMODELPIECE *aPieces, uint32 nPieceCount, ILTModel::LTRayResult *aRays, uint32 nRayCount);	// 0x0045b170
 
 	uint8	m_Data[0x14];
 };

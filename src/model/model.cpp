@@ -11,6 +11,13 @@
 extern char *g_pNoModelFilename;
 
 
+// FUNCTION: LITHTECH 0x0044db70
+LTRESULT DefaultLoadChildFn(ModelLoadRequest *pRequest, Model **ppModel)
+{
+	return LT_NOCHANGE;
+}
+
+
 // FUNCTION: LITHTECH 0x0044db80
 LTBOOL VerifyChildModel_R(ModelNode *pParentNode, ModelNode *pChildNode, ModelNode* &pErrNode)
 {
@@ -133,6 +140,28 @@ LTBOOL AnimTimeRef::IsValid()
 	}
 
 	return LTFALSE;
+}
+
+
+// ------------------------------------------------------------------------ //
+// NewVertexWeight / ModelVert.
+// ------------------------------------------------------------------------ //
+
+// FUNCTION: LITHTECH 0x0044dda0
+NewVertexWeight::NewVertexWeight()
+{
+	m_Vec[0] = m_Vec[1] = m_Vec[2] = m_Vec[3] = 0.0f;
+	m_iNode = 0;
+}
+
+
+// FUNCTION: LITHTECH 0x0044ddc0
+ModelVert::ModelVert()
+{
+	m_Weights = LTNULL;
+	m_nWeights = 0;
+	m_Vec.Init();
+	m_Normal.Init();
 }
 
 
@@ -275,6 +304,13 @@ void ModelAnim::FreeRootNode()
 
 	m_pRootNode = &m_RootNode;
 }
+
+// FUNCTION: LITHTECH 0x0044e4a0
+LTBOOL ModelAnim::SetupNodeLists(LTBOOL bRebuild)
+{
+	return PrecalcNodeLists(bRebuild);
+}
+
 
 // FUNCTION: LITHTECH 0x0044e4b0
 LTBOOL ModelAnim::PrecalcNodeLists(LTBOOL bRebuild)
@@ -565,7 +601,7 @@ uint32 Model::CalcNumTris(uint32 iLOD)
 		pPiece = GetPiece(i);
 		pLOD = pPiece->GetLOD(iLOD);
 		if(pLOD)
-			total += pLOD->m_nTris;
+			total += pLOD->m_Tris.GetSize();
 	}
 
 	return total;
@@ -580,7 +616,7 @@ uint32 Model::CalcNumVerts()
 	total = 0;
 	for(i=0; i < NumPieces(); i++)
 	{
-		total += GetPiece(i)->m_nVerts;
+		total += GetPiece(i)->m_Verts.GetSize();
 	}
 
 	return total;
@@ -709,4 +745,161 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 	}
 
 	return LTNULL;
+}
+
+
+// ------------------------------------------------------------------------ //
+// CMoArray instances.
+// The linker kept model.obj's copies of the arrays used by the model classes
+// (0x00450140-0x004552c0, after this file's code).  The original instantiates
+// them from the constructors and destructors above, which aren't matched yet,
+// so this function references them instead.  It isn't in lithtech.exe.
+// ------------------------------------------------------------------------ //
+
+// FUNCTION: LITHTECH 0x00450140 ?GenAppend@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UAEHAAVNodeKeyFrame@@@Z
+// FUNCTION: LITHTECH 0x004502a0 ??4LTRotation@@QAEAAV0@ABV0@@Z
+// FUNCTION: LITHTECH 0x004502c0 ?GenRemoveAt@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00450440 ?GenCopyList@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UAEHABV?$GenList@VNodeKeyFrame@@@@@Z
+// FUNCTION: LITHTECH 0x00450590 ?GenAppendList@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UAEHABV?$GenList@VNodeKeyFrame@@@@@Z
+// FUNCTION: LITHTECH 0x004506c0 ?GenRemoveAt@?$CMoArray@PAVModelNode@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00450790 ?GenRemoveAll@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UAEXXZ
+// FUNCTION: LITHTECH 0x004507c0 ?GenAppend@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UAEHAAVAnimKeyFrame@@@Z
+// FUNCTION: LITHTECH 0x004508b0 ?GenRemoveAt@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x004509b0 ?GenCopyList@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UAEHABV?$GenList@VAnimKeyFrame@@@@@Z
+// FUNCTION: LITHTECH 0x00450ae0 ?GenAppendList@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UAEHABV?$GenList@VAnimKeyFrame@@@@@Z
+// FUNCTION: LITHTECH 0x00450be0 ?GenFindElement@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UBEHABVAnimKeyFrame@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00450c10 ?GenGetNext@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBE?AVNodeRelation@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00450c60 ?GenGetAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBE?AVNodeRelation@@AAVGenListPos@@@Z
+// STUB: LITHTECH 0x00450cb0 ?GenAppend@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHAAVNodeRelation@@@Z
+// The original runs out of inline budget after two copy loops and calls NodeRelation::operator= out of line.
+// FUNCTION: LITHTECH 0x00450ea0 ?GenRemoveAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451040 ?GenRemoveAll@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXXZ
+// FUNCTION: LITHTECH 0x00451070 ?GenCopyList@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHABV?$GenList@VNodeRelation@@@@@Z
+// FUNCTION: LITHTECH 0x004511d0 ?GenAppendList@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHABV?$GenList@VNodeRelation@@@@@Z
+// FUNCTION: LITHTECH 0x00451300 ?GenFindElement@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBEHABVNodeRelation@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451330 ?GenAppend@?$CMoArray@VModelVert@@VNoCache@@@@UAEHAAVModelVert@@@Z
+// FUNCTION: LITHTECH 0x00451420 ?GenRemoveAt@?$CMoArray@VModelVert@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451520 ?GenCopyList@?$CMoArray@VModelVert@@VNoCache@@@@UAEHABV?$GenList@VModelVert@@@@@Z
+// FUNCTION: LITHTECH 0x00451650 ?GenAppendList@?$CMoArray@VModelVert@@VNoCache@@@@UAEHABV?$GenList@VModelVert@@@@@Z
+// FUNCTION: LITHTECH 0x00451750 ?GenGetNext@?$CMoArray@VModelVert@@VNoCache@@@@UBE?AVModelVert@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451780 ?GenAppend@?$CMoArray@VModelTri@@VNoCache@@@@UAEHAAVModelTri@@@Z
+// FUNCTION: LITHTECH 0x00451900 ?GenRemoveAt@?$CMoArray@VModelTri@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451aa0 ?GenCopyList@?$CMoArray@VModelTri@@VNoCache@@@@UAEHABV?$GenList@VModelTri@@@@@Z
+// FUNCTION: LITHTECH 0x00451bf0 ?GenAppendList@?$CMoArray@VModelTri@@VNoCache@@@@UAEHABV?$GenList@VModelTri@@@@@Z
+// FUNCTION: LITHTECH 0x00451d10 ?GenFindElement@?$CMoArray@VModelVert@@VNoCache@@@@UBEHABVModelVert@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451d40 ?GenGetNext@?$CMoArray@VPieceLOD@@VNoCache@@@@UBE?AVPieceLOD@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451da0 ?GenGetAt@?$CMoArray@VPieceLOD@@VNoCache@@@@UBE?AVPieceLOD@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00451e00 ?GenAppend@?$CMoArray@VPieceLOD@@VNoCache@@@@UAEHAAVPieceLOD@@@Z
+// FUNCTION: LITHTECH 0x00451f60 ?GenRemoveAt@?$CMoArray@VPieceLOD@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452190 ??4ModelTri@@QAEXABV0@@Z
+// FUNCTION: LITHTECH 0x004521d0 ?GenRemoveAll@?$CMoArray@VPieceLOD@@VNoCache@@@@UAEXXZ
+// FUNCTION: LITHTECH 0x00452220 ?GenCopyList@?$CMoArray@VPieceLOD@@VNoCache@@@@UAEHABV?$GenList@VPieceLOD@@@@@Z
+// FUNCTION: LITHTECH 0x00452420 ?GenAppendList@?$CMoArray@VPieceLOD@@VNoCache@@@@UAEHABV?$GenList@VPieceLOD@@@@@Z
+// FUNCTION: LITHTECH 0x00452610 ?GenGetNext@?$CMoArray@MVDefaultCache@@@@UBEMAAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452630 ?GenGetAt@?$CMoArray@MVDefaultCache@@@@UBEMAAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452640 ?GenCopyList@?$CMoArray@MVDefaultCache@@@@UAEHABV?$GenList@M@@@Z
+// FUNCTION: LITHTECH 0x00452760 ?GenAppendList@?$CMoArray@MVDefaultCache@@@@UAEHABV?$GenList@M@@@Z
+// FUNCTION: LITHTECH 0x00452830 ?GenAppend@?$CMoArray@PAVModelNode@@VNoCache@@@@UAEHAAPAVModelNode@@@Z
+// FUNCTION: LITHTECH 0x004528d0 ?GenCopyList@?$CMoArray@PAVModelNode@@VNoCache@@@@UAEHABV?$GenList@PAVModelNode@@@@@Z
+// FUNCTION: LITHTECH 0x004529d0 ?GenAppendList@?$CMoArray@PAVModelNode@@VNoCache@@@@UAEHABV?$GenList@PAVModelNode@@@@@Z
+// FUNCTION: LITHTECH 0x00452aa0 ?GenGetNext@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UBE?AVAnimKeyFrame@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452ad0 ?GenGetAt@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UBE?AVAnimKeyFrame@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452b00 ?GenAppend@?$CMoArray@VNewVertexWeight@@VNoCache@@@@UAEHAAVNewVertexWeight@@@Z
+// FUNCTION: LITHTECH 0x00452bf0 ?GenRemoveAt@?$CMoArray@VNewVertexWeight@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452cf0 ?GenCopyList@?$CMoArray@VNewVertexWeight@@VNoCache@@@@UAEHABV?$GenList@VNewVertexWeight@@@@@Z
+// FUNCTION: LITHTECH 0x00452e20 ?GenAppendList@?$CMoArray@VNewVertexWeight@@VNoCache@@@@UAEHABV?$GenList@VNewVertexWeight@@@@@Z
+// FUNCTION: LITHTECH 0x00452f20 ?GenGetNext@?$CMoArray@VLTMatrix@@VNoCache@@@@UBE?AVLTMatrix@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452f50 ?GenGetAt@?$CMoArray@VLTMatrix@@VNoCache@@@@UBE?AVLTMatrix@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00452f80 ?GenAppend@?$CMoArray@VLTMatrix@@VNoCache@@@@UAEHAAVLTMatrix@@@Z
+// FUNCTION: LITHTECH 0x00453070 ?GenRemoveAt@?$CMoArray@VLTMatrix@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00453180 ?GenCopyList@?$CMoArray@VLTMatrix@@VNoCache@@@@UAEHABV?$GenList@VLTMatrix@@@@@Z
+// FUNCTION: LITHTECH 0x004532b0 ?GenAppendList@?$CMoArray@VLTMatrix@@VNoCache@@@@UAEHABV?$GenList@VLTMatrix@@@@@Z
+// FUNCTION: LITHTECH 0x004533b0 ?GenFindElement@?$CMoArray@VLTMatrix@@VNoCache@@@@UBEHABVLTMatrix@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x004533e0 ?GenAppend@?$CMoArray@VLODDistance@@VDefaultCache@@@@UAEHAAVLODDistance@@@Z
+// FUNCTION: LITHTECH 0x004534d0 ?GenRemoveAt@?$CMoArray@VLODDistance@@VDefaultCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x004535c0 ?GenCopyList@?$CMoArray@VLODDistance@@VDefaultCache@@@@UAEHABV?$GenList@VLODDistance@@@@@Z
+// FUNCTION: LITHTECH 0x004536e0 ?GenAppendList@?$CMoArray@VLODDistance@@VDefaultCache@@@@UAEHABV?$GenList@VLODDistance@@@@@Z
+// FUNCTION: LITHTECH 0x004537c0 ?GenGetAt@?$CMoArray@PAVModelNode@@VNoCache@@@@UBEPAVModelNode@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x004537d0 ?GenSetCacheSize@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UAEXK@Z
+// FUNCTION: LITHTECH 0x004537e0 ?GenGetAt@?$CMoArray@VModelVert@@VNoCache@@@@UBE?AVModelVert@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00453810 ?GenAppend@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEHAAVAnimInfo@@@Z
+// FUNCTION: LITHTECH 0x00453900 ?GenRemoveAt@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00453a00 ?GenGetSize@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UBEKXZ
+// FUNCTION: LITHTECH 0x00453a10 ?GenCopyList@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEHABV?$GenList@VAnimInfo@@@@@Z
+// FUNCTION: LITHTECH 0x00453b40 ?GenAppendList@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEHABV?$GenList@VAnimInfo@@@@@Z
+// FUNCTION: LITHTECH 0x00453c40 ??4NodeRelation@@QAEAAV0@ABV0@@Z
+// FUNCTION: LITHTECH 0x00453c80 ?SetSize2@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00453cf0 ?InternalNiceSetSize@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00453e10 ?InternalNiceSetSize@?$CMoArray@PAVModelNode@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00453ec0 ?InternalNiceSetSize@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00453fb0 ?InternalNiceSetSize@?$CMoArray@VNodeRelation@@VDefaultCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454100 ?SetSize2@?$CMoArray@PAVModelNode@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454160 ?SetSize2@?$CMoArray@VModelVert@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x004541e0 ?InternalNiceSetSize@?$CMoArray@VModelVert@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x004542c0 ?SetSize2@?$CMoArray@VModelTri@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454320 ?InternalNiceSetSize@?$CMoArray@VModelTri@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454440 ?InternalNiceSetSize@?$CMoArray@VPieceLOD@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454590 ?Init@?$CMoArray@PAVModelNode@@VNoCache@@@@QAEHKK@Z
+// FUNCTION: LITHTECH 0x00454600 ?Init@?$CMoArray@VNewVertexWeight@@VNoCache@@@@QAEHKK@Z
+// FUNCTION: LITHTECH 0x00454660 ?SetSize2@?$CMoArray@VNewVertexWeight@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x004546e0 ?InternalNiceSetSize@?$CMoArray@VNewVertexWeight@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x004547d0 ?Init@?$CMoArray@VLTMatrix@@VNoCache@@@@QAEHKK@Z
+// FUNCTION: LITHTECH 0x00454830 ?SetSize2@?$CMoArray@VLTMatrix@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454890 ?InternalNiceSetSize@?$CMoArray@VLTMatrix@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454960 ?Init@?$CMoArray@VLODDistance@@VDefaultCache@@@@QAEHKK@Z
+// FUNCTION: LITHTECH 0x004549e0 ?SetSize2@?$CMoArray@VLODDistance@@VDefaultCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454a70 ?InternalNiceSetSize@?$CMoArray@VLODDistance@@VDefaultCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454b70 ?Init@?$CMoArray@VAnimInfo@@VNoCache@@@@QAEHKK@Z
+// FUNCTION: LITHTECH 0x00454bd0 ?SetSize2@?$CMoArray@VAnimInfo@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454c50 ?InternalNiceSetSize@?$CMoArray@VAnimInfo@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454d40 ?_DeleteAndDestroyArray@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@AAEXPAVLAlloc@@K@Z
+// FUNCTION: LITHTECH 0x00454d60 ?_DeleteAndDestroyArray@?$CMoArray@VPieceLOD@@VNoCache@@@@AAEXPAVLAlloc@@K@Z
+// FUNCTION: LITHTECH 0x00454da0 ?BaseDelete@@YAXPAVLAlloc@@PAVModelPiece@@K@Z
+// FUNCTION: LITHTECH 0x00454dd0 ?BaseDelete@@YAXPAVLAlloc@@PAVWeightSet@@K@Z
+// FUNCTION: LITHTECH 0x00454e00 ?BaseNew@@YAPAVNodeKeyFrame@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x00454e20 ?BaseNew@@YAPAVAnimKeyFrame@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x00454e60 ?CopyArray2@?$CMoArray@PAVModelNode@@VNoCache@@@@QAEHABV1@PAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454ef0 ?CopyArray2@?$CMoArray@VModelVert@@VNoCache@@@@QAEHABV1@PAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00454fa0 ?BaseNew@@YAPAVModelVert@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x00454fe0 ?CopyArray2@?$CMoArray@VModelTri@@VNoCache@@@@QAEHABV1@PAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x004550a0 ?BaseNew@@YAPAVModelTri@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x004550c0 ?BaseDelete@@YAXPAVLAlloc@@PAVPieceLOD@@K@Z
+// FUNCTION: LITHTECH 0x004550f0 ?BaseNew@@YAPAVPieceLOD@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x00455130 ?BaseNew@@YAPAVNewVertexWeight@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x00455170 ?CopyArray2@?$CMoArray@VLTMatrix@@VNoCache@@@@QAEHABV1@PAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00455200 ?BaseNew@@YAPAVLTMatrix@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x00455220 ?BaseNew@@YAPAVLODDistance@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x00455260 ?BaseNew@@YAPAVAnimInfo@@PAVLAlloc@@PAV1@K@Z
+// FUNCTION: LITHTECH 0x004552a0 ??_GPieceLOD@@QAEPAXI@Z
+
+#define MODEL_ARRAY_INSTANCE(T, C) \
+	{ \
+		CMoArray<T, C> theArray; \
+		theArray.SetSize2(0, &g_DefAlloc); \
+		theArray.Init(0, 0); \
+		theArray.CopyArray2(theArray, &g_DefAlloc); \
+		theArray.NiceSetSize2(0, &g_DefAlloc); \
+	}
+
+void model_InstantiateArrays()
+{
+	MODEL_ARRAY_INSTANCE(NodeRelation, DefaultCache)
+	MODEL_ARRAY_INSTANCE(NodeKeyFrame, NoCache)
+	MODEL_ARRAY_INSTANCE(AnimNode*, NoCache)
+	MODEL_ARRAY_INSTANCE(AnimKeyFrame, NoCache)
+	MODEL_ARRAY_INSTANCE(ModelNode*, NoCache)
+	MODEL_ARRAY_INSTANCE(ModelVert, NoCache)
+	MODEL_ARRAY_INSTANCE(ModelTri, NoCache)
+	MODEL_ARRAY_INSTANCE(PieceLOD, NoCache)
+	MODEL_ARRAY_INSTANCE(float, DefaultCache)
+	MODEL_ARRAY_INSTANCE(WeightSet*, NoCache)
+	MODEL_ARRAY_INSTANCE(NewVertexWeight, NoCache)
+	MODEL_ARRAY_INSTANCE(LTMatrix, NoCache)
+	MODEL_ARRAY_INSTANCE(LODDistance, DefaultCache)
+	MODEL_ARRAY_INSTANCE(ModelSocket*, NoCache)
+	MODEL_ARRAY_INSTANCE(AnimInfo, NoCache)
+	MODEL_ARRAY_INSTANCE(ModelPiece*, NoCache)
+
+	LDelete(&g_DefAlloc, (ModelPiece*)LTNULL);
+	LDelete(&g_DefAlloc, (WeightSet*)LTNULL);
 }

@@ -33,6 +33,10 @@ public:
 	virtual LTRESULT SetupEuler(LTRotation &rot, float pitch, float yaw, float roll);
 	virtual LTRESULT GetCRC(ILTStream *pStream, uint32 &dwResult);
 
+	// Not virtual. Out of line at 0x0043cf80.
+	LTRESULT	GetAttachedNodeOrSocketTransform(HATTACHMENT hAttachment, uint32 iObject,
+		LTransform &tFinal, LTBOOL bNode);
+
 public:
 	ILTMath		*m_pMathLT;		// 0x0c
 };

@@ -43,6 +43,27 @@ public:
 	void			SetRemove(LTBOOL bRemove)	{ m_bRemove = bRemove; }
 	LTBOOL			GetRemove()					{ return m_bRemove; }
 
+	// A client is done with the sound (inlined in s_client/s_net; Jupiter soundtrack.cpp).
+	void			Release(uint8 *pnClientSoundFlags)
+	{
+		// Some sounds the client has to tell us when it's done...
+		if (m_dwFlags & (PLAYSOUND_TIME | PLAYSOUND_TIMESYNC | PLAYSOUND_ATTACHED) &&
+			!(m_dwFlags & PLAYSOUND_LOOP))
+		{
+			*pnClientSoundFlags |= 1;	// OBJINFOSOUNDF_CLIENTDONE
+
+			// Remove client reference count to sound.
+			if (m_nClientRefs > 0)
+			{
+				m_nClientRefs--;
+			}
+
+			// Time it out if no references left...
+			if (m_nClientRefs == 0)
+				m_fTimeLeft = 0.0f;
+		}
+	}
+
 	LTObject*		GetObject()
 	{
 		if (m_dwFlags & PLAYSOUND_ATTACHED)

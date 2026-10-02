@@ -5,6 +5,8 @@
 
 #include "ltbasedefs.h"
 
+#define MAX_CREAL	1E+37
+
 // Talon StdLith default allocator (l_allocator.h).
 class LAlloc;
 // GLOBAL: LITHTECH 0x004e6a18

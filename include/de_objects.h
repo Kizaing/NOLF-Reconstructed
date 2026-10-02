@@ -22,18 +22,27 @@ struct ObjectCreateStruct;
 // Talon world polygon / BSP node; only what CalcMotion uses.
 struct WorldPoly
 {
-	uint8		m_Pad00[0x18];
+	uint8		m_Pad00[0x0c];
+	uint32		*m_pLMAnimRefs;	// 0x0c (light anim, entry) pairs in WorldBsp::m_PolyAnimRefs
+	uint32		m_nLMAnimRefs;	// 0x10
+	uint16		m_Flags;		// 0x14 WPF_ (de_world.h); bits 11-13 are the lightmap plane
+	uint16		m_Index;		// 0x16 index in its WorldBsp (HPOLY low word)
 	LTVector	m_Center;		// 0x18 (w_TransformWorldModel)
-	uint8		m_Pad24[0x28 - 0x24];
+	float		m_Radius;		// 0x24 bounding sphere radius (w_CalcBoundingSpheres)
 	LTPlane		*m_pPlane;		// 0x28
 	void		*m_pSurface;	// 0x2c Surface* (de_world.h)
 	uint8		m_Pad30[0x44 - 0x30];
 	uint16		m_iNextSurfacePoly;	// 0x44 next poly on the same Surface (0xFFFF ends)
-	uint8		m_Pad46[0x50 - 0x46];
+	uint8		m_Pad46[0x4c - 0x46];
+	uint8		m_LMWidth;		// 0x4c lightmap size in samples
+	uint8		m_LMHeight;		// 0x4d
+	uint8		m_Pad4e[0x50 - 0x4e];
 	struct SPolyVertex	*m_pVertices;	// 0x50 points at m_Vertices unless the poly grew
 	uint16		m_nVertices;	// 0x54
 	uint16		m_nExtraVertices;	// 0x56 counted only when m_pVertices was reallocated
 	// m_Vertices (SPolyVertex, 0x18 bytes each) follow at 0x58.
+
+	LTPlane*	GetPlane()	{ return m_pPlane; }
 
 	uint32		GetNumVertices()
 	{
@@ -45,17 +54,40 @@ struct WorldPoly
 struct SPolyVertex
 {
 	LTVector	*m_Vec;			// 0x00
-	uint8		m_Pad04[0x18 - 0x4];
+	float		m_U, m_V;		// 0x04 texture coordinates (surface effects keep them current)
+	uint8		m_Pad0C[0x14 - 0xc];
+	uint8		m_Color[4];		// 0x14 r, g, b, a (a = 255)
 };
 
 struct Node
 {
-	LTPlane*	GetPlane()	{ return (m_pPoly && m_pPoly->m_pSurface) ? m_pPoly->m_pPlane : LTNULL; }
+	Node()				{ Init(0); }
+	Node(uint8 nFlags)	{ Init(nFlags); }	// de_nodes NODE_IN/NODE_OUT
+
+	void		Init(uint8 nFlags)
+	{
+		m_Flags = nFlags;
+		m_pPoly = LTNULL;
+		m_PlaneType = 0;
+		m_iLeaf = 0xFFFF;
+		m_Sides[0] = m_Sides[1] = LTNULL;
+		dl_TieOff(&m_Objects);
+	}
+
+	// Two inline levels (the /Od fullintersectline shows WorldPoly::GetPlane's own temp).
+	LTPlane*	GetPlane()
+	{
+		if (m_pPoly && m_pPoly->m_pSurface)
+			return m_pPoly->GetPlane();
+		return LTNULL;
+	}
 
 	WorldPoly	*m_pPoly;		// 0x00
 	Node		*m_Sides[2];	// 0x04 (impl_common ci_IsPointInsideBSP)
-	uint8		m_Pad0C[0x16 - 0xc];
+	CheapLTLink	m_Objects;		// 0x0c objects whose sphere lands on this node (de_nodes)
+	uint16		m_iLeaf;		// 0x14 index into WorldBsp leaves, 0xFFFF if not a leaf
 	uint8		m_Flags;		// 0x16 NF_
+	uint8		m_PlaneType;	// 0x17
 };
 
 // Node::m_Flags.
@@ -76,7 +108,7 @@ public:
 
 struct ServerData
 {
-	ServerData()	{ memset(m_pSkins, 0, sizeof(m_pSkins)); }
+	ServerData()	{ for (int i=0; i < 4; i++) m_pSkins[i] = LTNULL; }
 
 	LTLink		m_Links;		// 0x00 InterLinks this object is part of
 	struct HHashElement	*m_hName;	// 0x0c element in CServerMgr::m_hNameTable
@@ -424,9 +456,16 @@ public:
 };
 
 // One line in a LineSystem (0x44 bytes).
+struct LSLinePt
+{
+	LTVector		m_Pos;				// 0x00
+	float			r, g, b, a;			// 0x0c
+};
+
 struct LSLine
 {
-	uint8			m_Pad00[0x3c];
+	LSLinePt		m_Points[2];		// 0x00
+	class LineSystem	*m_pSystem;		// 0x38
 	LSLine			*m_pPrev;			// 0x3c
 	LSLine			*m_pNext;			// 0x40
 };
@@ -442,6 +481,9 @@ public:
 	StructBank_t	*m_pLineBank;		// 0x1b0 Where the lines come from.
 	LTBOOL			m_bChanged;			// 0x1b4
 	LSLine			m_LineHead;			// 0x1b8
+	// NOTE: Talon's linesystem.cpp (0x00445170) uses 0x1fc as the min extent, 0x208 as the max,
+	// 0x214 as the center and 0x220 as the radius. The names below follow Jupiter's order,
+	// which objectmgr.cpp's constructor relies on; linesystem.cpp uses the macros below.
 	LTVector		m_SystemCenter;		// 0x1fc
 	float			m_SystemRadius;		// 0x208
 	LTVector		m_MinPos;			// 0x20c

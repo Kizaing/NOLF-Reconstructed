@@ -20,15 +20,56 @@ class WorldModelInstance;
 
 // World flags (m_WorldFlags).
 #define WORLD_OBJECTSLOADED	(1<<0)
+#define WORLD_HASVISBSP		(1<<1)	// a world model has WIF_VISBSP (WorldBsp vtable slot 9)
+#define WORLD_HASBASELIGHT	(1<<2)	// LoadObjects found "LightAnim_BASE"
+
+// A world model poly that a light anim touches (index pair).
+struct LAPolyRef
+{
+	uint16			m_iWorld;			// 0x00 index into MainWorld::m_WorldModels
+	uint16			m_iPoly;			// 0x02 index into that model's original BSP polies
+};
+
+// One poly's data in one light anim frame (0x18 bytes, MainWorld::m_LightAnimPolyFrames).
+struct LAPolyFrame
+{
+	uint8			*m_pLightmap;		// 0x00 compressed lightmap (in m_LightAnimData)
+	uint16			m_LightmapSize;		// 0x04
+	uint8			m_Pad06[0x8 - 0x6];
+	uint8			*m_pVertR;			// 0x08 per-vertex colours (file version 70 only)
+	uint8			*m_pVertG;			// 0x0c
+	uint8			*m_pVertB;			// 0x10
+	uint8			m_nVerts;			// 0x14
+	uint8			m_Pad15[0x18 - 0x15];
+};
 
 // Talon light animation (0x60 bytes, world light anims driven by ILTLightAnim).
 struct LightAnim
 {
-	uint8			m_Pad00[0x20];
+					LightAnim()						// 0x00428320
+					{
+						m_vLightPos.Init();
+						m_vLightColor.Init();
+						m_fLightRadius = 0.0f;
+						m_Name[0] = 0;
+						m_bShadowMap = LTFALSE;
+						m_pFrames = LTNULL;
+						m_nFrames = 0;
+						m_pPolyRefs = LTNULL;
+						m_nPolies = 0;
+						m_iFrames[0] = m_iFrames[1] = 0xFFFFFFFF;
+						m_PercentBetween = 0;
+						m_fBlendPercent = 1.0f;
+					}
+
+	char			m_Name[0x20];		// 0x00
 	LTBOOL			m_bShadowMap;		// 0x20 LAInfo::m_bShadowMap (impl_common la_GetInfo)
-	uint8			m_Pad24[0x28 - 0x24];
+	LAPolyFrame		**m_pFrames;		// 0x24 m_nFrames entries, each m_nPolies LAPolyFrames
 	uint8			m_nFrames;			// 0x28
-	uint8			m_Pad29[0x34 - 0x29];
+	uint8			m_Pad29[0x2c - 0x29];
+	LAPolyRef		*m_pPolyRefs;		// 0x2c
+	uint16			m_nPolies;			// 0x30
+	uint8			m_Pad32[0x34 - 0x32];
 	uint32			m_iFrames[2];		// 0x34
 	uint32			m_PercentBetween;	// 0x3c 0-255
 	float			m_fBlendPercent;	// 0x40
@@ -43,10 +84,51 @@ struct MainWorldNamedEntry
 	char			m_Name[0x38];		// 0x00 (name length unknown)
 };
 
-// Talon light table (Jupiter world/src/light_table.h, CLightTable), 0x48 bytes. Constructor 0x00444ad0.
+// A light table sample (Jupiter LTRGB).
+struct LTRGB
+{
+	uint8			b, g, r, a;
+};
+
+// Talon light table (Jupiter world/src/light_table.h, CLightTable), 0x48 bytes. light_table.cpp.
 struct CLightTable
 {
-	uint8			m_Pad00[0x48];
+					CLightTable();		// 0x00444ad0
+					~CLightTable();		// 0x00444ae0
+
+	// Sets up the table for the world box (0x00444af0).
+	void			InitLightTable(const LTVector *pMin, const LTVector *pMax, float res);
+	void			Reset();			// 0x00444be0
+	void			FreeAll();			// 0x00444c20
+
+	LTRGB			*m_pData;			// 0x00 m_nData entries
+	uint32			m_nData;			// 0x04
+	uint32			m_Dims[3];			// 0x08 grid size
+	uint32			m_DimsMinus1[3];	// 0x14
+	uint32			m_XSizeTimesYSize;	// 0x20
+	LTVector		m_BlockSize;		// 0x24
+	LTVector		m_InvBlockSize;		// 0x30
+	LTVector		m_LookupStart;		// 0x3c world position of the first block
+};
+
+// An effect registered with ILTClient::AddSurfaceEffect (cm_AddSurfaceEffect 0x00425cd0).
+struct SurfaceEffect
+{
+	void*			(*InitEffect)(SurfaceData *pSurfaceData, int argc, char **argv);	// 0x00
+	void			(*UpdateEffect)(SurfaceData *pSurfaceData, void *pData);			// 0x04
+	void			(*TermEffect)(void *pData);										// 0x08
+	SurfaceEffect	*m_pNext;			// 0x0c
+	char			m_Name[1];			// 0x10 allocated to fit
+};
+
+// An effect running on a world surface (MainWorld::m_pSurfaceEffects), 0x14 bytes.
+struct SurfaceEffectInst
+{
+	WorldBsp		*m_pBsp;			// 0x00
+	Surface			*m_pSurface;		// 0x04
+	void			*m_pData;			// 0x08 what InitEffect returned
+	SurfaceEffect	*m_pEffect;			// 0x0c
+	SurfaceEffectInst	*m_pNext;		// 0x10
 };
 
 // vtable 0x004c70e0.
@@ -56,28 +138,40 @@ public:
 	MainWorld();														// 0x004283e0
 	void			Clear();											// 0x004284f0 (called by the constructor)
 
-	// Slot 0: looks up a light anim by name (ClientLightAnimLT::FindLightAnim).
-	virtual LTBOOL	FindLightAnim(const char *pName, uint32 *pLightAnim);
-
-	// 0x0042bd00: flags the polies a light anim touches for relighting.
-	void			UpdateLightAnimPolies(LightAnim *pAnim);
+	// Looks up a light anim by name (ClientLightAnimLT::FindLightAnim).
+	virtual LightAnim*	FindLightAnim(const char *pName, uint32 *pIndex);	// 0x0042bcb0
+	// The world model with WIF_VISBSP / WIF_PHYSICSBSP.
+	virtual WorldBsp*	GetVisBSP();									// 0x0042be10
+	virtual WorldBsp*	GetPhysicsBSP();								// 0x0042be40
 
 	LTRESULT		Load(struct WorldLoadInfo *pInfo);					// 0x004285c0
 	void			Term();												// 0x0042b1c0
 	void			ClearWorldData();									// 0x0042b3b0
+	LTBOOL			SetupSkyPolies();									// 0x0042b3d0
+	void			InsertStaticLights(LTLink *pListHead);				// 0x0042b4f0
 	LTBOOL			InitWorldModel(WorldModelInstance *pInstance, const char *pName);	// 0x0042b520
 	LTRESULT		LoadObjects(ILTStream *pStream);					// 0x0042b6e0
+	// Shares another world's data (the client inherits the local server's world).
+	LTBOOL			InheritFrom(MainWorld *pWorld);						// 0x0042aeb0
+	void			TermLightAnims();									// 0x0042bbf0
+
+	// Flags the polies a light anim touches for relighting.
+	void			UpdateLightAnimPolies(LightAnim *pAnim);			// 0x0042bd00
+	LTBOOL			SetupLeafPolies();									// 0x0042bd50
+	void			CalcBoundingSpheres();								// 0x0042be70
 
 	uint32			NumWorldModels()	{ return m_WorldModels.GetSize(); }
 
-	CMoArray<LightAnim>	m_LightAnims;		// 0x004 (vtable 0x004c6bdc)
-	uint8			m_Array18[0x14];		// 0x018 CMoArray, element type unknown (vtable 0x004c6c0c)
-	uint8			m_Array2C[0x14];		// 0x02c CMoArray, element type unknown (vtable 0x004c6c3c)
-	uint8			m_Array40[0x14];		// 0x040 CMoArray<uint8> (vtable 0x004c6b58)
-	uint8			m_Array54[0x14];		// 0x054 CMoArray, element type unknown (vtable 0x004c6c6c)
-	uint8			m_Pad068[0x6c - 0x68];
+	CMoArray<LightAnim>		m_LightAnims;			// 0x004 (vtable 0x004c6bdc)
+	CMoArray<LAPolyRef>		m_LightAnimPolyRefs;	// 0x018 (vtable 0x004c6c0c) LightAnim::m_pPolyRefs
+	CMoArray<LAPolyFrame*>	m_LightAnimFrames;		// 0x02c (vtable 0x004c6c3c) LightAnim::m_pFrames
+	CMoArray<uint8>			m_LightAnimData;		// 0x040 (vtable 0x004c6b58) lightmaps and vertex colours
+	CMoArray<LAPolyFrame>	m_LightAnimPolyFrames;	// 0x054 (vtable 0x004c6c6c)
+	uint32			m_RenderDataPos;	// 0x068 file position of the light anims (LoadObjects)
 	WorldTree		m_WorldTree;		// 0x06c objects in the world (Jupiter: world_tree / ClientTree())
-	uint8			m_PadWT[0xfc - 0x6c - sizeof(WorldTree)];
+	LTLink			m_StaticLights;		// 0x0e8 StaticLight objects (AddStaticLights)
+	SurfaceEffectInst	*m_pSurfaceEffects;	// 0x0f4
+	float			m_LMGridSize;		// 0x0f8 lightmap grid spacing (read after the info string)
 	CLightTable		m_LightTable;		// 0x0fc
 	LTVector		m_ExtentsMin;		// 0x144 world box (impl_common compressed positions)
 	LTVector		m_ExtentsMax;		// 0x150
@@ -87,26 +181,42 @@ public:
 	uint32			m_WorldFlags;		// 0x180 WORLD_
 	ILTStream		*m_pWorldStream;	// 0x184 the open world file (objects load from it later)
 	CMoArray<WorldData*>	m_WorldModels;	// 0x188 (vtable 0x004c6c9c) indexed by HPOLY >> 16
-	uint8			m_Array19C[0x14];		// 0x19c CMoArray, element type unknown (vtable 0x004c6ccc)
+	CMoArray<WorldPoly*>	m_SkyPolies;	// 0x19c (vtable 0x004c6ccc) polies with SURF_SKY
 	MainWorldNamedEntry	*m_NamedEntries;	// 0x1b0
 	uint32			m_nNamedEntries;	// 0x1b4
-	uint8			m_Pad1B8[0x1cc - 0x1b8];
+	char			*m_pWorldInfoString;	// 0x1b8
+	LTLink			m_Link1BC;			// 0x1bc (list head, use unknown)
+	uint32			m_Unknown1C8;		// 0x1c8
 	LTBOOL			m_bLoaded;			// 0x1cc TRUE while a world is loaded
-	uint8			m_Pad1D0[0x1f0 - 0x1d0];
+	LTLink			m_InheritedWorlds;	// 0x1d0 worlds that share our data (Term terms them too)
+	LTLink			m_InheritLink;		// 0x1dc our link in the m_InheritedWorlds of the world we inherited from
+	LTBOOL			m_bInherited;		// 0x1e8 our data belongs to another world (InheritFrom)
+	uint32			m_FileVersion;		// 0x1ec world file version (70)
 };
 
 #define MW_CHECKOFFSET(member, ofs) \
 	typedef char MW_Check##member[(offsetof(MainWorld, member) == (ofs)) ? 1 : -1];
 MW_CHECKOFFSET(m_LightAnims, 0x4)
+MW_CHECKOFFSET(m_LightAnimPolyFrames, 0x54)
 MW_CHECKOFFSET(m_WorldTree, 0x6c)
+MW_CHECKOFFSET(m_StaticLights, 0xe8)
 MW_CHECKOFFSET(m_LightTable, 0xfc)
 MW_CHECKOFFSET(m_ExtentsMin, 0x144)
 MW_CHECKOFFSET(m_BoxMin, 0x168)
 MW_CHECKOFFSET(m_WorldFlags, 0x180)
 MW_CHECKOFFSET(m_WorldModels, 0x188)
+MW_CHECKOFFSET(m_SkyPolies, 0x19c)
 MW_CHECKOFFSET(m_NamedEntries, 0x1b0)
 MW_CHECKOFFSET(m_bLoaded, 0x1cc)
+MW_CHECKOFFSET(m_bInherited, 0x1e8)
 typedef char MW_CheckSize[(sizeof(MainWorld) == 0x1f0) ? 1 : -1];
+typedef char LA_CheckSize[(sizeof(LightAnim) == 0x60) ? 1 : -1];
+
+// Reads the world file header. Returns FALSE if the version isn't CURRENT_WORLD_VERSION.
+LTBOOL w_ReadWorldHeader(ILTStream *pStream, uint32 &version, uint32 &objectDataPos, uint32 &renderDataPos);	// 0x00427cf0
+LTRESULT w_GetWorldInfoString(ILTStream *pStream, char *pInfoString, uint32 maxLen, uint32 *pActualLen);	// 0x00427db0
+void w_TermSurfaceEffects(MainWorld *pWorld);											// 0x00427e40
+WorldData* w_FindWorldModel(MainWorld *pWorld, const char *pName);						// 0x00427e80
 
 void w_TransformWorldModel(WorldModelInstance *pInst, LTMatrix *pMat, LTBOOL bPartial);	// 0x00427ed0
 

@@ -157,6 +157,18 @@ public:
 
 	uint8	GetPacketID()	{return m_Data[0];}
 
+	// Bytes that still fit (out of line in s_client at 0x00470490).
+	int32	GetSpaceLeft()
+	{
+		int32 spaceLeft = (int32)m_MaxSize - (int32)m_Pos - 7;
+		if (spaceLeft < 0)
+			spaceLeft = 0;
+		return spaceLeft;
+	}
+
+	// Empties the packet, keeping the packet ID byte.
+	void	ResetWrite()	{m_DataLen = m_Pos = 1;}
+
 public:
 	LMessageImpl	m_Message;		// 0x08
 	uint16			m_DataLen;		// 0x34 bytes written (byte 0 is the packet ID)
@@ -213,7 +225,8 @@ public:
 			m_pPacket->Release();
 	}
 
-	CPacketRef&	operator=(const CPacketRef &other)
+	// Returns the packet (the out-of-line copy at 0x0048e8d0 returns m_pPacket).
+	CPacket*	operator=(const CPacketRef &other)
 	{
 		if(m_pPacket)
 			m_pPacket->Release();
@@ -222,7 +235,7 @@ public:
 		if(m_pPacket)
 			m_pPacket->AddRef();
 
-		return *this;
+		return m_pPacket;
 	}
 
 	CPacketRef&	operator=(CPacket *pPacket)
