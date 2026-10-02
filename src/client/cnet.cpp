@@ -84,4 +84,5 @@ void CClientMgr::SendUpdate(CNetMgr *pNetMgr, CBaseConn *pConnID, int32 *pComman
 // The out-of-line copy of the packet.h template, which SendUpdate calls. Our build inlines
 // WriteType into SendUpdate (the inline budget issue in README), so the copy is forced out here.
 // FUNCTION: LITHTECH 0x00417c20 ?WriteTypeImpl@CPacket@@QAEXE@Z
+// STANDIN: forces the out-of-line WriteTypeImpl<uint8> (not in lithtech.exe)
 void (CPacket::*g_pfnWriteTypeUint8)(uint8 val) = &CPacket::WriteTypeImpl;

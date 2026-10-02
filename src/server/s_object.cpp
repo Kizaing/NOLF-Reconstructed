@@ -145,6 +145,7 @@ void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 
 // The out-of-line copy of the s_object.h inline.
 // FUNCTION: LITHTECH 0x00477540 ?SetObjectChangeFlags@@YAKPAVCServerMgr@@PAVLTObject@@K@Z
+// STANDIN: forces the out-of-line SetObjectChangeFlags (not in lithtech.exe)
 LTRESULT (*g_pfnSetObjectChangeFlags)(CServerMgr *pServerMgr, LTObject *pObj, uint32 flags) = SetObjectChangeFlags;
 
 // Model string key callback. Talon can append (or substitute) an extra command string.

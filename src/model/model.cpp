@@ -881,6 +881,7 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 		theArray.NiceSetSize2(0, &g_DefAlloc); \
 	}
 
+// STANDIN: instantiates CMoArray members until the model constructors are written (not in lithtech.exe)
 void model_InstantiateArrays()
 {
 	MODEL_ARRAY_INSTANCE(NodeRelation, DefaultCache)

@@ -159,6 +159,7 @@ def _decl_name(lines, i, is_data):
             continue
         if is_data:
             m = re.findall(r'([A-Za-z_]\w*)\s*(?:\[[^\]]*\])*\s*(?:=|;|$)', l)
+            m = m or re.findall(r'([A-Za-z_]\w*)\s*\(', l)[:1]      # constructor syntax: LTLink g_X(LTLink_Init);
             return m[-1] if m else None
         if '(' not in l:
             continue
@@ -212,9 +213,16 @@ def compile_unit(u, force=False):
     if out:
         print(out)
     if r.returncode != 0 or not os.path.exists(u.base_obj):
+        # never check a stale object: its functions report ERROR until the unit compiles again
+        if os.path.exists(u.base_obj):
+            os.remove(u.base_obj)
         print('COMPILE FAILED: %s' % u.rel)
+        COMPILE_FAILED.append(u.rel)
         return False
     return True
+
+
+COMPILE_FAILED = []
 
 
 # ---------------------------------------------------------------- check
@@ -393,6 +401,9 @@ def run_check(units, exe, symtab, verbose=False, filt=None, libs=None):
                     print('%s: %s' % (a.where(), a.error))
                 continue
             if u.name not in objs:
+                r = Result(a)
+                r.detail = 'no object: %s did not compile' % u.rel
+                results.append(r)
                 continue
             r = check_function(a, objs[u.name], exe, symtab, name2va, ghidra_conflicts, local.get(u.name))
             results.append(r)
@@ -651,6 +662,57 @@ def objdiff_report():
     return rep
 
 
+# ---------------------------------------------------------------- lint
+
+PROTO_RE = re.compile(r'^(?:extern\s+)?(?!typedef|return|else|delete|friend|#)([A-Za-z_][\w\s\*&<>,:]*?[\s\*&])'
+                      r'([A-Za-z_]\w*)\s*\(([^;{}]*)\)\s*;')
+STANDIN_RE = re.compile(r'^\s*//\s*STANDIN:')
+
+
+def _proto_params(p):
+    p = re.sub(r'=[^,]*', '', re.sub(r'/\*.*?\*/', '', p))
+    if p.strip() in ('', 'void'):
+        return ()
+    out = []
+    for a in (x.strip() for x in p.split(',')):
+        # drop the parameter name: "const LTVector &vPos" -> "const LTVector&"
+        a = re.sub(r'^((?:const\s+)?(?:unsigned\s+|signed\s+)?[A-Za-z_][\w:<>]*)\s*([\*&\s]*)\s*([A-Za-z_]\w*)\s*(\[\s*\w*\s*\])?$',
+                   lambda m: m.group(0) if m.group(3) in ('int', 'char', 'short', 'long') else
+                   m.group(1) + m.group(2).replace(' ', '') + ('*' if m.group(4) else ''), a)
+        out.append(re.sub(r'\s+', ' ', a).replace(' *', '*').replace(' &', '&').replace('size_t', 'unsigned int'))
+    return tuple(out)
+
+
+def lint():
+    """Warnings for the problems integration kept fixing by hand. Returns the stand-in count."""
+    decls, standins = {}, 0
+    for root in (INC, SRC):
+        for d, _, files in os.walk(root):
+            for f in sorted(files):
+                if not f.lower().endswith(('.h', '.cpp', '.c')):
+                    continue
+                path = os.path.join(d, f)
+                where = os.path.relpath(path, ROOT).replace(os.sep, '/')
+                data = open(path, 'rb').read()
+                if b'\r\n' in data:
+                    print('WARNING CRLF: %s (write files with newline=\'\' and LF line endings)' % where)
+                for i, l in enumerate(data.decode('latin1').split('\n')):
+                    if STANDIN_RE.match(l):
+                        standins += 1
+                    m = PROTO_RE.match(l)
+                    if m and 'static' not in m.group(1) and 'inline' not in m.group(1):
+                        ret = re.sub(r'\s+', '', m.group(1).replace('extern', ''))
+                        decls.setdefault(m.group(2), []).append((ret, _proto_params(m.group(3)), '%s:%d' % (where, i + 1)))
+    # a .cpp prototype that disagrees with the header's, or with another unit's (headers may overload)
+    for name, ds in sorted(decls.items()):
+        hdr = {(r, p) for r, p, w in ds if w.startswith('include/')}
+        src = {(r, p) for r, p, w in ds if w.startswith('src/')}
+        if (src - hdr) if hdr else len(src) > 1:
+            print('WARNING PROTOTYPE %s declared differently: %s' % (
+                name, '; '.join('%s %s(%s) at %s' % (r, name, ', '.join(p), w) for r, p, w in ds)))
+    return standins
+
+
 # ---------------------------------------------------------------- main
 
 def main(argv):
@@ -672,7 +734,10 @@ def main(argv):
     # a filtered check/diff/todo only compiles the units it names (several agents may run checks at once;
     # other units' existing objects are still read for names)
     mine = [u for u in units if filt and filt in u.name] if cmd in ('check', 'diff', 'todo') else []
+    if cmd in ('check', 'diff', 'todo') and filt and not mine:
+        print('no unit matches %r: checking the existing objects without compiling' % filt)
     ok = all([compile_unit(u) for u in (mine or units)])
+    standins = lint() if cmd in ('all', 'check') else 0
     exe, symtab = Exe(EXE), SymTab()
     libs = Libraries()
     if cmd == 'diff':
@@ -692,6 +757,8 @@ def main(argv):
         lb = libs.code_bytes()
         print('libraries: %d prebuilt objects, %d functions, %d code bytes (%.3f%%) matched by tools/libmatch.py' % (
             len(libs.units), sum(len(u['functions']) for u in libs.units), lb, 100.0 * lb / max(total, 1)))
+    if standins:
+        print('%d stand-ins not in lithtech.exe (// STANDIN: lines; a relink cannot contain them)' % standins)
     if cmd == 'all':
         save_namemap(namemap)
         units_json = write_targets(units, symtab, namemap, libs)
@@ -699,6 +766,8 @@ def main(argv):
             write_objdiff_json(units_json)
             objdiff_report()
     print('done in %.1fs' % (time.time() - t0))
+    if COMPILE_FAILED:
+        print('*** COMPILE FAILED: %s -- their functions were not checked ***' % ', '.join(COMPILE_FAILED))
     return 0 if ok else 1
 
 

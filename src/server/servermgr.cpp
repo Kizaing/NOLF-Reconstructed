@@ -2851,9 +2851,7 @@ LTRESULT CServerMgr::DoStartWorld(char *pWorldName, uint32 flags, float curTime)
 #define WIF_VISBSP			(1<<5)
 
 // Makes a VisContainer object for each physics/vis BSP (and terrain section).
-// The original calls the ObjectCreateStruct constructor out of line (0x004165f0) and inlines the
-// Clear()s in the loop; VC6 does the opposite here.
-// STUB: LITHTECH 0x004856e0
+// FUNCTION: LITHTECH 0x004856e0
 LTBOOL CServerMgr::InitWorldObjects()
 {
 	ObjectCreateStruct ocs;

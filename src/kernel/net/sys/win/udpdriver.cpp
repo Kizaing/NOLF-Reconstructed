@@ -1393,4 +1393,5 @@ CBaseDriver* udp_CreateDriver()
 // FUNCTION: LITHTECH 0x0049ad70 ??_GCUDPQuery@@QAEPAXI@Z
 
 // Forces the out-of-line CMultiLinkList<CUDPConn*>::InsertBefore copy annotated above (not in lithtech.exe).
+// STANDIN: forces the out-of-line CMultiLinkList<CUDPConn*>::InsertBefore (not in lithtech.exe)
 MPOS (CMultiLinkList<CUDPConn*>::*g_pfnUDPConnInsertBefore)(MPOS, CUDPConn*, CMLLNode*) = &CMultiLinkList<CUDPConn*>::InsertBefore;

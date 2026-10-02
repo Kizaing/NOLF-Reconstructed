@@ -605,6 +605,7 @@ void CClientShell::SendGoodbye()
 // original's handlers call them; this function only makes VC6 emit them.
 // FUNCTION: LITHTECH 0x0048e8d0 ??4CPacketRef@@QAEPAVCPacket@@ABV0@@Z
 // FUNCTION: LITHTECH 0x0048e900 ?ReadTypeImpl@CPacket@@QAEMPAM@Z
+// STANDIN: emits CPacketRef::operator= and ReadTypeImpl<float> (not in lithtech.exe)
 void shellnet_EmitInlines(CPacket *pPacket, CPacketRef *pRef)
 {
 	float (CPacket::*pReadFloat)(float*) = &CPacket::ReadTypeImpl;

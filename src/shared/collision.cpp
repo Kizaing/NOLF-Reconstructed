@@ -979,6 +979,7 @@ void DoInterObjectCollisionResponse(MoveAbstract *pAbstract,
 // FUNCTION: LITHTECH 0x0041f7c0 ??X?$_CVector@M@@QAEXM@Z
 // FUNCTION: LITHTECH 0x0041f7e0 ??9?$_CVector@M@@QBEIABV0@@Z
 // FUNCTION: LITHTECH 0x0041f820 ?Norm@?$_CVector@M@@QAEXM@Z
+// STANDIN: g_pfnNodeGetPlane..g_pfnVecNorm force the Node/LTVector out-of-line copies until their callers are written (not in lithtech.exe)
 LTPlane* (Node::*g_pfnNodeGetPlane)() = &Node::GetPlane;
 void (LTVector::*g_pfnVecInit)(float, float, float) = &LTVector::Init;
 float (LTVector::*g_pfnVecMag)() const = &LTVector::Mag;

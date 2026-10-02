@@ -176,6 +176,7 @@ void clienthack_NewFile(uint16 fileID, uint32 fileSize, char *pFilename)
 // FUNCTION: LITHTECH 0x00436fc0 ?ReadTypeImpl@CPacket@@QAEGPAG@Z
 // FUNCTION: LITHTECH 0x00437040 ?ReadTypeImpl@CPacket@@QAEKPAK@Z
 // FUNCTION: LITHTECH 0x004370c0 ?WriteTypeImpl@CPacket@@QAEXG@Z
+// STANDIN: emits the ReadTypeImpl/WriteTypeImpl copies ftc_ProcessPacket calls (not in lithtech.exe)
 void ftc_EmitPacketTemplates(CPacket *pPacket)
 {
 	uint16 (CPacket::*pReadWord)(uint16*) = &CPacket::ReadTypeImpl;

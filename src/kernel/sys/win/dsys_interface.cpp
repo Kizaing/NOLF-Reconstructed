@@ -43,7 +43,7 @@ int sb_LoadShellModule(const char *pModuleName, const char *pShellName, ShellBin
 	int shellVersion, int *pVersion);	// 0x0048a640
 void sb_GetShellFunctions(ShellBindModule *pModule, CreateShellFn *pCreate, DeleteShellFn *pDelete);	// 0x0048a790
 
-void sm_SetupError(CServerMgr *pServerMgr, LTRESULT err, ...);
+LTRESULT sm_SetupError(CServerMgr *pServerMgr, LTRESULT err, ...);
 
 // Render DLL exports.
 typedef RMode* (*GetSupportedModesFn)();

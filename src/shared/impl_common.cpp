@@ -511,8 +511,7 @@ void ic_WriteYRotation(CPacket *pPacket, LTRotation *pRot)
 	pPacket->WriteType((char)(fAngle * (127.0f / MATH_PI)));
 }
 
-// STUB: LITHTECH 0x0043e690
-// Scheduling: the original stores the angle for fild before loading pRot.
+// FUNCTION: LITHTECH 0x0043e690
 void ic_ReadYRotation(CPacket *pPacket, LTRotation *pRot)
 {
 	char angle;
