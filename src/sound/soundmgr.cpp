@@ -117,9 +117,7 @@ void CSoundMgr::SetPreferences()
 	AIL_unlock();
 }
 
-// The original inlines the engine's CMoArray Term/Init (m_SoundUpdatePacket.Init); the StdLith
-// header here calls them out of line.  Otherwise identical.
-// STUB: LITHTECH 0x00492940
+// FUNCTION: LITHTECH 0x00492940
 LTRESULT CSoundMgr::Init(InitSoundInfo &soundInit)
 {
 	uint32 nSamples, dwIndex;
@@ -344,7 +342,7 @@ LTRESULT CSoundMgr::Init(InitSoundInfo &soundInit)
 
 	m_SoundUpdatePacket.Init(MAX_PACKET_LEN, MAX_PACKET_LEN);
 
-	m_SoundTypeVolumes.m_nVolume[0] = 100;
+	m_SoundTypeVolumes.SetVolume(0, 100);
 
 	AIL_lock();
 	m_dwCurTime = AIL_ms_count();
@@ -1271,7 +1269,7 @@ LTRESULT CSoundMgr::SetVolumeByType(uint16 nVolume, uint8 nSoundType)
 	if (nVolume > 100)
 		nVolume = 100;
 
-	m_SoundTypeVolumes.m_nVolume[nSoundType] = (uint8)nVolume;
+	m_SoundTypeVolumes.SetVolume(nSoundType, (uint8)nVolume);
 
 	return LT_OK;
 }
@@ -1279,7 +1277,7 @@ LTRESULT CSoundMgr::SetVolumeByType(uint16 nVolume, uint8 nSoundType)
 // FUNCTION: LITHTECH 0x004944e0
 LTRESULT CSoundMgr::GetVolumeByType(uint16 &nVolume, uint8 nSoundType)
 {
-	nVolume = m_SoundTypeVolumes.m_nVolume[nSoundType];
+	nVolume = m_SoundTypeVolumes.GetVolume(nSoundType);
 
 	return LT_OK;
 }
