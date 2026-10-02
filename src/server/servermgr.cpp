@@ -2501,15 +2501,14 @@ LTRESULT CServerMgr::LoadWorld(ILTStream *pStream, char *pWorldName)
 // Portals and file caching.
 // ----------------------------------------------------------------------- //
 
-// VC6 inlines both CPacket::WriteType<uint16> calls here; the original calls them (0x004370c0).
-// STUB: LITHTECH 0x00486920
+// The CPacketRef operators are inline calls still pending after each WriteType, so the two
+// uint16 bodies stay out of line (0x004370c0) and only the last (uint8) one is inlined.
+// FUNCTION: LITHTECH 0x00486920
 LTRESULT sm_SetPortalFlags(CServerMgr *pServerMgr, const char *pPortalName, uint32 flags)
 {
 	uint32 iWorld, iPortal;
 	BspPortal *pPortal;
-	CPacket *pPacket;
-
-	pPacket = LTNULL;
+	CPacketRef cPacket;
 
 	pPortal = w_FindPortal(&pServerMgr->m_World, pPortalName, &iWorld, &iPortal);
 	if (!pPortal)
@@ -2518,19 +2517,17 @@ LTRESULT sm_SetPortalFlags(CServerMgr *pServerMgr, const char *pPortalName, uint
 	}
 
 	flags &= PORTAL_OPEN;
-	if (pPortal->m_Flags != (uint16)flags)
+	if ((uint16)flags != pPortal->m_Flags)
 	{
 		// Tell the clients.
-		pPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
-		pPacket->WriteType((uint16)iWorld);
-		pPacket->WriteType((uint16)iPortal);
-		pPacket->WriteType((uint8)flags);
-		sm_SendToAllClientsInWorld(g_pServerMgr, SMSG_PORTALFLAGS, pPacket);
+		cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+		cPacket->WriteType((uint16)iWorld);
+		cPacket->WriteType((uint16)iPortal);
+		cPacket->WriteType((uint8)flags);
+		sm_SendToAllClientsInWorld(g_pServerMgr, SMSG_PORTALFLAGS, cPacket);
 	}
 
 	pPortal->m_Flags = (uint16)flags;
-	if (pPacket)
-		pPacket->Release();
 	return LT_OK;
 }
 
