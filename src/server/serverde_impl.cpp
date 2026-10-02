@@ -385,9 +385,7 @@ inline LTRESULT CLTServer::UnloadTexture(char *pFilename)
 	return LT_OK;
 }
 
-// Differs: the original calls CPacket::WriteType<uint8/uint16> out of line (0x00417c20,
-// 0x004370c0); VC6 inlines them here.
-// STUB: LITHTECH 0x0047bee0
+// FUNCTION: LITHTECH 0x0047bee0
 LTRESULT CLTServer::ThreadLoadFile(char *pFilename, uint32 type)
 {
 	CHECK_PARAMS(pFilename, ILTPhysics::ThreadLoadFile);
@@ -415,9 +413,7 @@ LTRESULT CLTServer::ThreadLoadFile(char *pFilename, uint32 type)
 	}
 }
 
-// Differs: the original calls CPacket::WriteType<uint8/uint16> out of line (0x00417c20,
-// 0x004370c0); VC6 inlines them here.
-// STUB: LITHTECH 0x0047c1c0
+// FUNCTION: LITHTECH 0x0047c1c0
 LTRESULT CLTServer::UnloadFile(char *pFilename, uint32 type)
 {
 	CHECK_PARAMS(pFilename, ILTPhysics::UnloadFile);
