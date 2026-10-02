@@ -86,13 +86,17 @@ LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 
 		pPrev = pIn[nIn - 1];
 		prevDist = sign * (&pPrev->x)[axis] - *pPlaneDist;
-		bPrevInside = prevDist > 0.001f;
+		bPrevInside = LTTRUE;
+		if (!(prevDist > 0.001f))
+			bPrevInside = LTFALSE;
 
 		for (i=0; i < nIn; i++)
 		{
 			pCur = pIn[i];
 			curDist = sign * (&pCur->x)[axis] - *pPlaneDist;
-			bCurInside = curDist > 0.001f;
+			bCurInside = LTTRUE;
+			if (!(curDist > 0.001f))
+				bCurInside = LTFALSE;
 
 			if (bPrevInside)
 				*pOut++ = pPrev;

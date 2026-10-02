@@ -43,7 +43,8 @@ struct CollideRequest
 	LTBOOL			m_bSlide;			// 0x40
 
 	uint32			m_Unknown44;		// 0x44 (MoveState::m_Unknown64)
-	int				*m_pRestart;		// 0x48 (&MoveState::m_nRestart)
+	int				*m_pRestart;		// 0x48 (&MoveState::m_nRestart); the stair step code of CollideWithWorld reads and
+										//      adds to it as a float (the height the cylinder was raised)
 };
 
 // 0x2c bytes.
@@ -73,6 +74,15 @@ LTBOOL DoesBoxIntersectBSP(Node *pRoot, LTVector &vMin, LTVector &vMax);
 
 // Collides the axis-aligned box with the world (0x0041bdd0).
 void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo);
+
+// Does a collision response for the object on the node's plane: fills in the collision info and stops
+// the object's velocity on pStopPlane (0x00419b20).  Talon passes the pieces of the request.
+void DoObjectCollisionResponse(CollisionInfo *pCollisionInfo, CollideInfo *pInfo, LTObject *pObject,
+	LTObject *pWorldObj, WorldBsp *pWorld, Node *pNode, LTVector *pStopPlane);
+
+// Adds a plane the box got pushed out of (pID identifies the polygon to skip duplicates) and pushes the
+// movement's end out of all the planes added so far (0x0041d770).
+void AddPushPlane(LTPlane *pPlane, void *pID);
 
 // Sets up the collision info and stopping velocities for two objects hitting each other (0x0041f3d0).
 void DoInterObjectCollisionResponse(MoveAbstract *pAbstract, LTObject *pObj1, LTObject *pObj2,

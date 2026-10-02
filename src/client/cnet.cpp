@@ -15,14 +15,15 @@
 
 #define MAX_UPDATE_COMMANDS	64
 
+#define SOUNDPACKET (((CSoundMgr*)m_SoundMgr)->GetSoundUpdatePacket())
+
 // GLOBAL: LITHTECH 0x004d2148
 extern uint8 g_CV_UpdateRate;
 
 CPacketRef packet_Get(uint16 maxSize, uint16 cacheSize);	// 0x00469120
 
 
-// The original calls WriteType<uint8> out of line (0x00417c20); ours inlines it.
-// STUB: LITHTECH 0x00417a50
+// FUNCTION: LITHTECH 0x00417a50
 void CClientMgr::SendUpdate(CNetMgr *pNetMgr, CBaseConn *pConnID, int32 *pCommands, int nCommands)
 {
 	CPacketRef cPacket;
@@ -30,7 +31,7 @@ void CClientMgr::SendUpdate(CNetMgr *pNetMgr, CBaseConn *pConnID, int32 *pComman
 	LTBOOL bRateChanged;
 	uint32 nToSave;
 	int i;
-	uint8 commands[MAX_UPDATE_COMMANDS];
+	uint8 commands[256];
 
 	m_TimeSinceUpdate += m_FrameTime;
 
@@ -53,36 +54,32 @@ void CClientMgr::SendUpdate(CNetMgr *pNetMgr, CBaseConn *pConnID, int32 *pComman
 
 	// Don't send it if nothing changed.
 	CPacket &soundPacket = ((CSoundMgr*)m_SoundMgr)->GetSoundUpdatePacket();
-	if (!bRateChanged && nCommands <= MAX_UPDATE_COMMANDS && m_nLastCommands == nToSave &&
-		(int)soundPacket.m_DataLen - 1 <= 0 && memcmp(m_LastCommands, commands, nToSave) == 0)
+	if (bRateChanged || nCommands > MAX_UPDATE_COMMANDS || m_nLastCommands != nToSave ||
+		(int)soundPacket.m_DataLen - 1 > 0 || memcmp(m_LastCommands, pCommands, nToSave) != 0)
 	{
-		return;
+		cPacket->m_Data[0] = CMSG_UPDATE;
+
+		// Add the sound packet (or send it on its own if it doesn't fit).
+		if (!cPacket->WritePacket(&soundPacket))
+		{
+			SOUNDPACKET.m_Data[0] = CMSG_SOUNDUPDATE;
+			pNetMgr->SendPacket(&soundPacket, pConnID, 0);
+		}
+
+		if ((int)SOUNDPACKET.m_DataLen - 1 > 0)
+		{
+			soundPacket.m_Pos = 1;
+			soundPacket.m_DataLen = 1;
+		}
+
+		pNetMgr->SendPacket(cPacket, pConnID, MESSAGE_GUARANTEED);
+
+		memcpy(m_LastCommands, pCommands, nToSave);
+		m_nLastCommands = nToSave;
+		m_TimeSinceUpdate = 0.0f;
 	}
-
-	cPacket->m_Data[0] = CMSG_UPDATE;
-
-	// Add the sound packet (or send it on its own if it doesn't fit).
-	if (!cPacket->WritePacket(&soundPacket))
-	{
-		soundPacket.m_Data[0] = CMSG_SOUNDUPDATE;
-		pNetMgr->SendPacket(&soundPacket, pConnID, 0);
-	}
-
-	if ((int)soundPacket.m_DataLen - 1 > 0)
-	{
-		soundPacket.m_Pos = 1;
-		soundPacket.m_DataLen = 1;
-	}
-
-	pNetMgr->SendPacket(cPacket, pConnID, MESSAGE_GUARANTEED);
-
-	memcpy(m_LastCommands, commands, nToSave);
-	m_nLastCommands = nToSave;
-	m_TimeSinceUpdate = 0.0f;
 }
 
-// The out-of-line copy of the packet.h template, which SendUpdate calls. Our build inlines
-// WriteType into SendUpdate (the inline budget issue in README), so the copy is forced out here.
+// Template code this object instantiated first (the out-of-line copy of the packet.h
+// WriteTypeImpl<uint8> that SendUpdate calls):
 // FUNCTION: LITHTECH 0x00417c20 ?WriteTypeImpl@CPacket@@QAEXE@Z
-// STANDIN: forces the out-of-line WriteTypeImpl<uint8> (not in lithtech.exe)
-void (CPacket::*g_pfnWriteTypeUint8)(uint8 val) = &CPacket::WriteTypeImpl;

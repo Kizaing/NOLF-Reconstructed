@@ -4,6 +4,7 @@
 #define __MODELRAYINTERSECT_H__
 
 #include "iltmodel.h"
+#include "ltdynarray.h"
 
 class Model;
 class PieceLOD;
@@ -28,6 +29,10 @@ public:
 	void	TransformVerts(PieceLOD *pLOD);		// 0x0045b3b0 (name unknown)
 	void	SetupTris(PieceLOD *pLOD);			// 0x0045b4f0 (name unknown)
 	void	IntersectRay(ILTModel::LTRayResult *pRay);	// 0x0045b640 (name unknown)
+
+	// The transformed vertices and prepared triangles of the piece LOD being tested.
+	static CMoArray<LTVector>	s_RayVerts;		// 0x004e453c
+	static CMoArray<RayTri>		s_RayTris;		// 0x004e4528
 
 	uint32		m_nTris;		// 0x00
 	HOBJECT		m_hModel;		// 0x04

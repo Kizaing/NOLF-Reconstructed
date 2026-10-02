@@ -223,6 +223,25 @@ struct CmdLineArgs
 	char	*m_pArgBuffer;	// 0x08 holds the strings m_Argv points to
 };
 
+// Flags or'd into an error code handed to cm_ProcessError.
+#define ERROR_DISCONNECT	(1<<25)
+#define ERROR_SHUTDOWN		(1<<26)
+
+// The console commands and cm_Init keep their own client manager pointer.
+// GLOBAL: LITHTECH 0x004e33d4
+extern CClientMgr *g_pCommandClientMgr;
+
+// 0x00412230: starts the renderer from the console variables.
+LTRESULT cm_StartRenderFromGlobals(CClientMgr *pClientMgr);
+// 0x00412070: cm_Init's hello after a shell started
+void cm_OnEnterServer(CClientMgr *pClientMgr);
+// 0x00412680
+void cm_RebindTextures(CClientMgr *pClientMgr);
+// 0x00425cd0 (ILTClient::AddSurfaceEffect)
+LTRESULT cm_AddSurfaceEffect(CClientMgr *pClientMgr, SurfaceEffectDesc *pDesc);
+// 0x00425d60
+LTRESULT cm_ProcessError(CClientMgr *pClientMgr, LTRESULT theError);
+
 // 0x004112c0: allocates and sets up the client manager (NULL on failure).
 CClientMgr* cm_Init();
 

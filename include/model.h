@@ -6,6 +6,7 @@
 
 #include "ltbasedefs.h"
 #include "ltdynarray.h"
+#include "nexus.h"
 
 class LTAnimTracker;
 class ILTStream;
@@ -43,6 +44,12 @@ public:
 class NodeKeyFrame
 {
 public:
+	void		operator=(const NodeKeyFrame &other)
+	{
+		m_vTranslation = other.m_vTranslation;
+		m_Quaternion = other.m_Quaternion;
+	}
+
 	LTVector	m_vTranslation;		// 0x00
 	LTRotation	m_Quaternion;		// 0x0c
 };
@@ -63,29 +70,20 @@ public:
 
 	class Model*	GetModel();								// 0x0044e2d0
 	void			Term();									// 0x0044e150
+	void			Clear();								// 0x0044e020 (name unknown)
 	LTBOOL			FillNodeList(uint32 &curNodeIndex);		// 0x0044e210
 	LTBOOL			SetNode_R(ModelNode *pNode);			// 0x0044e280
 
-	uint32			NumChildren()		{return m_nChildren;}
+	uint32			NumChildren()		{return m_Children.GetSize();}
 	AnimNode*		GetChild(uint32 i)	{return m_Children[i];}
 
 	// model_load.cpp
 	LTBOOL			Load(ILTStream &file);					// 0x00455370
 
-	// Talon's CMoArray members (the raw pointer/count members below alias them).
-	CMoArray<NodeKeyFrame, NoCache>&	KeyFrameArray()	{return *(CMoArray<NodeKeyFrame, NoCache>*)m_Pad08;}
-	CMoArray<AnimNode*, NoCache>&		ChildArray()	{return *(CMoArray<AnimNode*, NoCache>*)m_Pad1C;}
-
 	ModelNode		*m_pNode;		// 0x04
-	uint8			m_Pad08[0xc - 0x8];	// 0x08 CMoArray<NodeKeyFrame> vtable
-	NodeKeyFrame	*m_KeyFrames;	// 0x0c
-	uint32			m_nKeyFrames;	// 0x10
-	uint8			m_Pad14[0x18 - 0x14];
+	CMoArray<NodeKeyFrame, NoCache>	m_KeyFrames;	// 0x08
 	AnimNode		*m_pParentNode;	// 0x18
-	uint8			m_Pad1C[0x20 - 0x1c];	// 0x1c CMoArray<AnimNode*> vtable
-	AnimNode		**m_Children;	// 0x20
-	uint32			m_nChildren;	// 0x24
-	uint8			m_Pad28[0x2c - 0x28];
+	CMoArray<AnimNode*, NoCache>	m_Children;		// 0x1c
 	ModelAnim		*m_pAnim;		// 0x2c
 };
 
@@ -108,13 +106,8 @@ public:
 	// model_load.cpp
 	LTBOOL			Load(ILTStream &file);	// 0x00455530
 
-	CMoArray<AnimKeyFrame, NoCache>&	KeyFrameArray()	{return *(CMoArray<AnimKeyFrame, NoCache>*)m_Pad08;}
-
 	AnimNode		**m_AnimNodes;		// 0x04
-	uint8			m_Pad08[0x4];		// 0x08 CMoArray<AnimKeyFrame, NoCache> vtable
-	AnimKeyFrame	*m_KeyFrames;		// 0x0c
-	uint32			m_nKeyFrames;		// 0x10
-	uint8			m_Pad14[0x18 - 0x14];
+	CMoArray<AnimKeyFrame, NoCache>	m_KeyFrames;	// 0x08
 	int32			m_Unknown18;		// 0x18 file version > 10, default -1
 	uint32			m_InterpolationMS;	// 0x1c
 	class Model		*m_pModel;			// 0x20
@@ -163,6 +156,10 @@ public:
 class ChildInfo
 {
 public:
+					ChildInfo();			// 0x0044dde0
+					~ChildInfo();			// 0x0044de20
+	void			Term();					// 0x0044de60
+
 	// model_load.cpp
 	LTBOOL			Load(ILTStream &file);	// 0x004558c0
 
@@ -284,6 +281,8 @@ public:
 	// model_load.cpp
 	LTBOOL			Load(ILTStream &file, uint32 &curWeight);	// 0x00455cb0
 
+	void			Term();								// 0x0044eac0 (name unknown)
+
 	// LOD 0 is the piece itself.
 	PieceLOD*		GetLOD(uint32 iLOD)
 	{
@@ -354,7 +353,7 @@ public:
 	void		Clear();								// 0x0044e6c0
 	LTBOOL		FillNodeList(uint32 &curNodeIndex);		// 0x0044e810
 	void		SetParent_R(uint32 iParent);			// 0x0044e870
-	uint32		NumChildren()		{return m_nChildren;}
+	uint32		NumChildren()		{return m_Children.GetSize();}
 	ModelNode*	GetChild(uint32 i)	{return m_Children[i];}
 	char*		GetName()			{return m_pName;}
 
@@ -367,16 +366,11 @@ public:
 	// model_load.cpp
 	LTBOOL		Load(ILTStream &file);					// 0x00455670
 
-	CMoArray<ModelNode*, NoCache>&	ChildArray()	{return *(CMoArray<ModelNode*, NoCache>*)m_Pad18;}
-
 	LTVector	m_vOffsetFromParent;	// 0x04
 	uint16		m_NodeIndex;			// 0x10
 	uint8		m_Flags;				// 0x12 MNODE_
 	uint8		m_Pad13[0x18 - 0x13];
-	uint8		m_Pad18[0x1c - 0x18];	// 0x18 CMoArray<ModelNode*, NoCache> vtable
-	ModelNode	**m_Children;			// 0x1c
-	uint32		m_nChildren;			// 0x20
-	uint8		m_Pad24[0x28 - 0x24];
+	CMoArray<ModelNode*, NoCache>	m_Children;	// 0x18
 	uint32		m_iParentNode;			// 0x28
 	LTMatrix	m_mGlobalTransform;		// 0x2c
 	LTMatrix	m_mInvGlobalTransform;	// 0x6c
@@ -397,6 +391,9 @@ public:
 	uint32		m_Unknown30;	// 0x30
 };
 
+// GLOBAL: LITHTECH 0x004e4524
+extern uint32 g_ModelMemory;	// bytes used by all models
+
 class Model
 {
 public:
@@ -405,6 +402,12 @@ public:
 
 	char*			GetFilename();				// 0x0046c290
 	void			Delete()	{ delete this; }
+
+	void			SetFadeRange(float fMin, float fMax);			// 0x0044ff10 (name unknown)
+	void			TermAnims();									// 0x0044f200
+	void			TermChildModels(LTBOOL bX);						// 0x0044f280 (argument unknown)
+	LTBOOL			AllocTransforms(LTBOOL bForce);					// 0x0044f410 (name unknown)
+	LTBOOL			AllocFlatNodeList(LTBOOL bForce);				// 0x0044f4b0 (name unknown)
 
 	ModelNode*		FindNode(const char *pName, uint32 *index=LTNULL);			// 0x0044f640
 	ModelPiece*		FindPiece(const char *pName, uint32 *index=LTNULL);			// 0x0044f590
@@ -423,22 +426,22 @@ public:
 	LTBOOL			VerifyChildModelTree(Model *pChild, ModelNode* &pErrNode);	// 0x0044ffd0
 	LTBOOL			InitChildInfo(uint32 index, ChildInfo *pChildModel, Model *pModel, const char *pFilename);	// 0x00450080
 
-	uint32			NumPieces()				{return m_nPieces;}
+	uint32			NumPieces()				{return m_Pieces.GetSize();}
 	ModelPiece*		GetPiece(uint32 i)		{return m_Pieces[i];}
 	uint32			NumChildModels()		{return m_nChildModels;}
 	ChildInfo*		GetChildModel(uint32 i)	{return m_ChildModels[i];}
 	ChildInfo*		GetSelfChildModel()		{return m_ChildModels[0];}
 
-	uint32			NumNodes()				{return m_nNodes;}
-	uint32			NumSockets()			{return m_nSockets;}
+	uint32			NumNodes()				{return m_Transforms.GetSize();}
+	uint32			NumSockets()			{return m_Sockets.GetSize();}
 	ModelSocket*	GetSocket(uint32 i)		{return m_Sockets[i];}
 
-	uint32		NumAnims()				{return m_nAnims;}
+	uint32		NumAnims()				{return m_Anims.GetSize();}
 	ModelAnim*	GetAnim(uint32 i)		{return m_Anims[i].m_pAnim;}
 	AnimInfo*	GetAnimInfo(uint32 i)	{return &m_Anims[i];}
 
 	uint32		NumWeightSets()			{return m_WeightSets.GetSize();}
-	WeightSet*	GetWeightSet(uint32 i)	{return (i >= m_WeightSets.GetSize()) ? LTNULL : m_WeightSets[i];}
+	WeightSet*	GetWeightSet(uint32 i)	{if(i >= NumWeightSets()) return LTNULL; return m_WeightSets.GetArray()[i];}
 
 	ModelNode*	GetNode(uint32 i)		{return m_FlatNodeList[i];}
 	ModelNode*	GetRootNode()			{return m_pRootNode;}
@@ -451,7 +454,7 @@ public:
 			return &m_LODDist0;
 
 		iLOD--;
-		if(iLOD < m_nLODDists)
+		if(iLOD < m_LODDists.GetSize())
 			return &m_LODDists[iLOD].m_Dist;
 		else
 			return LTNULL;
@@ -469,56 +472,54 @@ public:
 	LTBOOL			LoadWeightSets(ILTStream &file);				// 0x00456230
 	LTBOOL			LoadHeader(ILTStream &file, ModelAllocations &allocs);	// 0x00457090 (name unknown)
 
-	// Talon's CMoArray members (the raw pointer/count members below alias them).
-	CMoArray<ModelNode*, NoCache>&		FlatNodeArray()	{return *(CMoArray<ModelNode*, NoCache>*)m_Pad024;}
-	CMoArray<ModelPiece*, NoCache>&		PieceArray()	{return *(CMoArray<ModelPiece*, NoCache>*)m_Pad034;}
-	CMoArray<LTMatrix, NoCache>&		TransformArray()	{return *(CMoArray<LTMatrix, NoCache>*)m_Pad070;}
-	CMoArray<LODDistance>&				LODDistArray()	{return *(CMoArray<LODDistance>*)m_Pad08C;}
-	CMoArray<ModelSocket*, NoCache>&	SocketArray()	{return *(CMoArray<ModelSocket*, NoCache>*)m_Pad154;}
-	CMoArray<AnimInfo, NoCache>&		AnimArray()		{return *(CMoArray<AnimInfo, NoCache>*)m_Pad164;}
-
+	// Model data.  Talon keeps everything in CMoArray members; the raw pointers of the old layout
+	// are gone, use GetSize()/operator[]/GetArray().
 	char		*m_pFilename;		// 0x04
 	LTLink		m_Link;				// 0x08 client: in CClientMgr::m_TextureUsers (setupobject)
-	uint8		m_Nexus[0x8];		// 0x14 Nexus (nexus.h): the client leeches onto server models
+	Nexus		m_Nexus;			// 0x14 the client leeches onto server models
 	uint32		m_FileID;			// 0x1c server file ID
 	uint32		m_Flags;			// 0x20 server: MODELFLAG_ (bit 0 = cached)
-	uint8		m_Pad024[0x28 - 0x24];	// 0x24 CMoArray<ModelNode*, NoCache> vtable
-	ModelNode	**m_FlatNodeList;	// 0x28
-	uint32		m_nFlatNodes;		// 0x2c
-	uint8		m_Pad030[0x34 - 0x30];
-	uint8		m_Pad034[0x38 - 0x34];	// 0x34 CMoArray<ModelPiece*, NoCache> vtable
-	ModelPiece	**m_Pieces;			// 0x38
-	uint32		m_nPieces;			// 0x3c
-	uint8		m_Pad040[0x44 - 0x40];
+	CMoArray<ModelNode*, NoCache>	m_FlatNodeList;	// 0x24
+	CMoArray<ModelPiece*, NoCache>	m_Pieces;		// 0x34
 	CMoArray<WeightSet*, NoCache>	m_WeightSets;	// 0x44
 	CMoArray<NewVertexWeight, NoCache>	m_VertexWeights;	// 0x54 shared by all the pieces' vertices
 	uint32		m_nTotalVerts;		// 0x64
 	uint32		m_nTotalTris;		// 0x68
-	uint32		m_nNodeDWords;		// 0x6c (m_nNodes+3)/4
-	uint8		m_Pad070[0x74 - 0x70];	// 0x70 CMoArray<LTMatrix, NoCache> vtable
-	LTMatrix	*m_Transforms;		// 0x74
-	uint32		m_nNodes;			// 0x78
-	uint8		m_Pad07C[0x80 - 0x7c];
+	uint32		m_nNodeDWords;		// 0x6c (nodes+3)/4
+	CMoArray<LTMatrix, NoCache>		m_Transforms;	// 0x70 one per node
 	char		*m_CommandString;	// 0x80 ILTServer::GetModelCommandString
 	ModelStringList	m_StringList;	// 0x84
-	uint8		m_Pad08C[0x90 - 0x8c];	// 0x8c CMoArray<LODDistance> vtable
-	LODDistance	*m_LODDists;		// 0x90
-	uint32		m_nLODDists;		// 0x94
-	uint8		m_Pad098[0xa0 - 0x98];
+	CMoArray<LODDistance>			m_LODDists;		// 0x8c
 	float		m_LODDist0;			// 0xa0 distance of LOD 0
 	float		m_GlobalRadius;		// 0xa4
 	float		m_VisRadius;		// 0xa8
-	uint8		m_Pad0AC[0xc0 - 0xac];
+	LTBOOL		m_bNoAnimation;		// 0xac "NoAnimation" command
+	float		m_FadeRangeMin;		// 0xb0 "FadeRangeMin"
+	float		m_FadeRangeMinSqr;	// 0xb4
+	float		m_FadeRangeMax;		// 0xb8 "FadeRangeMax"
+	float		m_FadeRangeMaxSqr;	// 0xbc
 	struct SharedTexture	*m_pFadeSpriteTex;	// 0xc0 client: the "FadeSpriteTex" command string texture (setupobject)
-	uint8		m_Pad0C4[0x154 - 0xc4];
-	uint8		m_Pad154[0x158 - 0x154];	// 0x154 CMoArray<ModelSocket*, NoCache> vtable
-	ModelSocket	**m_Sockets;		// 0x158
-	uint32		m_nSockets;			// 0x15c
-	uint8		m_Pad160[0x164 - 0x160];
-	uint8		m_Pad164[0x168 - 0x164];	// 0x164 CMoArray<AnimInfo, NoCache> vtable
-	AnimInfo	*m_Anims;			// 0x168
-	uint32		m_nAnims;			// 0x16c
-	uint8		m_Pad170[0x174 - 0x170];
+	float		m_FadeSpriteSizeX;	// 0xc4 "FadeSpriteSize"
+	float		m_FadeSpriteSizeY;	// 0xc8
+	float		m_AmbientLight;		// 0xcc "AmbientLight"
+	float		m_DirLight;			// 0xd0 "DirLight"
+	LTBOOL		m_bShadowEnable;	// 0xd4 "ShadowEnable"
+	float		m_ShadowProjectLength;	// 0xd8 "ShadowProjectLength"
+	float		m_ShadowLightDist;	// 0xdc "ShadowLightDist"
+	float		m_ShadowSizeX;		// 0xe0 "ShadowSizeX"
+	float		m_ShadowSizeY;		// 0xe4 "ShadowSizeY"
+	LTVector	m_ShadowCenterOffset;	// 0xe8 "ShadowCenterOffset"
+	uint32		m_iNormalRefNode;	// 0xf4 "NormalRef" node (-1 = none)
+	uint32		m_iNormalRefAnim;	// 0xf8 "NormalRef" animation (-1 = none)
+	LTMatrix	m_mNormalRef;		// 0xfc "NormalRef" reference transform
+	LTBOOL		m_bNormalRef;		// 0x13c m_mNormalRef is valid
+	LTBOOL		m_bFovOffset;		// 0x140 "FovXOffset"/"FovYOffset" given
+	float		m_FovXOffset;		// 0x144 radians
+	float		m_FovYOffset;		// 0x148 radians
+	LTBOOL		m_bSpecularEnable;	// 0x14c "SpecularEnable"
+	LTBOOL		m_bRigid;			// 0x150 "Rigid"
+	CMoArray<ModelSocket*, NoCache>	m_Sockets;		// 0x154
+	CMoArray<AnimInfo, NoCache>		m_Anims;		// 0x164
 	LAlloc		*m_pAlloc;			// 0x174
 	LAlloc		*m_pDefAlloc;		// 0x178
 	LAllocSimpleBlock	m_BlockAlloc;	// 0x17c
@@ -528,7 +529,7 @@ public:
 	ChildInfo	m_SelfChildModel;	// 0x1d8
 	uint32		m_FileVersion;		// 0x208
 	uint32		m_RefCount;			// 0x20c server references (server_extradata)
-	uint8		m_Pad210[0x2c4 - 0x210];
+	ModelNode	m_RootNode;			// 0x210 the default root node
 	ModelNode	*m_pRootNode;		// 0x2c4
 };
 

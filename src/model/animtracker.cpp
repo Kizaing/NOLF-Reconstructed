@@ -76,10 +76,10 @@ LTBOOL trk_IsStopped(LTAnimTracker *pTracker)
 
 		if(!(pTracker->m_Flags & AT_LOOPING))
 		{
-			if(pAnim->m_nKeyFrames <= 1)
+			if(pAnim->m_KeyFrames.GetSize() <= 1)
 				return LTTRUE;
 
-			if(pTracker->m_TimeRef.m_Cur.m_Time == pAnim->m_KeyFrames[pAnim->m_nKeyFrames - 1].m_Time + 1)
+			if(pTracker->m_TimeRef.m_Cur.m_Time == pAnim->m_KeyFrames[pAnim->m_KeyFrames.GetSize() - 1].m_Time + 1)
 				return LTTRUE;
 		}
 	}
@@ -200,10 +200,10 @@ void trk_SetAtKeyFrame(LTAnimTracker *pTracker, uint32 msTime)
 
 	ModelAnim *pCurAnim = pTracker->GetCurAnim();
 
-	if(pCurAnim->m_nKeyFrames <= 1)
+	if(pCurAnim->m_KeyFrames.GetSize() <= 1)
 		return;
 
-	uint32 iEndKey = pCurAnim->m_nKeyFrames - 1;
+	uint32 iEndKey = pCurAnim->m_KeyFrames.GetSize() - 1;
 
 	uint32 endTime = pCurAnim->m_KeyFrames[iEndKey].m_Time;
 	if(msTime > endTime)
@@ -280,7 +280,7 @@ void trk_ScanToKeyFrame(LTAnimTracker *pTracker, uint32 msDelta, LTBOOL bProcess
 		}
 	}
 
-	if(pCurAnim->m_nKeyFrames <= 1)
+	if(pCurAnim->m_KeyFrames.GetSize() <= 1)
 	{
 		pTracker->m_CurKey = 0;
 		pTracker->m_TimeRef.m_Cur.m_Time = 0;
@@ -288,7 +288,7 @@ void trk_ScanToKeyFrame(LTAnimTracker *pTracker, uint32 msDelta, LTBOOL bProcess
 		return;
 	}
 
-	uint32 iEndKey = pCurAnim->m_nKeyFrames - 1;
+	uint32 iEndKey = pCurAnim->m_KeyFrames.GetSize() - 1;
 	uint32 endTime = pCurAnim->m_KeyFrames[iEndKey].m_Time;
 
 	pTracker->m_TimeRef.m_Prev.m_Time = pTracker->m_TimeRef.m_Cur.m_Time;
@@ -350,7 +350,7 @@ static void trk_ProcessKey(LTAnimTracker *pTracker, ModelAnim *pAnim, uint32 iFr
 			pTracker->m_StringKeyCallback(pTracker, pFrame, LTNULL, LTFALSE);
 
 		// Notify the end of the animation.
-		if(iFrame == pAnim->m_nKeyFrames - 1 && pTracker->m_StringKeyCallback && pFrame->m_Time > 1)
+		if(iFrame == pAnim->m_KeyFrames.GetSize() - 1 && pTracker->m_StringKeyCallback && pFrame->m_Time > 1)
 			pTracker->m_StringKeyCallback(pTracker, pFrame, "LTAnim_End", LTTRUE);
 
 		pNextPosition = trk_NextPositionFrame(pTracker, iFrame+1, iNextPosition);
@@ -359,12 +359,12 @@ static void trk_ProcessKey(LTAnimTracker *pTracker, ModelAnim *pAnim, uint32 iFr
 			if(pTracker->m_TimeRef.m_Cur.m_Time <= pNextPosition->m_Time)
 			{
 				pTracker->m_TimeRef.m_Prev.m_iFrame = (uint16)iFrame;
-				pTracker->m_TimeRef.m_Cur.m_iFrame = pNextPosition - pAnim->m_KeyFrames;
+				pTracker->m_TimeRef.m_Cur.m_iFrame = pNextPosition - pAnim->m_KeyFrames.GetArray();
 			}
 			else
 			{
 				pTracker->m_TimeRef.m_Prev.m_iFrame = pTracker->m_TimeRef.m_Cur.m_iFrame =
-					pNextPosition - pAnim->m_KeyFrames;
+					pNextPosition - pAnim->m_KeyFrames.GetArray();
 			}
 		}
 		else
@@ -383,7 +383,7 @@ static AnimKeyFrame* trk_NextPositionFrame(LTAnimTracker *pTracker, uint32 iStar
 	ModelAnim *pAnim = pTracker->GetCurAnim();
 	if(pAnim)
 	{
-		for(i=iStart; i < pAnim->m_nKeyFrames; i++)
+		for(i=iStart; i < pAnim->m_KeyFrames.GetSize(); i++)
 		{
 			if(pAnim->m_KeyFrames[i].m_KeyType == KEYTYPE_POSITION)
 			{

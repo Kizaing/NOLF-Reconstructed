@@ -23,15 +23,23 @@ struct InterLink
 	LTLink		*m_pOtherLink;	// 0x10 in m_pOther->sd->m_Links (interlink and container)
 };
 
-// Talon object reference record (LINKTYPE_OBJREF), kept in an STLport std::list at 0x4e42c0.
+// Talon object reference record (LINKTYPE_OBJREF). The SDK's LTSmartLink_Body (ltsmartlink.h) is one of
+// these; they are kept in an STLport std::list (interlink.cpp).
 struct ObjRefEntry
 {
-	int32		m_nRefs;		// 0x00
+	ObjRefEntry(LTObject *pObject) : m_nRefs(0), m_pObject(pObject), m_pServer(LTNULL) {}
+
+	int32		m_nRefs;		// 0x00 m_nCount
 	LTObject	*m_pObject;		// 0x04
+	void		*m_pServer;		// 0x08 ILTServer*
 };
 
 void		DisconnectLinks(CServerMgr *pServerMgr, LTObject *pOwner, void *pOther, LTBOOL bDisconnectAll);
 void		BreakInterLinks(CServerMgr *pServerMgr, LTObject *pObj, uint32 linkType, LTBOOL bNotify);
 LTRESULT	CreateInterLink(CServerMgr *pServerMgr, LTObject *pOwner, void *pOther, uint32 linkType);
+
+// Reference counted object references (ILTPhysics::CreateSmartLink).
+ObjRefEntry*	AddObjRef(LTObject *pObj);				// 0x00443da0
+void		ReleaseObjRef(ObjRefEntry *pRef);		// 0x00443e60
 
 #endif  // __INTERLINK_H__

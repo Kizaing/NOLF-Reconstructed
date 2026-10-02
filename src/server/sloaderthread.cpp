@@ -75,16 +75,18 @@ LTRESULT CServerSerializeHelper::ReadObjectRef(ILTMessage *pMsg, HOBJECT *pObj)
 
 
 // STUB: LITHTECH 0x0048ea70
-// The original loads pMsg's vtable and this for WriteWord right after the IsInvalid call,
-// before the branches.
 LTRESULT CServerSerializeHelper::WriteObjectRef(ILTMessage *pMsg, HOBJECT hObj)
 {
 	LTObject *pObj = (LTObject*)hObj;
 
-	// Save games refer to objects by their serialize ID.
-	pMsg->WriteWord(((LMessageImpl*)pMsg)->IsInvalid() == LTTRUE ?
-		(pObj ? pObj->m_SerializeID : (uint16)INVALID_OBJECTID) :
-		(pObj ? pObj->m_ObjectID : (uint16)INVALID_OBJECTID));
+	if(((LMessageImpl*)pMsg)->IsInvalid() == LTTRUE)
+	{
+		pMsg->WriteWord(pObj ? pObj->m_SerializeID : (uint16)INVALID_OBJECTID);
+	}
+	else
+	{
+		pMsg->WriteWord(pObj ? pObj->m_ObjectID : (uint16)INVALID_OBJECTID);
+	}
 
 	return LT_OK;
 }
@@ -156,7 +158,7 @@ void CServerLoaderThread::ProcessMessage(LThreadMessage &msg)
 	{
 		pFile = (UsedFile*)msg.m_Data[1].m_pData;
 		pFilename = sf_GetUsedFilename(&m_pServerMgr->m_FileMgr, pFile);
-		dResult = se_LoadModel(m_pServerMgr, pFilename, pFile, &pModel);
+		dResult = se_LoadModelData(m_pServerMgr, pFilename, pFile, &pModel);
 
 		result.m_ID = (dResult != LT_OK);
 		result.m_Data[0].m_dwData = FT_MODEL;

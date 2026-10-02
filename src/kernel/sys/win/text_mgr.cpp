@@ -329,12 +329,207 @@ static void tmgr_SizeTextSurface(SIZE *pSize)
 }
 
 
+// The client's format manager (winclientde_impl.cpp, 0x0040c510).
+FormatMgr* GetFormatMgr();
+
+inline LTBOOL IsColorTransparent(HLTCOLOR hColor)
+{
+	return !!(((uint32)hColor) & COLOR_TRANSPARENCY_MASK);
+}
+
+template<class P>
+inline void tmgr_RasterizeTextBackground_T(
+	uint8 *pSrcLine, uint32 srcX, uint8 *pDestLine,
+	long destPitch, uint32 rectWidth, uint32 rectHeight, GenericColor bkColor,
+	P *pixelType)
+{
+	uint16 *pSrcPos;
+	P destPos;
+	uint32 y, xCounter;
+
+	for(y=0; y < rectHeight; y++)
+	{
+		pSrcPos = ((uint16*)pSrcLine) + srcX;
+		destPos = pDestLine;
+
+		xCounter = rectWidth;
+		while(xCounter)
+		{
+			xCounter--;
+
+			if(!(*pSrcPos))
+				destPos = bkColor;
+
+			++pSrcPos;
+			++destPos;
+		}
+
+		pSrcLine += g_TextBitmapPitch;
+		pDestLine += destPitch;
+	}
+}
+
+template<class P>
+inline void tmgr_RasterizeTextForeground_T(
+	uint8 *pSrcLine, uint32 srcX, uint8 *pDestLine,
+	long destPitch, uint32 rectWidth, uint32 rectHeight, GenericColor fgColor,
+	P *pixelType)
+{
+	uint16 *pSrcPos;
+	P destPos;
+	uint32 y, xCounter;
+
+	for(y=0; y < rectHeight; y++)
+	{
+		pSrcPos = ((uint16*)pSrcLine) + srcX;
+		destPos = pDestLine;
+
+		xCounter = rectWidth;
+		while(xCounter)
+		{
+			xCounter--;
+
+			if(*pSrcPos)
+				destPos = fgColor;
+
+			++pSrcPos;
+			++destPos;
+		}
+
+		pSrcLine += g_TextBitmapPitch;
+		pDestLine += destPitch;
+	}
+}
+
+template<class P>
+inline void tmgr_RasterizeText_T(
+	uint8 *pSrcLine, uint32 srcX, uint8 *pDestLine,
+	long destPitch, uint32 rectWidth, uint32 rectHeight, GenericColor fgColor, GenericColor bkColor,
+	P *pixelType)
+{
+	uint16 *pSrcPos;
+	P destPos;
+	uint32 y, xCounter;
+
+	for(y=0; y < rectHeight; y++)
+	{
+		pSrcPos = ((uint16*)pSrcLine) + srcX;
+		destPos = pDestLine;
+
+		xCounter = rectWidth;
+		while(xCounter)
+		{
+			xCounter--;
+
+			if(*pSrcPos)
+				destPos = fgColor;
+			else
+				destPos = bkColor;
+
+			++pSrcPos;
+			++destPos;
+		}
+
+		pSrcLine += g_TextBitmapPitch;
+		pDestLine += destPitch;
+	}
+}
+
+
+// One byte differs: the 16-bit foreground+background loop addresses [ecx+eax] where the original has [eax+ecx].
 // STUB: LITHTECH 0x0049bae0
-// Not decompiled yet: Talon locks the surface through the renderer's function table and
-// rasterizes 16/32-bit text inline.
 static void tmgr_DrawTextToSurface(CisSurface *pDest, LTRect *pSrcRect, LTRect *pDestRect,
 	HLTCOLOR hForeColor, HLTCOLOR hBackColor)
 {
+	LTRect srcRect, destRect;
+	LTBOOL bIsVisible;
+	uint8 *pSrcLine;
+	uint8 *pDestLine;
+	long destPitch;
+	GenericColor gcForeColor, gcBackColor;
+
+	if(!g_pTextBitmapBits)
+		return;
+
+	// Clip the rectangles..
+	bIsVisible = cis_ClipRectsNonScaled(
+		g_TextBitmapWidth, g_TextBitmapHeight,
+		pSrcRect->left, pSrcRect->top, pSrcRect->right, pSrcRect->bottom,
+		pDest->m_Width, pDest->m_Height,
+		pDestRect->left, pDestRect->top, &srcRect, &destRect);
+	if(!bIsVisible)
+		return;
+
+	// Draw!
+	pDestLine = (uint8*)cis_LockSurface(pDest, destPitch, TRUE);
+	if(!pDestLine)
+		return;
+
+	pSrcLine = (uint8*)g_pTextBitmapBits;
+	pSrcLine += srcRect.top*g_TextBitmapPitch;
+	pDestLine += destRect.top*destPitch + destRect.left*g_nScreenPixelBytes;
+
+	GetFormatMgr()->PValueToFormatColor(&g_ScreenFormat, hForeColor, gcForeColor);
+	GetFormatMgr()->PValueToFormatColor(&g_ScreenFormat, hBackColor, gcBackColor);
+
+	// Handle the four transparency cases..
+	if(IsColorTransparent(hForeColor) && IsColorTransparent(hBackColor))
+	{
+		// Nothing would get drawn!
+	}
+	else if(IsColorTransparent(hForeColor))
+	{
+		if(g_ScreenFormat.m_eType == BPP_16)
+		{
+			tmgr_RasterizeTextBackground_T(
+				pSrcLine, srcRect.left, pDestLine, destPitch,
+				srcRect.right - srcRect.left, srcRect.bottom - srcRect.top,
+				gcBackColor, (Pixel16*)LTNULL);
+		}
+		else if(g_ScreenFormat.m_eType == BPP_32)
+		{
+			tmgr_RasterizeTextBackground_T(
+				pSrcLine, srcRect.left, pDestLine, destPitch,
+				srcRect.right - srcRect.left, srcRect.bottom - srcRect.top,
+				gcBackColor, (Pixel32*)LTNULL);
+		}
+	}
+	else if(IsColorTransparent(hBackColor))
+	{
+		if(g_ScreenFormat.m_eType == BPP_16)
+		{
+			tmgr_RasterizeTextForeground_T(
+				pSrcLine, srcRect.left, pDestLine, destPitch,
+				srcRect.right - srcRect.left, srcRect.bottom - srcRect.top,
+				gcForeColor, (Pixel16*)LTNULL);
+		}
+		else if(g_ScreenFormat.m_eType == BPP_32)
+		{
+			tmgr_RasterizeTextForeground_T(
+				pSrcLine, srcRect.left, pDestLine, destPitch,
+				srcRect.right - srcRect.left, srcRect.bottom - srcRect.top,
+				gcForeColor, (Pixel32*)LTNULL);
+		}
+	}
+	else
+	{
+		if(g_ScreenFormat.m_eType == BPP_16)
+		{
+			tmgr_RasterizeText_T(
+				pSrcLine, srcRect.left, pDestLine, destPitch,
+				srcRect.right - srcRect.left, srcRect.bottom - srcRect.top,
+				gcForeColor, gcBackColor, (Pixel16*)LTNULL);
+		}
+		else if(g_ScreenFormat.m_eType == BPP_32)
+		{
+			tmgr_RasterizeText_T(
+				pSrcLine, srcRect.left, pDestLine, destPitch,
+				srcRect.right - srcRect.left, srcRect.bottom - srcRect.top,
+				gcForeColor, gcBackColor, (Pixel32*)LTNULL);
+		}
+	}
+
+	cis_UnlockSurface(pDest);
 }
 
 

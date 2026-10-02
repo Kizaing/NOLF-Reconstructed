@@ -1,6 +1,8 @@
 // Jupiter runtime/server/src/servermgr.cpp
 // Talon's server manager functions mostly take the CServerMgr explicitly. The unit also holds
 // two STLport containers (static initializers at 0x00484720 and 0x00484830) we can't build.
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC /IE:/AVP2Source/build/proj/LT2/lithshared/wonapi
+#include <winsock2.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -25,6 +27,10 @@
 #include "s_client.h"
 #include "server_extradata.h"
 #include "fullintersectline.h"
+#include "WONAuth/AuthContext.h"
+#include "WONAuth/PeerAuthServer.h"
+
+#define SMSG_PEERAUTH		27
 
 #define LoaderThread()	((CServerLoaderThread*)m_LoaderThread)
 
@@ -184,47 +190,18 @@ extern LTBOOL g_bAutoDeactivate;
 
 
 // ----------------------------------------------------------------------- //
-// A reference-counted object held by the unit (released by Init and Term).
+// The server's WONAPI auth context (released by Init and Term). The WONAPI headers (via <string>)
+// use up 28 static initializer numbers first.
 // ----------------------------------------------------------------------- //
 
-class RefCounted
-{
-public:
-	virtual			~RefCounted() {}
+using namespace WONAPI;
 
-	void			Release()
-	{
-		if (InterlockedDecrement(&m_RefCount) <= 0)
-			delete this;
-	}
-
-	long			m_RefCount;		// 0x04
-};
-
-class RefCountPtr
-{
-public:
-					RefCountPtr()	{ m_pObj = LTNULL; }
-					~RefCountPtr()	{ if (m_pObj) m_pObj->Release(); }
-
-	void			Clear()
-	{
-		if (m_pObj)
-		{
-			m_pObj->Release();
-			m_pObj = LTNULL;
-		}
-	}
-
-	RefCounted		*m_pObj;
-};
-
-// FUNCTION: LITHTECH 0x004821c0 _$E4
-// FUNCTION: LITHTECH 0x004821d0 _$E1
-// FUNCTION: LITHTECH 0x004821e0 _$E3
-// FUNCTION: LITHTECH 0x004821f0 _$E2
+// FUNCTION: LITHTECH 0x004821c0 _$E32
+// FUNCTION: LITHTECH 0x004821d0 _$E29
+// FUNCTION: LITHTECH 0x004821e0 _$E31
+// FUNCTION: LITHTECH 0x004821f0 _$E30
 // GLOBAL: LITHTECH 0x004e5d98
-static RefCountPtr g_RefObj;
+static SmartPtr<AuthContext> g_pAuthContext;
 
 
 // ----------------------------------------------------------------------- //
@@ -425,7 +402,7 @@ LTBOOL CServerMgr::Init()
 
 	InitServerNetHandlers();
 
-	g_RefObj.Clear();
+	g_pAuthContext = (AuthContext*)LTNULL;
 	return LTTRUE;
 }
 
@@ -437,7 +414,7 @@ void CServerMgr::Term()
 {
 	LTLink *pListHead, *pCur, *pNext;
 
-	g_RefObj.Clear();
+	g_pAuthContext = (AuthContext*)LTNULL;
 	SetupGlobals();
 
 	// Stop loading.
@@ -1088,10 +1065,10 @@ LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 			m_FrameTime = m_TrueFrameTime;
 			m_FrameTime = LTCLAMP(m_FrameTime, MIN_FRAMETIME, MAX_FRAMETIME);
 
+			m_GameTime += m_FrameTime;
+
 			for (i=0; i < 1; i++)
 			{
-				m_GameTime += m_FrameTime;
-
 				UpdateSounds(m_FrameTime);
 
 				// Debug frame stepping.
@@ -1662,11 +1639,74 @@ void sm_ResetDeactivateTimer(LTObject *pObj)
 		sm_SetObjectStateFlags(g_pServerMgr, pObj, pObj->m_InternalFlags & IFLAG_INACTIVE_TICK_MASK);
 }
 
-// Activates the objects around pObj (needs an STLport container on the stack).
-// STUB: LITHTECH 0x00486850
+void sm_ActivateObjectCB(WorldTreeObj *pObj, void *pUser);	// 0x00486900
+void sm_SendToVisibleClientsCB(WorldTreeObj *pObj, void *pUser);	// 0x00486c10
+void sm_GetClientObjects(LTLink *pListHead, LTObject ***ppObjects, uint32 *pnObjects);	// 0x00486bc0
+
+// Activates the objects around pObj.
+// FUNCTION: LITHTECH 0x00486850
 void sm_ActivateObjectsNear(CServerMgr *pServerMgr, LTObject *pObj)
 {
+	VisQueryRequest request;
+
+	if (g_bAutoDeactivate && pServerMgr->m_World.m_bLoaded)
+	{
+		request.m_ViewRadius = 10000.0f;
+		request.m_AddObject = sm_ActivateObjectCB;
+		request.m_Viewpoint = pObj->m_Pos;
+		request.m_pUserData = LTNULL;
+		pServerMgr->m_World.m_WorldTree.DoVisQuery(&request);
+	}
 }
+
+// What sm_SendToVisibleClients hands its world tree callback.
+struct SendToVisibleInfo
+{
+	CServerMgr	*m_pServerMgr;		// 0x00
+	CPacket		*m_pPacket;			// 0x04
+	LTObject	*m_pObj;			// 0x08
+	uint8		m_MsgID;			// 0x0c
+	uint32		m_Flags;			// 0x10
+};
+
+// Sends a special effect message to the clients that can see pPos.
+// FUNCTION: LITHTECH 0x00486ab0
+LTRESULT sm_SendSFXMessage(CServerMgr *pServerMgr, uint8 msgID, CPacket *pPacket, LTObject *pObj, LTVector *pPos, uint32 flags)
+{
+	VisQueryRequest request;
+	SendToVisibleInfo info;
+	Client *pClient;
+
+	if (pServerMgr->m_Clients.m_nElements)
+	{
+		// Don't bother with a vis query if the only client is local.
+		if (pServerMgr->m_Clients.m_nElements == 1)
+		{
+			pClient = (Client*)pServerMgr->m_Clients.m_Head.m_pNext->m_pData;
+			if (pClient->m_ClientFlags & CFLAG_LOCAL)
+			{
+				sm_SendToClient(pServerMgr, pClient, msgID, pPacket, flags);
+				return LT_OK;
+			}
+		}
+
+		info.m_pServerMgr = pServerMgr;
+		info.m_pPacket = pPacket;
+		info.m_pObj = pObj;
+		info.m_MsgID = msgID;
+		info.m_Flags = flags;
+
+		request.m_ViewRadius = 10000.0f;
+		request.m_Viewpoint = *pPos;
+		request.m_AddObject = sm_SendToVisibleClientsCB;
+		request.m_Unknown18 = (void*)sm_GetClientObjects;
+		request.m_pUserData = &info;
+		pServerMgr->m_World.m_WorldTree.DoVisQuery(&request);
+	}
+
+	return LT_OK;
+}
+
 
 // FUNCTION: LITHTECH 0x00486900
 void sm_ActivateObjectCB(WorldTreeObj *pObj, void *pUser)
@@ -2636,7 +2676,13 @@ void sm_CacheSingleFile(CServerMgr *pServerMgr, uint16 fileType, uint16 fileID)
 
 // Prints a message on all the clients' consoles.
 // VC6 inlines CMoArray<uint8>::Insert2 (via WriteType/Append) here; the original calls it.
-// STUB: LITHTECH 0x004861a0
+// Counterpart of packet_AddRef (an inline wrapper; the extra inline call site matters to the budget).
+inline void packet_Release(CPacket *pPacket)
+{
+	pPacket->Release();
+}
+
+// FUNCTION: LITHTECH 0x004861a0
 void BPrint(const char *pMsg, ...)
 {
 	char msg[500];
@@ -2653,7 +2699,7 @@ void BPrint(const char *pMsg, ...)
 	pPacket->WriteType((uint8)0);
 	pPacket->WriteString(msg);
 	sm_SendToAllClients(g_pServerMgr, SMSG_CONSOLETEXT, pPacket, MESSAGE_GUARANTEED);
-	pPacket->Release();
+	packet_Release(pPacket);
 }
 
 
@@ -2678,16 +2724,6 @@ void CServerMgr::SetupPacketMessage(CPacket *pPacket)
 	pPacket->m_Message.m_Unknown04 = (uint32)m_pSerializeHelper;
 }
 
-
-// What sm_SendToVisibleClients hands its world tree callback.
-struct SendToVisibleInfo
-{
-	CServerMgr	*m_pServerMgr;		// 0x00
-	CPacket		*m_pPacket;			// 0x04
-	const LTVector	*m_pPos;		// 0x08
-	uint8		m_MsgID;			// 0x0c
-	uint32		m_Flags;			// 0x10
-};
 
 // FUNCTION: LITHTECH 0x00486c10
 void sm_SendToVisibleClientsCB(WorldTreeObj *pObj, void *pUser)
@@ -2897,3 +2933,59 @@ LTBOOL CServerMgr::InitWorldObjects()
 
 	return LTTRUE;
 }
+
+
+// Handles a client's peer to peer authentication packet (the server side of the exchange).
+// FUNCTION: LITHTECH 0x00487010
+void CServerMgr::OnPeerToPeerAuthPacket(Client *pClient, CPacket *pPacket)
+{
+	PeerAuthServer authServer;
+	char buf[512];
+	uint32 len;
+
+	memset(buf, 0, sizeof(buf));
+
+	if (!g_pAuthContext.get())
+	{
+		g_pAuthContext = (AuthContext*)g_pClassMgr->m_pServerShell->GetAuthContext();
+		if (!g_pAuthContext.get())
+		{
+			// No auth context: let the client carry on without authentication.
+			CPacketRef cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+			cPacket->m_Data[0] = SMSG_PEERAUTH;
+			m_NetMgr.SendPacket(cPacket, pClient->m_ConnectionID, MESSAGE_GUARANTEED);
+			return;
+		}
+	}
+
+	if (authServer.GetState() == PeerAuthServer::STATE_NOT_STARTED)
+	{
+		authServer.SetUseAuth2(true);
+		authServer.Start(g_pAuthContext->GetPeerData(), 4);
+	}
+
+	len = pPacket->m_DataLen - pPacket->m_Pos;
+	pPacket->ReadRaw(buf, (uint16)len);
+
+	ByteBufferPtr outMsg;
+
+	if (authServer.HandleRecvMsg(buf + 4, len - 4, outMsg) == WS_Success)
+	{
+		if (pClient->m_Unknown3E0 == 1)
+			pClient->m_Unknown3E4 = 1;
+		else
+			pClient->m_Unknown3E0 = 1;
+	}
+
+	if (outMsg.get())
+	{
+		CPacketRef cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+		cPacket->WriteRaw((void*)outMsg->data(), (uint16)outMsg->length());
+		cPacket->m_Data[0] = SMSG_PEERAUTH;
+		m_NetMgr.SendPacket(cPacket, pClient->m_ConnectionID, MESSAGE_GUARANTEED);
+	}
+}
+
+// Template code the peer auth leaves behind.
+// FUNCTION: LITHTECH 0x004872f0 ?Release@RefCount@WONAPI@@QAEXXZ
+// FUNCTION: LITHTECH 0x00487310 ??1Blowfish@WONAPI@@QAE@XZ

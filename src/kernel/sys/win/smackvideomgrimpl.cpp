@@ -461,7 +461,8 @@ LTBOOL SmackVideoInst::IsAtLastFrame()
 
 
 // STUB: LITHTECH 0x0049de90
-// Not matched yet: the conversion path (FMConvertRequest) still differs.
+// Remaining diff (116 bytes): the original's srcDesc and destDesc stack slots are swapped relative to ours (the first
+// Lock reuses ddsd's slot at +0x40); no declaration-order permutation of the locals changes it.
 LTRESULT SmackVideoInst::UpdateOnScreen()
 {
 	LPDIRECTDRAWSURFACE7 pBackBuffer, pDisplaySurface;

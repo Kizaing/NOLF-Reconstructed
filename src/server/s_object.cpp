@@ -9,23 +9,20 @@
 #include "dhashtable.h"
 #include "de_memory.h"
 #include "model.h"
-
-// Change flags (ServerData::m_ChangeFlags).
-#define CF_NEWOBJECT		(1<<0)
-#define CF_FLAGS			(1<<3)
-#define CF_SCALE			(1<<4)
-#define CF_MODELINFO		(1<<5)
-#define CF_RENDERINFO		(1<<6)
-#define CF_ATTACHMENTS		(1<<8)
-#define CF_TELEPORT			(1<<9)
-#define CF_SNAPROTATION		(1<<10)
+#include "animtracker.h"
+#include "motion.h"
+#include "interlink.h"
+#include "moveobject.h"
+#include "smoveabstract.h"
+#include "classbind.h"
+#include "serverde_impl.h"
 
 #define IFLAG_INACTIVE_MASK		0x38
 #define IFLAG_FROMCLIENTREF		(1<<7)	// Created from a client reference (keepalive).
-#define IFLAG_HASCHILDMODELS	(1<<10)
 
 void w_RemoveObjectFromLeaf(LTObject *pObj);	// 0x00430680
 LTRESULT sm_RemoveObjectFromWorld(CServerMgr *pServerMgr, LPBASECLASS pObject);
+void ServerStringKeyCallback(LTAnimTracker *pTracker, AnimKeyFrame *pFrame, char *pExtraCmd, LTBOOL bReplace);	// 0x00477640
 
 
 // FUNCTION: LITHTECH 0x00476e80
@@ -138,12 +135,153 @@ void sm_FreeAllModels(CServerMgr *pServerMgr)
 	}
 }
 
+// Updates the object (called once per frame): the model's trackers, the update countdown and the
+// object's physics.
 // STUB: LITHTECH 0x00477120
 void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 {
+	uint32 nFrameTimeMS;
+	LTAnimTracker *pTracker;
+
+	// Update its server object if its a model instance.
+	if (pObj->m_ObjectType == OT_MODEL)
+	{
+		nFrameTimeMS = (uint32)(pServerMgr->m_FrameTime * 1000.0f);
+		if (nFrameTimeMS > 0)
+		{
+			for (pTracker=((ModelInstance*)pObj)->m_AnimTrackers; pTracker; pTracker=pTracker->GetNext())
+			{
+				pTracker->m_StringKeyCallback = ServerStringKeyCallback;
+				trk_Update(pTracker, nFrameTimeMS);
+			}
+		}
+	}
+
+	// Update the object (if the m_NextUpdate countdown has gone past zero).
+	if (pObj->sd->m_NextUpdate > 0.0f)
+	{
+		pObj->sd->m_NextUpdate -= pServerMgr->m_FrameTime;
+
+		if (pObj->sd->m_NextUpdate <= 0.0f)
+		{
+			// Call the update.
+			pObj->m_Acceleration.Init();
+			pObj->sd->m_pObject->EngineMessageFn(MID_UPDATE, LTNULL, 0.0f);
+
+			// Don't do anything else if it was removed.
+			if (!(pObj->m_InternalFlags & IFLAG_INWORLD))
+				return;
+		}
+	}
+
+	// Update the object's physics.
+	{
+		const LTVector P0 = pObj->GetPos();
+		LTVector vAcceleration = pObj->m_Acceleration;
+		float dt = pServerMgr->m_FrameTime;
+		ContainerPhysics cPhysics;
+		MotionState *pState;
+		LTLink *pCur, *pListHead;
+		InterLink *pLink;
+		LTVector dr;
+		LTBOOL bMoved;
+		int32 nActualContainers;
+
+		// If physics is disabled, drop out early.
+		if (!(pObj->m_InternalFlags & IFLAG_APPLYPHYSICS))
+			return;
+
+		pState = pServerMgr->GetMotionState();
+		pState->m_dt = dt;
+		pState->m_pObj = pObj;
+
+		// If the object is a container, find what other objects are in contact with it and affect
+		// their physics.
+		if (!(pObj->m_Flags & FLAG_CONTAINER) && pObj->sd->m_Links.m_pNext != &pObj->sd->m_Links)
+		{
+			cPhysics.m_Acceleration = pObj->m_Acceleration;
+			cPhysics.m_Velocity = pObj->m_Velocity;
+			cPhysics.m_Flags = pObj->m_Flags;
+			cPhysics.m_hObject = (HOBJECT)pObj;
+
+			// Let each container modify the physics.
+			nActualContainers = 0;
+			pListHead = &pObj->sd->m_Links;
+			for (pCur=pListHead->m_pNext; pCur != pListHead;)
+			{
+				pLink = (InterLink*)pCur->m_pData;
+				pCur = pCur->m_pNext;
+
+				if (pLink->m_Type == LINKTYPE_CONTAINER && (pLink->m_pOwner->m_Flags & FLAG_CONTAINER))
+				{
+					pLink->m_pOwner->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &cPhysics, 0.0f);
+					nActualContainers++;
+				}
+			}
+
+			pState->m_Flags = cPhysics.m_Flags;
+			pState->m_pVelocity = &cPhysics.m_Velocity;
+			pState->m_pAcceleration = &cPhysics.m_Acceleration;
+			bMoved = CalcMotion(pState);
+
+			pObj->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &pState->m_Offset, 0.0f);
+			dr = pState->m_Offset;
+
+			// Don't let this flag clear when in a container.
+			if (nActualContainers)
+				pObj->m_InternalFlags |= IFLAG_APPLYPHYSICS;
+		}
+		else
+		{
+			pState->m_pAcceleration = &pObj->m_Acceleration;
+			pState->m_pVelocity = &pObj->m_Velocity;
+			pState->m_Flags = pObj->m_Flags;
+			bMoved = CalcMotion(pState);
+
+			if (!(pObj->m_Flags & FLAG_CONTAINER))
+				pObj->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &pState->m_Offset, 0.0f);
+
+			dr = pState->m_Offset;
+		}
+
+		if (!bMoved)
+			return;
+
+		// Call MoveObject() for it automatically if tried to move at all.
+		if (dr.MagSqr() > 0.001f)
+		{
+			const LTVector P1 = pObj->GetPos() + dr;
+
+			FullMoveObject(pServerMgr, pObj, &P1, MO_DETACHSTANDING | MO_MOVESTANDINGONS);
+
+			// Remove it if it's outside.
+			if ((pObj->m_Flags & FLAG_REMOVEIFOUTSIDE) && pServerMgr->m_World.m_bLoaded &&
+				(pObj->m_Pos.x < pServerMgr->m_World.m_BoxMin.x ||
+				pObj->m_Pos.y < pServerMgr->m_World.m_BoxMin.y ||
+				pObj->m_Pos.z < pServerMgr->m_World.m_BoxMin.z ||
+				pObj->m_Pos.x > pServerMgr->m_World.m_BoxMax.x ||
+				pObj->m_Pos.y > pServerMgr->m_World.m_BoxMax.y ||
+				pObj->m_Pos.z > pServerMgr->m_World.m_BoxMax.z))
+			{
+				AddObjectToRemoveList(pServerMgr, pObj);
+				return;
+			}
+
+			// If it's still in the world, set its change flags..
+			if (pObj->m_InternalFlags & IFLAG_INWORLD)
+			{
+				if ((pObj->GetPos() - P0).MagSqr() > 0.001f)
+					SetObjectChangeFlags(pServerMgr, pObj, CF_POSITION);
+			}
+		}
+
+		pObj->m_Acceleration = vAcceleration;
+	}
 }
 
-// The out-of-line copy of the s_object.h inline.
+
+// The out-of-line copy of the s_object.h inline. sm_UpdateObject (its only caller in the original) is
+// still a STUB that inlines it, so nothing emits the copy yet.
 // FUNCTION: LITHTECH 0x00477540 ?SetObjectChangeFlags@@YAKPAVCServerMgr@@PAVLTObject@@K@Z
 // STANDIN: forces the out-of-line SetObjectChangeFlags (not in lithtech.exe)
 LTRESULT (*g_pfnSetObjectChangeFlags)(CServerMgr *pServerMgr, LTObject *pObj, uint32 flags) = SetObjectChangeFlags;
@@ -191,9 +329,182 @@ void ServerStringKeyCallback(LTAnimTracker *pTracker, AnimKeyFrame *pFrame, char
 	}
 }
 
+// A property of the object being loaded (the layout serverde_impl.cpp calls PropEntry).
+struct LoadPropEntry
+{
+	uint32			m_Type;			// 0x00 PT_
+	char			m_Name[0x50];	// 0x04
+	LoadPropEntry	*m_pNext;		// 0x54
+	uint8			m_Data[4];		// 0x58 value (propLen bytes)
+};
+
+#define PT_STRING_LOAD	0
+
+// PRECREATE_NORMAL (1.0f) passed through sm_AddObjectToWorld's uint32 parameter.
+#define OBJECTCREATED_NORMAL_LOAD	0x3f800000
+
+// Allocates and constructs an object of the class (Jupiter s_object.h).
+inline LPBASECLASS sm_AllocateObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass)
+{
+	LPBASECLASS pObject;
+	CClassData *pClassData;
+
+	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
+
+	pObject = (LPBASECLASS)sb_Allocate(&pClassData->m_ObjectBank);
+	pObject->m_hObject = 0;
+	pObject->m_pFirstAggregate = LTNULL;
+	pClass->m_ConstructFn(pObject);
+
+	return pObject;
+}
+
+// Destructs and frees an object of the class.
+inline void sm_FreeObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass, LPBASECLASS pObject)
+{
+	CClassData *pClassData;
+
+	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
+	pClass->m_DestructFn(pObject);
+	sb_Free(&pClassData->m_ObjectBank, pObject);
+}
+
+
+// Creates the world's objects from the world file.
 // STUB: LITHTECH 0x00477750
 LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldName, LTBOOL bAllObjects)
 {
+	uint32 i, k, nObjects, nProperties, nObjectDataOffset, dwDummy;
+	uint16 propLen, objDataLen;
+	uint8 propCode;
+	char typeName[256], propName[256], propString[600];
+	ClassDef *pClass;
+	LPBASECLASS pObject;
+	LTObject *pObj;
+	ObjectCreateStruct createStruct;
+	LoadPropEntry *pProp, *pNext;
+	uint32 objStartPos, dwPropFlags;
+
+	pStream->SeekTo(0);
+	STREAM_READ(dwDummy);
+	STREAM_READ(nObjectDataOffset);
+
+	// Load the objects.
+	pStream->SeekTo(nObjectDataOffset);
+
+	// For each object....
+	STREAM_READ(nObjects);
+	for (i=0; i < nObjects; i++)
+	{
+		STREAM_READ(objDataLen);
+		objStartPos = pStream->GetPos();
+
+		pStream->ReadString(typeName, sizeof(typeName));
+
+		if (pStream->ErrorStatus() != LT_OK)
+		{
+			sm_SetupError(pServerMgr, LT_INVALIDWORLDFILE, pWorldName);
+			RETURN_ERROR(1, LoadObjects, LT_INVALIDWORLDFILE);
+		}
+
+		// Get the class.
+		pClass = cb_FindClass(pServerMgr->m_ClassMgr.m_ClassModule, typeName);
+
+		// Set things up to succeed anyway if we don't have that class.
+		if (pClass)
+		{
+			// If it's not supposed to be created at runtime, ignore it.
+			if (pClass->m_ClassFlags & CF_NORUNTIME)
+			{
+				pClass = LTNULL;
+			}
+			// If only loading LOADALWAYS objects, then skip the ones without the flag set...
+			else if (!bAllObjects && !cb_IsClassFlagSet(pServerMgr->m_ClassMgr.m_ClassModule, pClass, CF_ALWAYSLOAD))
+			{
+				pClass = LTNULL;
+			}
+		}
+		else
+		{
+			// This can happen if a level used an object that did not exist in the class module.
+			dsi_ConsolePrint("Server is missing class %s", typeName);
+		}
+
+		// Create and construct an instance of it.
+		if (pClass)
+			pObject = sm_AllocateObjectOfClass(pServerMgr, pClass);
+		else
+			pObject = LTNULL;
+
+		createStruct.Clear();
+		createStruct.m_Flags = 0;
+		createStruct.m_ObjectType = OT_NORMAL;
+		createStruct.m_Filename[0] = 0;
+		createStruct.m_SkinName[0] = 0;
+		createStruct.m_Pos.Init();
+
+		// Read in all the properties.
+		STREAM_READ(nProperties);
+		for (k=0; k < nProperties; k++)
+		{
+			// Name.
+			pStream->ReadString(propName, sizeof(propName));
+
+			// Property length.
+			STREAM_READ(propCode);
+			STREAM_READ(dwPropFlags);
+			STREAM_READ(propLen);
+
+			pProp = (LoadPropEntry*)dalloc(propLen + sizeof(LoadPropEntry) - sizeof(pProp->m_Data));
+			pProp->m_Type = propCode;
+			strncpy(pProp->m_Name, propName, sizeof(pProp->m_Name) - 1);
+
+			if (propCode == PT_STRING_LOAD)
+			{
+				pStream->ReadString(propString, sizeof(propString));
+				strncpy((char*)pProp->m_Data, propString, propLen - 1);
+			}
+			else
+			{
+				pStream->Read(pProp->m_Data, propLen);
+			}
+
+			pProp->m_pNext = (LoadPropEntry*)g_pServerMgr->m_pCurProps;
+			g_pServerMgr->m_pCurProps = (struct PropEntry*)pProp;
+		}
+
+		if (pClass && pObject)
+		{
+			strncpy(createStruct.m_ClassName, typeName, sizeof(createStruct.m_ClassName) - 1);
+			createStruct.m_ClassName[sizeof(createStruct.m_ClassName) - 1] = 0;
+
+			pObject->EngineMessageFn(MID_PRECREATE, &createStruct, PRECREATE_NORMAL);
+
+			if (sm_AddObjectToWorld(pServerMgr, pObject, pClass, &createStruct, INVALID_OBJECTID,
+				OBJECTCREATED_NORMAL_LOAD, &pObj) != LT_OK)
+			{
+				sm_FreeObjectOfClass(pServerMgr, pClass, pObject);
+			}
+		}
+
+		// Free the property list.
+		pProp = (LoadPropEntry*)g_pServerMgr->m_pCurProps;
+		while (pProp)
+		{
+			pNext = pProp->m_pNext;
+			dfree(pProp);
+			pProp = pNext;
+		}
+
+		g_pServerMgr->m_pCurProps = LTNULL;
+	}
+
+	if (pStream->ErrorStatus() != LT_OK)
+	{
+		sm_SetupError(pServerMgr, LT_INVALIDWORLDFILE, pWorldName);
+		RETURN_ERROR(1, LoadObjects, LT_INVALIDWORLDFILE);
+	}
+
 	return LT_OK;
 }
 

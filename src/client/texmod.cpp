@@ -233,7 +233,7 @@ LTRESULT CLTTexMod::LockTexture(const HTEXTURE hTexture, const LTRect *pRect,
 			}
 		}
 
-		ERR(1, LT_UNSUPPORTED);
+		ERR(1, LT_NOTINITIALIZED);
 	}
 
 	ERR(2, LT_INVALIDPARAMS);

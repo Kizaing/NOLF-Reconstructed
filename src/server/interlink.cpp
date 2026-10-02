@@ -1,6 +1,9 @@
 // Jupiter runtime/server/src/interlink.cpp
 // Talon passes the server manager explicitly, has a fourth link type (object references, kept
 // in an STLport std::list) and DisconnectLinks never notifies the owner.
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC
+#include <list>
+#include <algorithm>
 #include "bdefs.h"
 #include "ltengineobjects.h"
 #include "interlink.h"
@@ -9,14 +12,53 @@
 
 static LTBOOL DoesLinkExist(LTObject *pOwner, void *pOther, uint32 linkType);
 
-// Frees an object reference record once nothing refers to it any more. The original walks an
-// STLport std::list<ObjRefEntry> (node allocator free list at 0x4defb8), which we can't build.
-#pragma auto_inline(off)
-// STUB: LITHTECH 0x00443e60
-static void ReleaseObjRef(ObjRefEntry *pRef)
+// The object references (std::list node allocator free list at 0x004defb8).
+typedef std::list<ObjRefEntry> ObjRefList;
+static ObjRefList g_ObjRefs;
+
+// FUNCTION: LITHTECH 0x00443c60 _$E6
+// FUNCTION: LITHTECH 0x00443c70 _$E3
+// FUNCTION: LITHTECH 0x00443d10 _$E5
+// FUNCTION: LITHTECH 0x00443d20 _$E4
+
+// Finds a reference record by its object or by its address.
+inline bool operator==(const ObjRefEntry &entry, LTObject *pObj)
 {
+	return entry.m_pObject == pObj;
 }
-#pragma auto_inline(on)
+
+inline bool operator==(const ObjRefEntry &entry, const ObjRefEntry *pRef)
+{
+	return &entry == pRef;
+}
+
+// Gets the reference record for an object, adding one if there isn't one yet.
+// FUNCTION: LITHTECH 0x00443da0
+ObjRefEntry* AddObjRef(LTObject *pObj)
+{
+	ObjRefList::iterator it;
+
+	it = std::find(g_ObjRefs.begin(), g_ObjRefs.end(), pObj);
+	if (it == g_ObjRefs.end())
+	{
+		g_ObjRefs.push_back(ObjRefEntry(pObj));
+		return &g_ObjRefs.back();
+	}
+
+	return &(*it);
+}
+
+
+// Frees an object reference record once nothing refers to it any more.
+// FUNCTION: LITHTECH 0x00443e60
+void ReleaseObjRef(ObjRefEntry *pRef)
+{
+	ObjRefList::iterator it;
+
+	it = std::find(g_ObjRefs.begin(), g_ObjRefs.end(), (const ObjRefEntry*)pRef);
+	if (it != g_ObjRefs.end() && (*it).m_nRefs <= 0 && (*it).m_pObject == LTNULL)
+		g_ObjRefs.erase(it);
+}
 
 
 // FUNCTION: LITHTECH 0x00443f10

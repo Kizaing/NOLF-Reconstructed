@@ -26,6 +26,7 @@
 #include "model.h"
 #include "de_memory.h"
 #include "iltclient.h"
+#include "predict.h"
 
 #define CMSG_COMMANDSTRING	10
 #define OBJID_CLIENTCREATED	0xFFFF
@@ -77,9 +78,6 @@ void cm_TagAndFreeTextures(CClientMgr *pClientMgr);										// 0x00426380
 void cm_BindUnboundTextures(CClientMgr *pClientMgr);									// 0x004263b0
 // sprite.cpp
 LTRESULT LoadSprite(CClientMgr *pClientMgr, FileRef *pRef, Sprite **ppSprite);			// 0x00489710
-// predict.cpp
-void pd_InitialServerUpdate(CClientShell *pShell, float gameTime);						// 0x0046ddf0
-void pd_Update(CClientShell *pShell);													// 0x0046e250
 // nexus.cpp
 Leech* nexus_CreateLeech(LeechDef *pDef, void *pUserData);								// 0x004448f0
 LTRESULT nexus_AddLeech(Nexus *pNexus, Leech *pLeech);									// 0x00444970
@@ -596,8 +594,8 @@ LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 	cs_UnloadWorld(this);
 
 	// Get the game time.
-	m_GameFrameTime = 0.0f;
 	m_GameTime = m_LastGameTime = pPacket->ReadType((float*)0);
+	m_GameFrameTime = 0.0f;
 
 	m_ServerPeriodTrack = m_pClientMgr->m_CurTime;
 	m_ServerPeriod = 1.0f / 30.0f;
@@ -630,7 +628,10 @@ LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 	}
 
 	// If we're local and it's the same world, don't reload all the textures.
-	bFlushUnusedTextures = (pIdent != m_pLastWorld);
+	if (pIdent != m_pLastWorld)
+		bFlushUnusedTextures = LTTRUE;
+	else
+		bFlushUnusedTextures = LTFALSE;
 
 	pServerWorld = g_pServerWorld;
 
@@ -965,12 +966,17 @@ void CClientShell::UnbindWorlds()
 
 
 // Tells the client shell which world the local server is loading.
-// The original loads the argument into edx and the vtable into eax (ours swaps them).
-// STUB: LITHTECH 0x004166f0
+// FUNCTION: LITHTECH 0x004166f0
 void model_SetWorldName(char *pWorldName)
 {
-	if (g_pClientShell && g_pClientShell->m_pClientMgr->m_pClientShell)
-		g_pClientShell->m_pClientMgr->m_pClientShell->PreLoadWorld(pWorldName);
+	CClientMgr *pClientMgr;
+
+	if (g_pClientShell)
+	{
+		pClientMgr = g_pClientShell->m_pClientMgr;
+		if (pClientMgr->m_pClientShell)
+			pClientMgr->m_pClientShell->PreLoadWorld(pWorldName);
+	}
 }
 
 
@@ -1008,7 +1014,7 @@ void clienthack_ModelLoaded(Model *pModel)
 	if (pIdent && !pIdent->m_pData)
 	{
 		pIdent->m_pData = pModel;
-		nexus_AddLeech((Nexus*)pModel->m_Nexus, nexus_CreateLeech(&g_ClientModelLeechDef, pIdent));
+		nexus_AddLeech(&pModel->m_Nexus, nexus_CreateLeech(&g_ClientModelLeechDef, pIdent));
 
 		if (g_DebugLevel >= 1)
 		{

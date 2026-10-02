@@ -222,7 +222,7 @@ void w_TransformWorldModel(WorldModelInstance *pInst, LTMatrix *pMat, LTBOOL bPa
 	// Transform the points.
 	for (i=0; i < pDest->m_nPoints; i++)
 	{
-		pMat->Apply(pSrc->m_Points[i], pDest->m_Points[i]);
+		MatVMul(&pDest->m_Points[i], pMat, &pSrc->m_Points[i]);
 	}
 
 	// Transform the planes!
@@ -2051,7 +2051,7 @@ void TerrainSection::Term()
 
 
 // The original calls m_Polies.SetSize2 out of line; ours inlines it (inline budget).
-// STUB: LITHTECH 0x0042c580
+// FUNCTION: LITHTECH 0x0042c580
 LTBOOL TerrainSection::Load(WorldBsp *pBsp, ILTStream *pStream, int iSection)
 {
 	uint32 i, j, index, nNodes, nPolies;
@@ -2118,11 +2118,7 @@ LTBOOL TerrainSection::Load(WorldBsp *pBsp, ILTStream *pStream, int iSection)
 	if (!m_PBlockTable.Load(pStream))
 		goto Error;
 
-	STREAM_READ(m_NodePath.m_Path[0]);
-	STREAM_READ(m_NodePath.m_Path[1]);
-	STREAM_READ(m_NodePath.m_Path[2]);
-	STREAM_READ(m_NodePath.m_Path[3]);
-	STREAM_READ(m_NodePath.m_Depth);
+	m_NodePath.Load(pStream);
 
 	*pStream >> m_Center;
 

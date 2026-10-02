@@ -1,6 +1,7 @@
 // Jupiter runtime/kernel/mem/src/sys/win/de_memory.cpp
 // Talon allocates straight from the CRT heap and keeps a list of callbacks to run when an
 // allocation fails.
+#include <windows.h>
 #include <new.h>
 #include <malloc.h>
 #include <string.h>
@@ -48,6 +49,18 @@ static int dm_NewHandler(size_t size)
 {
 	dsi_OnMemoryFailure();
 	return 0;
+}
+
+
+// FUNCTION: LITHTECH 0x0042fdd0
+void dm_HeapCompact()
+{
+	HANDLE hHeap;
+
+	if(hHeap = GetProcessHeap())
+	{
+		HeapCompact(hHeap, 0);
+	}
 }
 
 

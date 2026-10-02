@@ -159,13 +159,12 @@ CLithChunkAllocator<CLTDirectMusicMgr::CDLSBank> CLTDirectMusicMgr::CDLSBank::m_
 ///////////////////////////////////////////////////////////////////////////////////////////
 // thread that handles the DirectMusic notifications
 ///////////////////////////////////////////////////////////////////////////////////////////
-// STUB: LITHTECH 0x004477c0
-// The locals pDMSegment and the PlaySegment segment states get swapped stack slots (+0x14/+0x18); the code is otherwise identical.
+// FUNCTION: LITHTECH 0x004477c0
 static void LTDMNotificationThread(void* pData)
 {
-	DMUS_NOTIFICATION_PMSG* pPmsg = LTNULL;
+	DMUS_NOTIFICATION_PMSG* pPmsg;
 	IDirectMusicSegmentState* pDMSegState = LTNULL;
-	IDirectMusicSegment* pDMSegment;
+	IDirectMusicSegment* pDMSegment = LTNULL;
 
 	EnterCriticalSection(&g_pLTDMMgr->m_CommandQueueCriticalSection);
 

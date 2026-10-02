@@ -3,16 +3,77 @@
 // collisions, and the bounding box ignores particle sizes.
 // In Talon PSParticle+0x20 is the forward link (m_pNext).
 #include <string.h>
+#include <stdlib.h>
 #include "bdefs.h"
 #include "de_objects.h"
 #include "clientmgr.h"
 #include "sprite.h"
 #include "dutil.h"
+#include "iltclient.h"
+#include "../../build/proj/LT2/lithshared/stdlith/struct_bank.h"
+
+// LTParticleSystem::m_Unknown260 holds the PS_ flags.
+#define m_psFlags m_Unknown260
 
 // 0x00489710
 LTRESULT LoadSprite(CClientMgr *pClientMgr, FileRef *pFilename, Sprite **ppSprite);
 
 void ps_UpdateParticleBoundingBox(LTParticleSystem *pSystem);
+
+// clientde_impl.cpp (0x004049c0)
+LTBOOL ci_IntersectSegment(ClientIntersectQuery *pQuery, ClientIntersectInfo *pInfo);
+
+#define VINTERP(dest, v1, v2, t1, t2, t3)  (dest).Init((v1).x+((v2).x-(v1).x)*(t1), (v1).y+((v2).y-(v1).y)*(t2), (v1).z+((v2).z-(v1).z)*t3);
+
+// Stretch the bounding box to fit the vector's position (Talon ignores the particle size).
+inline void ps_UpdateBox(LTParticleSystem *pSystem, LTVector *pPos)
+{
+	if(pPos->x < pSystem->m_MinPos.x)	pSystem->m_MinPos.x = pPos->x;
+	if(pPos->y < pSystem->m_MinPos.y)	pSystem->m_MinPos.y = pPos->y;
+	if(pPos->z < pSystem->m_MinPos.z)	pSystem->m_MinPos.z = pPos->z;
+	if(pPos->x > pSystem->m_MaxPos.x)	pSystem->m_MaxPos.x = pPos->x;
+	if(pPos->y > pSystem->m_MaxPos.y)	pSystem->m_MaxPos.y = pPos->y;
+	if(pPos->z > pSystem->m_MaxPos.z)	pSystem->m_MaxPos.z = pPos->z;
+}
+
+// Remove a particle.
+inline void ps_RemoveParticle(LTParticleSystem *pSystem, PSParticle *pParticle)
+{
+	pParticle->m_pPrev->m_pNext = pParticle->m_pNext;
+	pParticle->m_pNext->m_pPrev = pParticle->m_pPrev;
+	sb_Free((StructBank*)pSystem->m_pParticleBank, pParticle);
+	pSystem->m_nParticles--;
+}
+
+// Add a particle.
+inline PSParticle* ps_AddParticle(LTParticleSystem *pSystem, LTVector *pPos, LTVector *pColor, LTVector *pVel, float lifeTime)
+{
+	PSParticle *pParticle;
+
+	pParticle = (PSParticle*)sb_Allocate((StructBank*)pSystem->m_pParticleBank);
+	if(!pParticle)
+		return LTNULL;
+
+	ps_UpdateBox(pSystem, pPos);
+
+	pParticle->m_Pos = *pPos;
+	pParticle->m_Color = *pColor;
+	pParticle->m_Velocity = *pVel;
+	pParticle->m_Alpha = 1.0f;
+	pParticle->m_Lifetime = lifeTime;
+	pParticle->m_TotalLifetime = lifeTime;
+	pParticle->m_Size = pSystem->m_ParticleRadius;
+
+	// Add it to the end of the list.
+	pParticle->m_pPrev = pSystem->m_ParticleHead.m_pPrev;
+	pParticle->m_pNext = &pSystem->m_ParticleHead;
+	pParticle->m_pNext->m_pPrev = pParticle;
+	pParticle->m_pPrev->m_pNext = pParticle;
+
+	++pSystem->m_nParticles;
+	++pSystem->m_nChangedParticles;
+	return pParticle;
+}
 
 
 // FUNCTION: LITHTECH 0x00469710
@@ -57,19 +118,121 @@ LTRESULT ps_SetTexture(LTParticleSystem *pSystem, CClientMgr *pClientMgr, const 
 }
 
 
-// STUB: LITHTECH 0x00469810
+// FUNCTION: LITHTECH 0x00469810
 void ps_AddParticles(LTParticleSystem *pSystem, uint32 nParticles,
 					LTVector *minOffset, LTVector *maxOffset,
 					LTVector *minVel, LTVector *maxVel,
 					LTVector *minColor, LTVector *maxColor,
 					LTFLOAT minLifetime, LTFLOAT maxLifetime )
 {
+	uint32		i;
+	LTFLOAT		t[6];
+	LTVector	offset, vel, color;
+	LTFLOAT		lifeTime;
+
+	for(i=0; i < nParticles; i++)
+	{
+		t[0] = (LTFLOAT)rand() / RAND_MAX;
+		t[1] = (LTFLOAT)rand() / RAND_MAX;
+		t[2] = (LTFLOAT)rand() / RAND_MAX;
+		t[3] = (LTFLOAT)rand() / RAND_MAX;
+		t[4] = (LTFLOAT)rand() / RAND_MAX;
+		t[5] = (LTFLOAT)rand() / RAND_MAX;
+
+		VINTERP(offset, (*minOffset), (*maxOffset), t[0], t[1], t[2]);
+		VINTERP(vel, (*minVel), (*maxVel), t[3], t[4], t[5]);
+		VINTERP(color, (*minColor), (*maxColor), t[0], t[5], t[3]);
+		lifeTime = minLifetime + (maxLifetime-minLifetime) * t[3];
+
+		ps_AddParticle(pSystem, &offset, &color, &vel, lifeTime);
+	}
 }
 
 
-// STUB: LITHTECH 0x00469b00
+// FUNCTION: LITHTECH 0x00469b00
 void ps_UpdateParticles(LTParticleSystem *pSystem, LTFLOAT t)
 {
+	ClientIntersectQuery iQuery;
+	ClientIntersectInfo iInfo;
+	LTVector basePos = pSystem->GetPos();
+	uint32 flags = pSystem->m_psFlags;
+
+	// See if this is a dumb particle system. If it is, bail.
+	if(flags & PS_DUMB)
+		return;
+
+	float gravityAccel = t * pSystem->m_GravityAccel;
+
+	// Take one of 2 loops.
+	PSParticle *pParticle = pSystem->m_ParticleHead.m_pNext;
+	PSParticle *pEnd = &pSystem->m_ParticleHead;
+	PSParticle *pNext;
+
+	if(flags & PS_NEVERDIE)
+	{
+		while(pParticle != pEnd)
+		{
+			pParticle->m_Pos.x += pParticle->m_Velocity.x * t;
+			pParticle->m_Pos.y += pParticle->m_Velocity.y * t;
+			pParticle->m_Pos.z += pParticle->m_Velocity.z * t;
+			ps_UpdateBox(pSystem, &pParticle->m_Pos);
+			pParticle->m_Velocity.y += gravityAccel;
+
+			pParticle = pParticle->m_pNext;
+		}
+	}
+	else
+	{
+		while(pParticle != pEnd)
+		{
+			pParticle->m_Lifetime -= t;
+			if(pParticle->m_Lifetime < 0.0f)
+			{
+				pNext = pParticle->m_pNext;
+				ps_RemoveParticle(pSystem, pParticle);
+				pParticle = pNext;
+				continue;
+			}
+
+			pParticle->m_Pos.x += pParticle->m_Velocity.x * t;
+			pParticle->m_Pos.y += pParticle->m_Velocity.y * t;
+			pParticle->m_Pos.z += pParticle->m_Velocity.z * t;
+			ps_UpdateBox(pSystem, &pParticle->m_Pos);
+			pParticle->m_Velocity.y += gravityAccel;
+
+			pParticle = pParticle->m_pNext;
+		}
+	}
+
+	// Bounce the particles.
+	if(flags & PS_BOUNCE)
+	{
+		VEC_COPY(iQuery.m_From, basePos);
+		VEC_COPY(iQuery.m_To, iQuery.m_From);
+		iQuery.m_To.y -= 400.0f;
+
+		if(ci_IntersectSegment(&iQuery, &iInfo))
+		{
+			float yCoord = iInfo.m_Plane.m_Normal.y * iInfo.m_Plane.m_Dist;
+			yCoord -= basePos.y;
+
+			pParticle = pSystem->m_ParticleHead.m_pNext;
+			pEnd = &pSystem->m_ParticleHead;
+			while(pParticle != pEnd)
+			{
+				if(pParticle->m_Velocity.y < 0.0f)
+				{
+					if(pParticle->m_Pos.y < yCoord)
+					{
+						pParticle->m_Pos.y = yCoord;
+						pParticle->m_Velocity.y = pParticle->m_Velocity.y * -0.5f;
+					}
+				}
+
+				pParticle = pParticle->m_pNext;
+			}
+		}
+	}
 }
 
 

@@ -4,6 +4,7 @@
 // SharedTexture ref-count word directly, and binding a texture is followed by a call that
 // the linker folded into an empty function.
 #include <windows.h>
+#include "../../jupiter/dx9inc/ddraw.h"
 #include <string.h>
 #include <stdarg.h>
 #include "bdefs.h"
@@ -18,9 +19,9 @@
 #include "servermgr.h"
 #include "client_filemgr.h"
 #include "model.h"
+#include "animtracker.h"
+#include "pixelformat.h"
 
-#define ERROR_DISCONNECT	(1<<25)
-#define ERROR_SHUTDOWN		(1<<26)
 
 #define TYPECODE_TEXTURE	3
 
@@ -41,6 +42,28 @@ void cm_FreeUnusedSharedTextures(CClientMgr *pClientMgr);
 
 
 // ------------------------------------------------------------------ //
+
+// Registers a surface effect (ILTClient::AddSurfaceEffect).
+// FUNCTION: LITHTECH 0x00425cd0
+LTRESULT cm_AddSurfaceEffect(CClientMgr *pClientMgr, SurfaceEffectDesc *pDesc)
+{
+	SurfaceEffect *pEffect;
+
+	pEffect = (SurfaceEffect*)dalloc(strlen(pDesc->m_pName) + sizeof(SurfaceEffect));
+	if (pEffect)
+	{
+		pEffect->InitEffect = pDesc->InitEffect;
+		pEffect->UpdateEffect = pDesc->UpdateEffect;
+		pEffect->TermEffect = pDesc->TermEffect;
+		strcpy(pEffect->m_Name, pDesc->m_pName);
+
+		pEffect->m_pNext = (SurfaceEffect*)pClientMgr->m_Unknown12e8;
+		pClientMgr->m_Unknown12e8 = (uint32)pEffect;
+	}
+
+	return LT_OK;
+}
+
 
 // FUNCTION: LITHTECH 0x00425d30
 LTRESULT CClientMgr::SetupError(LTRESULT theError, ...)
@@ -149,14 +172,11 @@ void CClientMgr::UpdateFrameRate()
 }
 
 
-// The original keeps bNew in &pTexture's argument slot; otherwise identical.
-// STUB: LITHTECH 0x00425f30
+// FUNCTION: LITHTECH 0x00425f30
 LTRESULT cm_AddSharedTexture3(CClientMgr *pClientMgr, FileIdentifier *pIdent, SharedTexture* &pTexture)
 {
-	LTBOOL bNew;
-
-	bNew = LTTRUE;
 	pTexture = LTNULL;
+	LTBOOL bNew = LTTRUE;	// (declared after the first statement: the original keeps it in pTexture's argument slot)
 
 	if (pIdent->m_pData)
 	{
@@ -616,9 +636,32 @@ void cm_RelocateObject(CClientMgr *pClientMgr, LTObject *pObject)
 }
 
 
-// STUB: LITHTECH 0x00426750
+// FUNCTION: LITHTECH 0x00426750
 void cm_UpdateModelDims(CClientMgr *pClientMgr, ModelInstance *pInstance)
 {
+	MoveState moveState;
+	LTAnimTracker *pTracker;
+	AnimInfo *pAnim;
+	LTVector theDims;
+
+	// Don't do it if they don't want us to.
+	if (pInstance->m_Unknown188 & CF_DONTSETDIMS)
+		return;
+
+	pTracker = &pInstance->m_AnimTracker;
+	if (pTracker->IsValid() && pClientMgr->m_pCurShell)
+	{
+		pAnim = pTracker->GetModel()->GetAnimInfo(pTracker->m_TimeRef.m_Cur.m_iAnim);
+
+		moveState.Setup(&pClientMgr->m_World.m_WorldTree, pClientMgr->m_MoveAbstract, pInstance, pInstance->m_BPriority);
+
+		theDims = pAnim->m_vDims;
+		theDims.x *= pInstance->m_Scale.x;
+		theDims.y *= pInstance->m_Scale.y;
+		theDims.z *= pInstance->m_Scale.z;
+
+		ChangeObjectDimensions(&moveState, &theDims, LTFALSE, LTTRUE);
+	}
 }
 
 
@@ -701,4 +744,20 @@ void cm_MoveAndRotateObject(CClientMgr *pClientMgr, LTObject *pObject, LTVector 
 
 		pClientMgr->m_World.m_WorldTree.InsertObject(pObject, 0);
 	}
+}
+
+
+// Fills a PFormat from a DirectDraw pixel format (smackvideomgrimpl).
+// FUNCTION: LITHTECH 0x00426ac0
+void DDPFToPFormat(DDPIXELFORMAT *pDDPF, PFormat *pFormat)
+{
+	BPPIdent type;
+
+	if (pDDPF->dwRGBBitCount == 16)
+		type = BPP_16;
+	else
+		type = BPP_32;
+
+	pFormat->Init(type,
+		pDDPF->dwRGBAlphaBitMask, pDDPF->dwRBitMask, pDDPF->dwGBitMask, pDDPF->dwBBitMask);
 }

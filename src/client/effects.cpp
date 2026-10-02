@@ -161,8 +161,7 @@ static void Pan_Term(void *pData)
 
 
 // Rotate: spins the texture around the surface normal.
-// STUB: LITHTECH 0x00435d20
-// The original loads the copied Q.y before Q.z.
+// FUNCTION: LITHTECH 0x00435d20
 static void* Rotate_Init(SurfaceData *pSurfaceData, int argc, char **argv)
 {
 	SEData *pData;
@@ -173,49 +172,54 @@ static void* Rotate_Init(SurfaceData *pSurfaceData, int argc, char **argv)
 		if(argc >= 2)
 			pData->m_Speed[0] = (float)atof(argv[1]) * 0.017453292f;
 
-		LTVector vQ = pSurfaceData->Q;
-		pData->m_Normal = LTVector(
-			vQ.y * pSurfaceData->P.z - vQ.z * pSurfaceData->P.y,
-			vQ.z * pSurfaceData->P.x - vQ.x * pSurfaceData->P.z,
-			vQ.x * pSurfaceData->P.y - vQ.y * pSurfaceData->P.x);
+		pData->m_Normal = pSurfaceData->P.Cross(pSurfaceData->Q);
 	}
 
 	return pData;
 }
 
+// Close: the original keeps m00/m02 in FPU registers and sums each P/Q row loading Px before Pz
+// (here Pz is loaded first), and its frame is a 4x4 matrix (0x54 bytes).
 // STUB: LITHTECH 0x00435de0
-// Not worked out: the original keeps the angle at 0x34 and builds the rotation differently.
 static void Rotate_Update(SurfaceData *pSurfaceData, void *pVoidData)
 {
 	SEData *pData = (SEData*)pVoidData;
 	float fSin, fCos, fOneMinusCos;
-	float mat[3][3];
+	float tx, ty, sx, sy, sz;
+	LTMatrix mat;
 	LTVector *pAxis;
 
-	pData->m_Offset[0] += g_pClientMgr->m_FrameTime * pData->m_Speed[0];
+	// The current angle is kept at 0x34.
+	pData->m_Speed[1] += g_pClientMgr->m_FrameTime * pData->m_Speed[0];
 
-	fSin = (float)sin(pData->m_Offset[0]);
-	fCos = (float)cos(pData->m_Offset[0]);
+	fSin = (float)sin(pData->m_Speed[1]);
+	fCos = (float)cos(pData->m_Speed[1]);
 	fOneMinusCos = 1.0f - fCos;
 
 	pAxis = &pData->m_Normal;
-	mat[0][0] = fOneMinusCos * pAxis->x * pAxis->x + fCos;
-	mat[0][1] = fOneMinusCos * pAxis->x * pAxis->y - fSin * pAxis->z;
-	mat[0][2] = fOneMinusCos * pAxis->x * pAxis->z + fSin * pAxis->y;
-	mat[1][0] = fOneMinusCos * pAxis->x * pAxis->y + fSin * pAxis->z;
-	mat[1][1] = fOneMinusCos * pAxis->y * pAxis->y + fCos;
-	mat[1][2] = fOneMinusCos * pAxis->y * pAxis->z - fSin * pAxis->x;
-	mat[2][0] = fOneMinusCos * pAxis->x * pAxis->z - fSin * pAxis->y;
-	mat[2][1] = fOneMinusCos * pAxis->y * pAxis->z + fSin * pAxis->x;
-	mat[2][2] = fOneMinusCos * pAxis->z * pAxis->z + fCos;
+	tx = fOneMinusCos * pAxis->x;
+	ty = fOneMinusCos * pAxis->y;
+	sx = fSin * pAxis->x;
+	sy = fSin * pAxis->y;
+	sz = fSin * pAxis->z;
 
-	pSurfaceData->P.x = mat[0][0] * pData->m_P.x + mat[0][1] * pData->m_P.y + mat[0][2] * pData->m_P.z;
-	pSurfaceData->P.y = mat[1][0] * pData->m_P.x + mat[1][1] * pData->m_P.y + mat[1][2] * pData->m_P.z;
-	pSurfaceData->P.z = mat[2][0] * pData->m_P.x + mat[2][1] * pData->m_P.y + mat[2][2] * pData->m_P.z;
+	mat.m[0][0] = tx * pAxis->x + fCos;
+	mat.m[1][0] = tx * pAxis->y + sz;
+	mat.m[2][0] = tx * pAxis->z - sy;
+	mat.m[0][1] = tx * pAxis->y - sz;
+	mat.m[1][1] = ty * pAxis->y + fCos;
+	mat.m[2][1] = ty * pAxis->z + sx;
+	mat.m[0][2] = tx * pAxis->z + sy;
+	mat.m[1][2] = ty * pAxis->z - sx;
+	mat.m[2][2] = fOneMinusCos * pAxis->z * pAxis->z + fCos;
 
-	pSurfaceData->Q.x = mat[0][0] * pData->m_Q.x + mat[0][1] * pData->m_Q.y + mat[0][2] * pData->m_Q.z;
-	pSurfaceData->Q.y = mat[1][0] * pData->m_Q.x + mat[1][1] * pData->m_Q.y + mat[1][2] * pData->m_Q.z;
-	pSurfaceData->Q.z = mat[2][0] * pData->m_Q.x + mat[2][1] * pData->m_Q.y + mat[2][2] * pData->m_Q.z;
+	pSurfaceData->P.x = mat.m[0][0] * pData->m_P.x + mat.m[0][2] * pData->m_P.z + mat.m[0][1] * pData->m_P.y;
+	pSurfaceData->P.y = mat.m[1][0] * pData->m_P.x + mat.m[1][2] * pData->m_P.z + mat.m[1][1] * pData->m_P.y;
+	pSurfaceData->P.z = mat.m[2][0] * pData->m_P.x + mat.m[2][2] * pData->m_P.z + mat.m[2][1] * pData->m_P.y;
+
+	pSurfaceData->Q.x = mat.m[0][0] * pData->m_Q.x + mat.m[0][2] * pData->m_Q.z + mat.m[0][1] * pData->m_Q.y;
+	pSurfaceData->Q.y = mat.m[1][0] * pData->m_Q.x + mat.m[1][2] * pData->m_Q.z + mat.m[1][1] * pData->m_Q.y;
+	pSurfaceData->Q.z = mat.m[2][0] * pData->m_Q.x + mat.m[2][2] * pData->m_Q.z + mat.m[2][1] * pData->m_Q.y;
 }
 
 // FUNCTION: LITHTECH 0x00435f60

@@ -55,8 +55,8 @@ void CMoveAbstract::BreakContainerLinks(LTObject *pObj)
 {
 }
 
-// Close: the original adds the object position through a pointer (add eax,0x194) and keeps
-// the manager slot at 0x44 instead of 0x54.
+// Close (69 bytes): the original reads the whole m_Rotation assignment from the quat_Mul temp and
+// keeps the spilled `this` at 0x44 with the newRot copy at 0x48 (ours: newRot 0x44, `this` 0x54).
 // STUB: LITHTECH 0x00417640
 void CMoveAbstract::MoveAttachments(MoveState *pState)
 {
@@ -80,7 +80,7 @@ void CMoveAbstract::MoveAttachments(MoveState *pState)
 			vOffset = pAttachment->m_Offset.m_Pos;
 			quat_ConvertToMatrix(pState->m_pObj->m_Rotation.m_Quat, mat.m);
 			mat.Apply3x3(vOffset);
-			VEC_ADD(attachPos, vOffset, pState->m_pObj->GetPos());
+			attachPos = pState->m_pObj->GetPos() + vOffset;
 
 			moveState.Setup(pState->m_pWorldTree, pState->m_pAbstract, pAttachedObj, pState->m_BPriority);
 			MoveObject(&moveState, attachPos, MO_DETACHSTANDING | MO_MOVESTANDINGONS);

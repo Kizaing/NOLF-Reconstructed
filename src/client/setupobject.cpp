@@ -302,7 +302,7 @@ LTRESULT cm_LoadModelData(CClientMgr *pClientMgr, char *pFilename, FileIdentifie
 			RETURN_ERROR(1, cm_LoadModelData, LT_INVALIDMODELFILE);
 		}
 
-		nexus_AddLeech((Nexus*)pModel->m_Nexus, nexus_CreateLeech(&g_ClientModelLeechDef, pIdent));
+		nexus_AddLeech(&pModel->m_Nexus, nexus_CreateLeech(&g_ClientModelLeechDef, pIdent));
 		return LT_OK;
 	}
 
@@ -342,7 +342,7 @@ LTRESULT cm_BindModel(CClientMgr *pClientMgr, Model *pModel, FileIdentifier *pId
 
 	dl_Insert(&pClientMgr->m_TextureUsers, &pModel->m_Link);
 	pIdent->m_pData = pModel;
-	nexus_AddLeech((Nexus*)pModel->m_Nexus, nexus_CreateLeech(&g_ClientModelLeechDef, pIdent));
+	nexus_AddLeech(&pModel->m_Nexus, nexus_CreateLeech(&g_ClientModelLeechDef, pIdent));
 
 	// Give it to the objects that were waiting for it.
 	if (bUpdateObjects && (pIdent->m_Flags & 1))
@@ -366,7 +366,7 @@ LTRESULT cm_BindModel(CClientMgr *pClientMgr, Model *pModel, FileIdentifier *pId
 // FUNCTION: LITHTECH 0x0048a070
 LTBOOL cm_IsModelReferenced(CClientMgr *pClientMgr, Model *pModel)
 {
-	return ((Nexus*)pModel->m_Nexus)->FindLeech(&g_ClientModelLeechDef) != LTNULL;
+	return (&pModel->m_Nexus)->FindLeech(&g_ClientModelLeechDef) != LTNULL;
 }
 
 
@@ -465,6 +465,7 @@ LTRESULT ModelExtraInit(CClientMgr *pClientMgr, LTObject *pObject,
 	ModelInstance *pModelInstance;
 
 	pModelInstance = ToModel(pObject);
+
 	bLoad = pSetup->m_pSetup->m_CreateFlags & OCS_AUTOLOAD;
 	pModelInstance->m_Unknown2CC = 1;
 

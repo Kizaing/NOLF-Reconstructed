@@ -45,6 +45,7 @@ float g_AckSendTime = 1.0f / 3.0f;
 
 // Just used for the timestamp in debug output (this is a global so when debugging
 // local games, the time frame is the same between client and server).
+// FUNCTION: LITHTECH 0x004627c0 _$E2
 // FUNCTION: LITHTECH 0x004627d0 _$E1
 // GLOBAL: LITHTECH 0x004e45b0 ?g_NMTimeCounter@@3VCounter@@A
 Counter g_NMTimeCounter(CSTART_MILLI);
@@ -55,14 +56,13 @@ Counter g_NMTimeCounter(CSTART_MILLI);
 // Helpers
 // ------------------------------------------------------------------------ //
 
-// The original keeps crc in its own stack slot; this build reuses dataLen's.
-// STUB: LITHTECH 0x004627e0
+// FUNCTION: LITHTECH 0x004627e0
 uint16 GetWordCRC(uint8 *pData, uint16 dataLen)
 {
 	uint16 crc, nWords, nBytes, i;
 
-	nWords = dataLen >> 1;
 	crc = 0;
+	nWords = dataLen >> 1;
 	nBytes = dataLen - (nWords << 1);
 
 	for(i=0; i != nWords; i++)
@@ -1199,7 +1199,8 @@ CFragmentGroup* CNetMgr::FindFragmentGroup(uint32 frameNum, CBaseConn *pConn)
 }
 
 
-// Inlines CPacket::ReadType where the original calls the out-of-line copy (inline budget).
+// Remaining diff: the original loads the CPacketRef's packet into ebx before the ReadType call and the m_Data
+// pointer after it (we load the pointer first), then writes m_Pos/m_DataLen through one reload of *pFragment.
 // STUB: LITHTECH 0x00464c70
 LTBOOL CNetMgr::AddFragment(CPacket *pPacket, uint8 index, CFragmentGroup *pGroup)
 {
@@ -1215,7 +1216,7 @@ LTBOOL CNetMgr::AddFragment(CPacket *pPacket, uint8 index, CFragmentGroup *pGrou
 	if(index == 0)
 		pGroup->m_Fragments[0]->m_Data[0] = pPacket->ReadType((uint8*)0);
 
-	(*pFragment)->m_Pos = (*pFragment)->m_DataLen = 1;
+	(*pFragment)->m_DataLen = (*pFragment)->m_Pos = 1;
 	(*pFragment)->WriteRaw(&pPacket->m_Data[pPacket->m_Pos], pPacket->m_DataLen - pPacket->m_Pos);
 	return TRUE;
 }
@@ -1646,6 +1647,8 @@ void CNetMgr::DeleteGPackets(GPacketList *pList)
 
 
 // The original inlines WriteType but calls CMoArray::Insert2; this build inlines both (inline budget).
+// inline_scan: one more (free) inline call site anywhere after the WriteType statement makes it MATCH, so the
+// original has a pending inline call here that we haven't identified.
 // STUB: LITHTECH 0x00465b20
 void CNetMgr::AddDataToGroupPacket(CPacket *pGroup, void *pData, uint32 dataLen)
 {

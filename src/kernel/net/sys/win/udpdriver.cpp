@@ -996,9 +996,7 @@ CUDPConn* FindConnByAddr2(CUDPDriver *pDriver, sockaddr_in *pAddr)
 }
 
 
-// The original builds senderAddr in pPacket's argument slot without ebp; this build keeps the
-// handler's vtable in ebp across ntohs.
-// STUB: LITHTECH 0x00499280
+// FUNCTION: LITHTECH 0x00499280
 LTBOOL CUDPDriver::GetPacket(CPacket *pPacket)
 {
 	sockaddr_in addr;
@@ -1035,7 +1033,8 @@ LTBOOL CUDPDriver::GetPacket(CPacket *pPacket)
 				senderAddr[1] = addr.sin_addr.S_un.S_un_b.s_b2;
 				senderAddr[2] = addr.sin_addr.S_un.S_un_b.s_b3;
 				senderAddr[3] = addr.sin_addr.S_un.S_un_b.s_b4;
-				m_pNetMgr->m_pHandler->HandleUnknownPacket(pPacket, senderAddr, ntohs(addr.sin_port));
+				uint16 port = ntohs(addr.sin_port);
+				m_pNetMgr->m_pHandler->HandleUnknownPacket(pPacket, senderAddr, port);
 			}
 		}
 	}

@@ -6,7 +6,7 @@ shared/classbind,00402680,00402870,medium
 server/classmgr,00402870,00402ef0,high
 kernel/sys/win/client,00402ef0,00403f10,medium
 client/client_filemgr,00403f10,004049c0,medium
-client/clientde_impl,004049f0,0040c470,medium
+client/clientde_impl,004049c0,0040c470,medium
 client/sys/win/winclientde_impl,0040c470,0040fa60,medium
 client/clientmgr,0040fa60,004148e0,medium
 client/clientshell,004148e0,00416f10,medium
@@ -23,6 +23,7 @@ client/sys/win/winconsole_impl,004206d0,00422220,medium
 client/consolecommands,00422220,00423880,medium
 kernel/sys/win/counter,00423880,00423a20,medium
 shared/csbase,00423a20,00424970,low
+shared/csweptsphere,00424970,00425cd0,low
 client/cutil,00425cd0,00426af0,medium
 kernel/io/sys/win/de_file,00426af0,00427cf0,medium
 world/de_mainworld,00427cf0,0042fdd0,medium
@@ -31,8 +32,8 @@ world/de_nodes,00430010,004306c0,medium
 world/de_objects,004306c0,00430750,medium
 client/debuggraphmgr,00430750,004328c0,medium
 client/demomgr,004328c0,004335e0,medium
-shared/dhashtable,004335e0,00433d50,medium
-shared/sys/win/dstreamopenqueuemgr,00433d50,00434290,medium
+shared/dhashtable,004335e0,00433cd0,medium
+shared/sys/win/dstreamopenqueuemgr,00433cd0,00434290,medium
 kernel/sys/win/dsys_interface,00434290,004352d0,medium
 shared/dtxmgr,004352d0,00435960,medium
 kernel/sys/win/dutil,00435960,004359b0,medium
@@ -52,7 +53,8 @@ shared/shared_iltphysics,0043d110,0043d5d0,medium
 shared/impl_common,0043d5d0,0043eb70,medium
 kernel/sys/win/input,0043eb70,00442130,medium
 kernel/sys/win/interface_helpers,00442130,00443c60,medium
-server/interlink,00443c60,00444280,medium
+server/interlink,00443c60,004442a0,medium
+world/intersect_line,004442a0,004447d0,medium
 shared/leech,004447d0,00444ad0,medium
 world/light_table,00444ad0,00444c40,medium
 shared/lightmap_planes,00444c40,004450c0,medium
@@ -85,8 +87,8 @@ shared/parse_world_info,00469590,00469710,medium
 client/particlesystem,00469710,0046a1e0,medium
 shared/pixelformat,0046a1e0,0046dc60,high
 client/polygrid,0046dc60,0046ddf0,medium
-client/predict,0046ddf0,0046ead0,medium
-shared/ratetracker,0046ead0,0046eb30,medium
+client/predict,0046ddf0,0046ea70,medium
+shared/ratetracker,0046eab0,0046eb30,medium
 kernel/sys/win/render,0046eb30,0046f6a0,medium
 server/s_client,0046f6a0,00473760,medium
 server/s_concommand,00473760,00473eb0,medium
@@ -96,9 +98,9 @@ server/s_object,00476e80,004781d0,high
 server/server_extradata,004781d0,004790c0,medium
 server/server_filemgr,004790c0,004795f0,medium
 server/server_interface,004795f0,0047b710,low
-server/serverde_impl,0047b710,00481b70,medium
+server/serverde_impl,0047b710,00482140,medium
 server/serverevent,00482140,004821c0,medium
-server/servermgr,004821c0,004872f0,medium
+server/servermgr,004821c0,00489710,medium
 client/setupobject,00489710,0048a640,medium
 shared/shellbind,0048a640,0048a7c0,medium
 client/shellnet,0048a7c0,0048e980,medium
@@ -111,6 +113,7 @@ sound/soundinstance,0048ff40,00492570,medium
 sound/soundmgr,00492570,00496460,medium
 server/soundtrack,00496460,004967e0,high
 client/sprite,004967e0,00496b00,high
+shared/spritecontrolimpl,00496b00,00496cd0,medium
 kernel/sys/win/streamsim,00496cd0,004973d0,medium
 kernel/sys/win/stringmgr,004973d0,00497770,medium
 kernel/net/sys/win/udpdriver,00497770,0049ada0,medium
@@ -123,6 +126,7 @@ shared/version_info,0049cf50,0049cfb0,medium
 kernel/sys/win/version_resource,0049cfb0,0049d030,medium
 kernel/sys/win/videomgr,0049d030,0049d310,medium
 kernel/sys/win/smackvideomgrimpl,0049d310,0049e330,medium
+world/visquery,0049e330,0049ec40,low
 sound/wave,0049ec40,0049efd0,medium
 world/world_tree,0049efd0,004a0500,medium
 lithshared/lith/baselist,004afc50,004afce0,high

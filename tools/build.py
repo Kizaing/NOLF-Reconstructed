@@ -158,7 +158,9 @@ def _decl_name(lines, i, is_data):
         if not l or l.startswith('#') or ANNOT.match(lines[i - 1]) or l.startswith('template'):
             continue
         if is_data:
-            m = re.findall(r'([A-Za-z_]\w*)\s*(?:\[[^\]]*\])*\s*(?:=|;|$)', l)
+            if '=' in l:
+                l = l[:l.index('=')] + '='      # the initializer can't name it: `const float x = 0.1f;`
+            m = re.findall(r'([A-Za-z_][\w:]*)\s*(?:\[[^\]]*\])*\s*(?:=|;|$)', l)      # Cls::s_X too
             m = m or re.findall(r'([A-Za-z_]\w*)\s*\(', l)[:1]      # constructor syntax: LTLink g_X(LTLink_Init);
             return m[-1] if m else None
         if '(' not in l:

@@ -12,12 +12,15 @@
 #include "iltmodel.h"
 #include "serverde_impl.h"
 #include "game_serialize.h"
+#include "moveobject.h"
+#include "smoveabstract.h"
 #include "server_filemgr.h"
 #include "de_world.h"
 #include "classbind.h"
 #include "concommand.h"
 #include "dhashtable.h"
 #include "de_memory.h"
+#include "ltengineobjects.h"
 
 #define GAMESERIALIZE_CRC	0xABCDEFAF
 
@@ -677,6 +680,232 @@ LTRESULT sm_RestoreObjects(CServerMgr *pServerMgr, ILTStream *pStream, uint32 dw
 		return dResult;
 
 	sm_CheckObjectIntegrity(pServerMgr);
+	return LT_OK;
+}
+
+
+// Allocates and constructs an object of the class (Jupiter s_object.h).
+inline LPBASECLASS sm_AllocateObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass)
+{
+	LPBASECLASS pObject;
+	CClassData *pClassData;
+
+	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
+
+	pObject = (LPBASECLASS)sb_Allocate(&pClassData->m_ObjectBank);
+	pObject->m_hObject = 0;
+	pObject->m_pFirstAggregate = LTNULL;
+	pClass->m_ConstructFn(pObject);
+
+	return pObject;
+}
+
+
+// ------------------------------------------------------------------------ //
+// Creates the next object from a file.
+// ------------------------------------------------------------------------ //
+
+// PRECREATE_SAVEGAME (3.0f) passed through sm_AddObjectToWorld's uint32 parameter.
+#define OBJECTCREATED_SAVEGAME	0x40400000
+
+// STUB: LITHTECH 0x00439f40
+LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObject **ppObj,
+	uint32 dwParam)
+{
+	uint32 nextObjectPos, objDataPos;
+	ObjectCreateStruct createStruct;
+	LTObject tempObj;
+	LTVector tempVec;
+	char className[256];
+	ClassDef *pClass;
+	LPBASECLASS pBaseClass;
+	LTObject *pObj;
+	LTRESULT dResult;
+	float tempRadius, fNextUpdate, fDeactivationTime, fDeactivateTimer;
+	uint8 bSpecialEffectMessage, bHasClient;
+	uint16 messageLen, skyIndex, i;
+	uint32 tempInternalFlags, clientFlags;
+	char clientName[512];
+	ClientRef *pClientRef;
+	MoveState moveState;
+
+	STREAM_READ(nextObjectPos);
+	if (nextObjectPos == (uint32)-1)
+		return LT_FINISHED;
+
+	STREAM_READ(objDataPos);
+
+	// Setup an ObjectCreateStruct and create the object.  It reads each member into the
+	// LTObject first to make sure it reads in the right data type.
+	createStruct.Clear();
+	pStream->ReadString(className, sizeof(className));
+
+	pClass = cb_FindClass(pServerMgr->m_ClassMgr.m_ClassModule, className);
+	if (!pClass)
+	{
+		sm_SetupError(pServerMgr, LT_CANTRESTOREOBJECT, className);
+		RETURN_ERROR_PARAM(1, sm_CreateNextObject, LT_CANTRESTOREOBJECT, className);
+	}
+
+	STREAM_READ(tempObj.m_ObjectType);
+	STREAM_READ(tempObj.m_Flags);
+	STREAM_READ(tempObj.m_Flags2);
+
+	STREAM_READ(tempVec.x);
+	STREAM_READ(tempVec.y);
+	STREAM_READ(tempVec.z);
+	tempObj.SetPos(tempVec);
+
+	STREAM_READ(tempObj.m_Scale);
+	STREAM_READ(tempObj.m_Rotation);
+	STREAM_READ(tempObj.m_UserFlags);
+
+	createStruct.m_ObjectType = (char)tempObj.m_ObjectType;
+	createStruct.m_Flags = tempObj.m_Flags;
+	createStruct.m_Flags2 = tempObj.m_Flags2;
+	createStruct.m_Pos = tempObj.GetPos();
+	createStruct.m_Scale = tempObj.m_Scale;
+	createStruct.m_Rotation = tempObj.m_Rotation;
+
+	pStream->ReadString(createStruct.m_Name, MAX_CS_FILENAME_LEN);
+	pStream->ReadString(createStruct.m_Filename, MAX_CS_FILENAME_LEN);
+
+	if (tempObj.m_ObjectType == OT_MODEL)
+	{
+		for (i=0; i < MAX_MODEL_TEXTURES; i++)
+		{
+			pStream->ReadString(createStruct.m_SkinNames[i], MAX_CS_FILENAME_LEN);
+		}
+	}
+	else
+	{
+		pStream->ReadString(createStruct.m_SkinName, MAX_CS_FILENAME_LEN);
+	}
+
+	if (tempObj.m_ObjectType == OT_LIGHT)
+	{
+		STREAM_READ(tempRadius);
+	}
+
+	if (tempObj.m_ObjectType == OT_CONTAINER)
+	{
+		STREAM_READ(createStruct.m_ContainerCode);
+	}
+
+	STREAM_READ(fNextUpdate);
+	STREAM_READ(fDeactivationTime);
+	STREAM_READ(fDeactivateTimer);
+
+	createStruct.m_NextUpdate = fNextUpdate;
+	createStruct.m_fDeactivationTime = fDeactivationTime;
+
+	// Create the object.
+	pBaseClass = sm_AllocateObjectOfClass(pServerMgr, pClass);
+
+	pBaseClass->EngineMessageFn(MID_PRECREATE, &createStruct, PRECREATE_SAVEGAME);
+
+	dResult = sm_AddObjectToWorld(g_pServerMgr, pBaseClass, pClass, &createStruct, INVALID_OBJECTID,
+		OBJECTCREATED_SAVEGAME, &pObj);
+	if (dResult != LT_OK)
+		return dResult;
+
+	// Copy data over.
+	pObj->m_UserFlags = tempObj.m_UserFlags;
+	if (pObj->m_ObjectType == OT_LIGHT)
+	{
+		((DynamicLight*)pObj)->m_LightRadius = tempRadius;
+	}
+
+	if (pObj->sd->m_fDeactivationTime == fDeactivationTime)
+		pObj->sd->m_fDeactivateTimer = fDeactivateTimer;
+
+	// Now read the rest of the data in.
+	STREAM_READ(pObj->m_BPriority);
+
+	// Read the special effect message.
+	STREAM_READ(bSpecialEffectMessage);
+	if (bSpecialEffectMessage)
+	{
+		STREAM_READ(messageLen);
+
+		pObj->sd->m_pSFXMsg = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+		pObj->sd->m_pSFXMsg->Init(messageLen, MAX_PACKET_LEN);
+		pObj->sd->m_pSFXMsg->m_DataLen = messageLen;
+
+		if (pObj->sd->m_pSFXMsg->m_Data.GetSize() < messageLen)
+		{
+			RETURN_ERROR_PARAM(1, sm_CreateNextObject, LT_INVALIDFILE, className);
+		}
+
+		pStream->Read(pObj->sd->m_pSFXMsg->m_Data.GetArray(), messageLen);
+	}
+
+	STREAM_READ(pObj->m_ColorR);
+	STREAM_READ(pObj->m_ColorG);
+	STREAM_READ(pObj->m_ColorB);
+	STREAM_READ(pObj->m_ColorA);
+	STREAM_READ(pObj->m_Velocity);
+	STREAM_READ(pObj->m_Acceleration);
+	STREAM_READ(pObj->m_UnknownDC);
+	STREAM_READ(pObj->m_FrictionCoefficient);
+	STREAM_READ(pObj->m_Mass);
+	STREAM_READ(pObj->m_ForceIgnoreLimitSqr);
+
+	STREAM_READ(tempVec.x);
+	STREAM_READ(tempVec.y);
+	STREAM_READ(tempVec.z);
+	pObj->SetDims(tempVec);
+
+	STREAM_READ(tempInternalFlags);
+
+	if (tempInternalFlags & IFLAG_INSKY)
+	{
+		STREAM_READ(skyIndex);
+		if (skyIndex >= MAX_SKYOBJECTS)
+		{
+			sm_SetupError(pServerMgr, LT_CANTRESTOREOBJECT, className);
+			RETURN_ERROR_PARAM(1, sm_CreateNextObject, LT_CANTRESTOREOBJECT, className);
+		}
+	}
+
+	moveState.Setup(&pServerMgr->m_World.m_WorldTree, pServerMgr->m_MoveAbstract, pObj, pObj->m_BPriority);
+	ChangeObjectDimensions(&moveState, &pObj->m_Dims, LTFALSE, LTFALSE);
+
+	// This makes sure it gets in the correct active/inactive list.
+	sm_SetObjectStateFlags(pServerMgr, pObj, tempInternalFlags & IFLAG_INACTIVE_MASK);
+	pObj->m_InternalFlags = tempInternalFlags;
+
+	// AddObjectToWorld ignores m_Pos for world models so really move it.
+	FullMoveObject(pServerMgr, pObj, &createStruct.m_Pos, MO_SETCHANGEFLAG | MO_NOSLIDING);
+
+	// Put it back in the sky..
+	if (tempInternalFlags & IFLAG_INSKY)
+	{
+		pServerMgr->m_SkyObjects[skyIndex] = pObj->m_ObjectID;
+		sm_SetSendSkyDef(g_pServerMgr);
+	}
+
+	if (tempInternalFlags & IFLAG_HASCHILDMODELS)
+		SetObjectChangeFlags(pServerMgr, pObj, CF_ATTACHMENTS);
+
+	// Read in client info.
+	STREAM_READ(bHasClient);
+	if (bHasClient)
+	{
+		STREAM_READ(clientFlags);
+		pStream->ReadString(clientName, sizeof(clientName));
+
+		pClientRef = (ClientRef*)dalloc(sizeof(ClientRef) + strlen(clientName));
+		pClientRef->m_ClientFlags = clientFlags;
+		strcpy(pClientRef->m_ClientName, clientName);
+		pClientRef->m_ObjectID = pObj->m_ObjectID;
+		pObj->m_InternalFlags |= IFLAG_HASCLIENTREF;
+
+		dl_AddTail(&pServerMgr->m_ClientReferences, &pClientRef->m_Link, pClientRef);
+	}
+
+	*ppObj = pObj;
+	pStream->SeekTo(nextObjectPos);
 	return LT_OK;
 }
 

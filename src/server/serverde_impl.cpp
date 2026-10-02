@@ -1,3 +1,4 @@
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC
 // Jupiter runtime/server/src/serverde_impl.cpp
 // Talon: ILTServer mixes virtual methods (CLTServer) with C function pointers (si_ functions,
 // installed by si_SetupFunctionPointers). CLTServer reaches the server manager through its
@@ -12,6 +13,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <set>
+#include <map>
+#include <string>
 #include "serverde_impl.h"
 #include "stringmgr.h"
 #include "dhashtable.h"
@@ -412,9 +416,10 @@ LTRESULT CLTServer::ThreadLoadFile(char *pFilename, uint32 type)
 	}
 }
 
-// Matches with the wave-2 headers; after wave 3 two reloads after SendToClient swap order. The
-// swap flips with unrelated header declarations (e.g. CountPercent in counter.h), so it's
-// symbol-table noise in VC6's register allocator, not a source difference.
+// FRAGILE: two reloads after SendToClient swap order depending on unrelated declarations (e.g.
+// CountPercent in counter.h, the STLport includes this unit now has, other agents' edits to shared headers):
+// symbol-table noise in VC6's register allocator, not a source difference. It matched at one point in wave 4
+// (with the STLport includes added) and flipped back after a concurrent header edit, so it stays a STUB.
 // STUB: LITHTECH 0x0047c1c0
 LTRESULT CLTServer::UnloadFile(char *pFilename, uint32 type)
 {
@@ -749,16 +754,25 @@ LTRESULT CLTServer::GetClientData(HCLIENT hClient, void *&pData, uint32 &nLength
 	return LT_OK;
 }
 
-// The child model link map at 0x280 is an STLport map<std::string, list<std::string> > (the
-// engine links STLport for WONAPI only), which we can't build yet.
-// STUB: LITHTECH 0x0047cd10
+// The child model link map at 0x280 (CLTServer::m_Pad280) is an STLport map: child model
+// filename -> set of extra child model filenames (model_load.cpp reads it as pExtraChildModels).
+typedef std::set<std::string> ExtraChildSet;
+typedef std::map<std::string, ExtraChildSet> ExtraChildMap;
+
+// FUNCTION: LITHTECH 0x0047cd10
 void CLTServer::LinkModelToExtraChildModel(char *child_model_key, char **associated_chmdl, int size_chmld)
 {
+	ExtraChildSet &setChildren = (*(ExtraChildMap*)m_Pad280)[std::string(child_model_key)];
+
+	for(int i=0; i < size_chmld; i++)
+		setChildren.insert(std::string(associated_chmdl[i]));
 }
 
-// STUB: LITHTECH 0x0047ce60
+// FUNCTION: LITHTECH 0x0047ce60
 void CLTServer::ResetModelToChildModelLink()
 {
+	ExtraChildMap &mapLinks = *(ExtraChildMap*)m_Pad280;
+	mapLinks.clear();
 }
 
 // FUNCTION: LITHTECH 0x0047ced0
@@ -1278,7 +1292,7 @@ struct SphereFindStruct
 	float		m_SphereTouchDiameter;	// 0x10
 };
 
-// Differs: operand order of m_Radius * m_SphereTouchDiameter (fld/fmul swapped).
+// Remaining diff (7 bytes): the original schedules `fsub [temp]` before the next load of the touch position (vecTo copy).
 // STUB: LITHTECH 0x0047de10
 void SphereFindCallback(WorldTreeObj *pObj, void *pCBUser)
 {
@@ -1291,8 +1305,8 @@ void SphereFindCallback(WorldTreeObj *pObj, void *pCBUser)
 	// (r1 + r2)^2, expanded.
 	LTVector vecTo = pServerObj->GetPos() - *pStruct->m_pSphereTouchPos;
 	float fRadius = pServerObj->m_Radius;
-	if (vecTo.MagSqr() < pStruct->m_SphereTouchDiameter * pServerObj->m_Radius +
-		fRadius * fRadius + pStruct->m_SphereTouchRadiusSqr)
+	if (vecTo.MagSqr() < pServerObj->m_Radius * pServerObj->m_Radius + fRadius * pStruct->m_SphereTouchDiameter +
+		pStruct->m_SphereTouchRadiusSqr)
 	{
 		ObjectLink *pLink = (ObjectLink*)sb_Allocate(&g_pServerMgr->m_ObjectLinkBank);
 		if (!pLink)
@@ -2591,7 +2605,7 @@ LTRESULT si_SetObjectUserFlags(HOBJECT hObj, uint32 flags)
 	return LT_OK;
 }
 
-// Differs: register allocation only (edx vs ecx for the flags test).
+// Differs: register allocation only (the original tests the flags byte in dl; we pick cl).
 // STUB: LITHTECH 0x00480470
 HOBJECT si_GetNextObject(HOBJECT hObj)
 {
@@ -2607,7 +2621,9 @@ HOBJECT si_GetNextObject(HOBJECT hObj)
 		return LTNULL;
 
 	pObj = (LTObject*)pLink->m_pData;
-	return (pObj->m_InternalFlags & IFLAG_INACTIVE_MASK) ? LTNULL : pObj;
+	if (pObj->m_InternalFlags & IFLAG_INACTIVE_MASK)
+		return LTNULL;
+	return pObj;
 }
 
 // FUNCTION: LITHTECH 0x004804c0

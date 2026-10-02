@@ -156,9 +156,28 @@ class VisQueryRequest;
 typedef LTBOOL (*VQNodeFilterFn)(WorldTreeNode *pNode);
 typedef void (*VQAddObjectFn)(WorldTreeObj *pObj, void *pUser);
 
+// The default callbacks of a vis query (empty functions in the engine; the first two are the same
+// function after identical-code folding).
+void vq_DefaultFn1();		// 0x004a4ad0
+void vq_DefaultFn2();		// 0x004a4ad0
+LTBOOL vq_DefaultBoolFn();	// 0x004668a0
+
 class VisQueryRequest
 {
 public:
+	VisQueryRequest()
+	{
+		m_Viewpoint.Init();
+		m_ViewRadius = 0.0f;
+		m_AddObject = (VQAddObjectFn)vq_DefaultFn1;
+		m_Unknown18 = LTNULL;
+		m_pUserData = LTNULL;
+		m_Unknown20 = (void*)vq_DefaultFn2;
+		m_iObjArray = NOA_Objects;
+		m_Unknown24 = (void*)vq_DefaultBoolFn;
+		m_NodeFilterFn = LTNULL;
+	}
+
 	uint32			m_iObjArray;		// 0x00
 	LTVector		m_Viewpoint;		// 0x04
 	float			m_ViewRadius;		// 0x10

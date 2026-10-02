@@ -33,6 +33,31 @@ struct MotionInfo
 // CalcMotion input/output (0x40 bytes).
 struct MotionState
 {
+	// Starts with the default gravity (CServerMgr and CClientMgr construct one this way; the
+	// out-of-line SetForce copy is at 0x00411670).
+	MotionState()
+	{
+		LTVector vGravity(0.0f, -2000.0f, 0.0f);
+		SetForce(&vGravity);
+		m_Info.m_SlideRatio = -0.7071f;
+	}
+
+	// The same as MotionInfo::SetForce (the original keeps this one out of line, at 0x00411670).
+	void SetForce(const LTVector *pForce)
+	{
+		m_Info.m_Force = *pForce;
+		m_Info.m_ForceMag = m_Info.m_Force.Mag();
+		if(m_Info.m_ForceMag > 0.00001f)
+		{
+			m_Info.m_UnitForce = m_Info.m_Force;
+			m_Info.m_UnitForce /= m_Info.m_ForceMag;
+		}
+		else
+		{
+			m_Info.m_UnitForce.Init();
+		}
+	}
+
 	LTObject	*m_pObj;			// 0x00
 	float		m_dt;				// 0x04 time step
 	uint32		m_Flags;			// 0x08 object flags (FLAG_GRAVITY)

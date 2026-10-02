@@ -9,6 +9,7 @@
 #include "ltdynarray.h"
 #include "de_objects.h"	// Node, WorldPoly (Jupiter keeps them in de_world.h)
 #include "nexus.h"
+#include "iltstream.h"
 
 struct WorldPoly;
 struct FileIdentifier;
@@ -45,6 +46,7 @@ struct SharedTexture
 	inline uint16	GetFlags() const			{return (uint16)(m_RefCount & ~ST_REFCOUNTMASK);}
 	inline void		SetFlags(uint16 flags)		{m_RefCount &= ST_REFCOUNTMASK; m_RefCount |= (flags & ~ST_REFCOUNTMASK);}
 	inline uint16	GetRefCount() const			{return (uint16)(m_RefCount & ST_REFCOUNTMASK);}
+	inline void		SetRefCount(uint16 count)	{m_RefCount &= ~ST_REFCOUNTMASK; m_RefCount |= (count & ST_REFCOUNTMASK);}
 
 	Nexus			m_Nexus;				// 0x00 video leeches attach here
 	void			*m_pEngineData;			// 0x08 TextureData* (render.cpp r_GetTexture)
@@ -204,6 +206,15 @@ public:
 // Where a terrain section sits in the world tree (8 bytes).
 struct WTNodePath
 {
+	void			Load(ILTStream *pStream)
+	{
+		*pStream >> m_Path[0];
+		*pStream >> m_Path[1];
+		*pStream >> m_Path[2];
+		*pStream >> m_Path[3];
+		*pStream >> m_Depth;
+	}
+
 	uint8			m_Path[4];				// 0x00 child index bits
 	uint32			m_Depth;				// 0x04
 };

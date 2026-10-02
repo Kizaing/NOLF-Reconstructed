@@ -209,7 +209,7 @@ void		GetAttachmentTransform(LTObject *pParent, Attachment *pAttachment, LTVecto
 #define SMSG_SFXMESSAGE		18
 
 class CPacket;
-void		sm_SendSFXMessage(CServerMgr *pServerMgr, uint8 msgID, CPacket *pPacket, LTObject *pObj, LTVector *pPos, uint32 flags);	// 0x00486ab0
+LTRESULT	sm_SendSFXMessage(CServerMgr *pServerMgr, uint8 msgID, CPacket *pPacket, LTObject *pObj, LTVector *pPos, uint32 flags);	// 0x00486ab0
 void		sm_SetObjectSpecialEffectMessage(CServerMgr *pServerMgr, LTObject *pObj, class CPacket *pPacket);	// 0x00477e80 (s_object)
 
 void		RetransformWorldModel(WorldModelInstance *pWorldModel);	// 0x0045d1e0 (moveobject)

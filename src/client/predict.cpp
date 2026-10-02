@@ -7,6 +7,10 @@
 #include "clientmgr.h"
 #include "clientshell.h"
 #include "iclientshell.h"
+#include "predict.h"
+#include "motion.h"
+#include "iltphysics.h"
+#include "iltclient.h"
 
 // GLOBAL: LITHTECH 0x004e374c
 extern int32 g_bPrediction;
@@ -16,6 +20,11 @@ extern int32 g_bPrediction;
 static float g_fServerPeriodMultiplier
 	= 1.1f;
 
+// GLOBAL: LITHTECH 0x004d2170
+extern float g_CV_MaxExtrapolateTime;
+
+// 0x00426860
+void cm_MoveObject(CClientMgr *pClientMgr, LTObject *pObject, LTVector *pNewPos, LTBOOL bForce);
 // 0x00426940
 void cm_RotateObject(CClientMgr *pClientMgr, LTObject *pObject, LTRotation *pNewRot);
 
@@ -31,17 +40,15 @@ void pd_InitialServerUpdate(CClientShell *pShell, float gameTime)
 }
 
 
-// Stack slots differ: the original keeps pClientShell in a local and fVelMagSqr in pShell's
-// argument slot (0x10-byte frame vs 0xc); code is otherwise identical.
-// STUB: LITHTECH 0x0046de20
+// FUNCTION: LITHTECH 0x0046de20
 void pd_OnObjectMove(CClientShell *pShell, LTObject *pObject, LTVector *pNewPos, LTVector *pNewVel, LTBOOL bNew, LTBOOL bTeleport)
 {
 	ClientData *pData;
 	IClientShell *pClientShell;
 	float fVelMagSqr, fUpdateDelta;
 
-	fVelMagSqr = pNewVel->MagSqr();
 	pClientShell = pShell->m_pClientMgr->m_pClientShell;
+	fVelMagSqr = pNewVel->MagSqr();
 	pData = &pObject->cd;
 
 	// Teleport the object if the new update is the same as the previous update
@@ -140,16 +147,172 @@ void pd_OnObjectRotate(CClientShell *pShell, LTObject *pObject, LTRotation *pNew
 }
 
 
-// Talon runs CalcMotion through a MotionState (motion.h) and also saves/restores m_Flags.
-// STUB: LITHTECH 0x0046e720
-LTVector predict_EvaluateCurve(LTObject *pObj, const ClientData *pClientData, const LTVector &vGravity,
+// Where the object would be (Talon runs CalcMotion through a MotionState, and also saves and
+// restores m_Flags).
+// FUNCTION: LITHTECH 0x0046e720
+static LTVector predict_EvaluateCurve(LTObject *pObj, const ClientData *pClientData, const LTVector &vGravity,
 	float fInterpolant, float fTotalTime, LTBOOL bFullCalc)
 {
-	return pClientData->m_LastUpdatePosServer;
+	if(bFullCalc)
+	{
+		// Save the object's state
+		LTVector vOldPos = pObj->GetPos();
+		LTVector vOldVel = pObj->m_Velocity;
+		LTVector vOldAccel = pObj->m_Acceleration;
+		uint32 nOldInternalFlags = pObj->m_InternalFlags;
+		uint32 nOldFlags = pObj->m_Flags;
+		float fOldFriction = pObj->m_FrictionCoefficient;
+
+		// Put it where the server last said it was
+		pObj->SetPos(pClientData->m_LastUpdatePosServer);
+		pObj->m_Velocity = pClientData->m_LastUpdateVelServer;
+		pObj->m_Acceleration.Init();
+		pObj->m_FrictionCoefficient = 0.0f;
+		pObj->m_Flags |= FLAG_GRAVITY;
+
+		// Calculate the movement info
+		MotionState state;
+		state.m_pObj = pObj;
+		state.m_dt = fInterpolant * fTotalTime;
+		state.m_Flags = pObj->m_Flags;
+		state.m_pVelocity = &pObj->m_Velocity;
+		state.m_pAcceleration = &pObj->m_Acceleration;
+		state.m_Info.m_SlideRatio = 1.0f;
+		state.SetForce(&vGravity);
+
+		CalcMotion(&state);
+
+		// Put the object back to its old state
+		pObj->SetPos(vOldPos);
+		pObj->m_Velocity = vOldVel;
+		pObj->m_Acceleration = vOldAccel;
+		pObj->m_InternalFlags = nOldInternalFlags;
+		pObj->m_FrictionCoefficient = fOldFriction;
+		pObj->m_Flags = nOldFlags;
+
+		// Return the new position
+		return state.m_Offset + pClientData->m_LastUpdatePosServer;
+	}
+	else
+	{
+		float fInterpTime = fTotalTime * fInterpolant;
+		LTVector vServerPos = pClientData->m_LastUpdatePosServer + (pClientData->m_LastUpdateVelServer * fInterpTime) + vGravity * (fInterpTime * fInterpTime * 0.5f);
+		return vServerPos;
+	}
 }
 
 
-// STUB: LITHTECH 0x0046e250
+// Interpolates the objects towards their last server update.
+// FUNCTION: LITHTECH 0x0046e250
 void pd_Update(CClientShell *pShell)
 {
+	float timeDelta, curTime;
+	LTLink *pCur;
+	LTObject *pObj;
+	LTVector newPos;
+	float fTimeLeft, fParam;
+	LTRotation rRot;
+	IClientShell *pClientShell;
+
+	pClientShell = pShell->m_pClientMgr->m_pClientShell;
+
+	if(g_bPrediction)
+	{
+		// Figure out the delta..
+		curTime = pShell->m_pClientMgr->m_CurTime;
+		timeDelta = curTime - pShell->m_ClientGameTimerSync;
+		if(timeDelta < 0.0f)
+			timeDelta = 0.0f;
+
+		pShell->m_ClientGameTime += timeDelta;
+		pShell->m_ClientGameTimerSync = curTime;
+
+		// Get global gravity
+		LTVector vGravity, vGlobalGravity;
+		pShell->m_pClientMgr->m_pClientDE->Physics()->GetGlobalForce(vGlobalGravity);
+
+		// Interpolate movement of each object.
+		pCur = pShell->m_MovingObjects.m_pNext;
+		while(pCur != &pShell->m_MovingObjects)
+		{
+			pObj = (LTObject*)pCur->m_pData;
+			pCur = pCur->m_pNext;
+
+			ClientData *pClientData = &(pObj->cd);
+
+			if((pObj->m_Flags & FLAG_GRAVITY) != 0)
+				vGravity = vGlobalGravity;
+			else
+				vGravity.Init();
+
+			float fTimeOffset = pShell->m_ClientGameTime - pClientData->m_fLastUpdatePosTime;
+
+			fTimeOffset = LTCLAMP(fTimeOffset, 0.0f, g_CV_MaxExtrapolateTime);
+
+			LTBOOL bTeleport = LTFALSE;
+
+			if((pClientData->m_LastUpdateVelServer.Mag() <= 0.0f) ||
+				(g_CV_MaxExtrapolateTime <= 0.0f) ||
+				(fTimeOffset == g_CV_MaxExtrapolateTime))
+			{
+				newPos = predict_EvaluateCurve(pObj, pClientData, LTVector(0.0f, 0.0f, 0.0f), 0.0f, g_CV_MaxExtrapolateTime, LTTRUE);
+				if(fTimeOffset < g_CV_MaxExtrapolateTime)
+				{
+					newPos = (newPos + pObj->GetPos()) * 0.5f;
+				}
+				else
+				{
+					bTeleport = LTTRUE;
+					dl_Remove(&pObj->cd.m_MovingLink);
+					dl_TieOff(&pObj->cd.m_MovingLink);
+				}
+			}
+			else
+			{
+				newPos = predict_EvaluateCurve(pObj, pClientData, vGravity, fTimeOffset / g_CV_MaxExtrapolateTime, g_CV_MaxExtrapolateTime, LTTRUE);
+				newPos = (newPos + pObj->GetPos()) * 0.5f;
+			}
+
+			// Move it..
+			pClientShell->OnObjectMove((HOBJECT)pObj, LTFALSE, &newPos);
+
+			// Use the physics if it's solid, unless it needs to teleport
+			if(((pObj->m_Flags & FLAG_SOLID) != 0) && (!bTeleport))
+				pShell->m_pClientMgr->m_pClientDE->Physics()->MoveObject((HOBJECT)pObj, &newPos, 0);
+			else
+				cm_MoveObject(pShell->m_pClientMgr, pObj, &newPos, LTTRUE);
+		}
+
+		// Interpolate rotation of each object.
+		pCur = pShell->m_RotatingObjects.m_pNext;
+		while(pCur != &pShell->m_RotatingObjects)
+		{
+			pObj = (LTObject*)pCur->m_pData;
+			pCur = pCur->m_pNext;
+
+			fTimeLeft = LTMIN(pObj->cd.m_fRotAccumulatedTime, timeDelta);
+			fParam = fTimeLeft / pObj->cd.m_fRotAccumulatedTime;
+
+			LTRotation rTemp;
+			quat_Slerp((float*)&rTemp, (float*)&pObj->m_Rotation, (float*)&pObj->cd.m_rLastUpdateRotServer, fParam);
+			quat_Slerp((float*)&rRot, (float*)&pObj->m_Rotation, (float*)&rTemp, 0.5f);
+
+			pObj->cd.m_fRotAccumulatedTime -= fTimeLeft;
+
+			if(pObj->cd.m_fRotAccumulatedTime <= 0.0f)
+			{
+				rRot = pObj->cd.m_rLastUpdateRotServer;
+				pObj->cd.m_fRotAccumulatedTime = 0.0f;
+				dl_Remove(&pObj->cd.m_RotatingLink);
+				dl_TieOff(&pObj->cd.m_RotatingLink);
+			}
+
+			pClientShell->OnObjectRotate((HOBJECT)pObj, LTFALSE, &rRot);
+			cm_RotateObject(pShell->m_pClientMgr, pObj, &rRot);
+		}
+	}
 }
+
+
+// Out-of-line copy of the inline MotionState::SetForce (MotionState's constructor calls it):
+// FUNCTION: LITHTECH 0x00411670 ?SetForce@MotionState@@QAEXPBV?$_CVector@M@@@Z

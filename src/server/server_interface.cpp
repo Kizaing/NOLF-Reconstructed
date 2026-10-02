@@ -17,6 +17,9 @@
 #include "impl_common.h"
 #include "animtracker.h"
 #include "packet.h"
+#include "s_client.h"
+#include "server_extradata.h"
+#include "model.h"
 
 // Console variable "DebugMaxDims" (3000).
 // GLOBAL: LITHTECH 0x004d2208
@@ -374,6 +377,84 @@ LTRESULT ServerCommonLT::SetObjectFlags(HOBJECT hObj, const ObjFlagType flagType
 
 		hObj->m_Flags2 = dwFlags;
 		SetObjectChangeFlags(m_pServerMgr, hObj, CF_FLAGS);
+	}
+
+	return LT_OK;
+}
+
+
+// Changes a model's or sprite's files and tells the clients that know about the object.
+// FUNCTION: LITHTECH 0x0047a190
+LTRESULT ServerCommonLT::SetObjectFilenames(HOBJECT pObj, ObjectCreateStruct *pStruct)
+{
+	FN_NAME(ServerCommonLT::SetObjectFilenames);
+	LTRESULT dResult;
+	Model *pOldModel, *pNewModel;
+	Attachment *pAttachment;
+	uint32 newSocketIndex;
+	LTLink *pCur, *pListHead;
+	ExtraDataBackup backup;
+
+	CHECK_PARAMS2(pStruct && pObj &&
+		(pObj->m_ObjectType == OT_MODEL || pObj->m_ObjectType == OT_SPRITE));
+
+	pOldModel = LTNULL;
+	if (pObj->m_ObjectType == OT_MODEL)
+		pOldModel = ((ModelInstance*)pObj)->GetModelDB();
+
+	CPacketRef cChangePacket;
+	cChangePacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+
+	// Setup the new files (this terminates the old ones).
+	BackupExtraData(pObj, &backup);
+	sm_TermExtraData(m_pServerMgr, pObj);
+	dResult = sm_InitExtraData(m_pServerMgr, pObj, pStruct);
+	if (dResult != LT_OK)
+	{
+		RestoreExtraData(pObj, &backup);
+		return dResult;
+	}
+
+	// Tell all the clients about it.
+	cChangePacket->ResetWrite();
+	cChangePacket->WriteType(pObj->m_ObjectID);
+	sm_WriteModelFiles(pObj, cChangePacket, LTNULL);
+
+	pListHead = &m_pServerMgr->m_Clients.m_Head;
+	for (pCur=pListHead->m_pNext; pCur != pListHead; pCur=pCur->m_pNext)
+	{
+		Client *pClient = (Client*)pCur->m_pData;
+
+		if (pClient->m_ObjInfos[pObj->m_ObjectID].m_ChangeFlags & CF_SENTINFO)
+		{
+			SendToClient(m_pServerMgr, pClient, 15, cChangePacket, LTFALSE, MESSAGE_GUARANTEED);
+		}
+	}
+
+	// If we've changed models, then reorder the attachment socket node bindings.
+	if (pOldModel)
+	{
+		pNewModel = ((ModelInstance*)pObj)->GetModelDB();
+
+		for (pAttachment = pObj->m_Attachments; pAttachment; pAttachment = pAttachment->m_pNext)
+		{
+			if (pAttachment->m_iSocket < pOldModel->NumSockets())
+			{
+				if (pNewModel->FindSocket(pOldModel->GetSocket(pAttachment->m_iSocket)->m_Name, &newSocketIndex))
+				{
+					pAttachment->m_iSocket = newSocketIndex;
+				}
+			}
+			// Look for it in the node list if it's not in the socket list.
+			else if (pAttachment->m_iSocket < (pOldModel->NumSockets() + pOldModel->NumNodes()))
+			{
+				if (pNewModel->FindNode(pOldModel->GetNode(pAttachment->m_iSocket - pOldModel->NumSockets())->GetName(),
+					&newSocketIndex))
+				{
+					pAttachment->m_iSocket = newSocketIndex + pNewModel->NumSockets();
+				}
+			}
+		}
 	}
 
 	return LT_OK;

@@ -333,6 +333,82 @@ void WorldModelInstance::WTSlot6(LTObject *pObj)
 	w_AddObjectToLeaf(m_pOriginalBsp, pObj);
 }
 
+// The default callbacks of a vis query (empty functions in the engine).
+void vq_DefaultFn1();		// 0x004a4ad0
+void vq_DefaultFn2();		// 0x004a4ad0
+LTBOOL vq_DefaultBoolFn();	// 0x004668a0
+
+// The vis query state the BSP vis code works from (0x0049e330 takes it and keeps it in g_pCurVisQuery).
+struct VisQueryInfo
+{
+	VisQueryInfo()
+	{
+		m_pLeaf = LTNULL;
+		m_pBsp = LTNULL;
+		m_AddObject = (VQAddObjectFn)vq_DefaultFn1;
+		m_Unknown0C = (void*)vq_DefaultFn2;
+		m_Unknown10 = LTNULL;
+		m_Unknown14 = (void*)vq_DefaultBoolFn;
+		m_pUserData = LTNULL;
+	}
+
+	Leaf			*m_pLeaf;		// 0x00 the leaf the viewpoint is in (LTNULL if none)
+	WorldBsp		*m_pBsp;		// 0x04
+	VQAddObjectFn	m_AddObject;	// 0x08 VisQueryRequest::m_AddObject
+	void			*m_Unknown0C;	// 0x0c VisQueryRequest::m_Unknown20
+	void			*m_Unknown10;	// 0x10 VisQueryRequest::m_Unknown18
+	void			*m_Unknown14;	// 0x14 VisQueryRequest::m_Unknown24
+	void			*m_pUserData;	// 0x18 VisQueryRequest::m_pUserData
+	uint32			m_FrameCode;	// 0x1c the world tree's frame code
+};
+
+void wb_Unknown49e330(void *p);		// 0x0049e330
+
+// A vis query comes across a vis container: runs it through the BSP from the viewpoint's leaf.
+// FUNCTION: LITHTECH 0x004670a0
+void WorldModelInstance::WTSlot7(void *p)
+{
+	VisQueryRequest *pInfo;
+	WorldBsp *pBsp;
+	VisQueryInfo query;
+	Node *pNode;
+	Leaf *pLeaf;
+	uint16 iLeaf;
+	LTPlane *pPlane;
+	float d;
+
+	pInfo = (VisQueryRequest*)p;
+	pBsp = m_pOriginalBsp;
+	if (pBsp->m_Unknown150 == pInfo->m_pTree->GetFrameCode())
+		return;
+
+	pBsp->m_Unknown150 = pInfo->m_pTree->GetFrameCode();
+
+	iLeaf = 0xFFFF;
+	pNode = pBsp->m_RootNode;
+	while (!(pNode->m_Flags & (NF_IN|NF_OUT)))
+	{
+		if (pNode->m_iLeaf != 0xFFFF)
+			iLeaf = pNode->m_iLeaf;
+
+		pPlane = pNode->GetPlane();
+		d = pPlane->DistTo(pInfo->m_Viewpoint);
+		pNode = pNode->m_Sides[d >= -0.0001f];
+	}
+
+	pLeaf = (iLeaf == 0xFFFF) ? LTNULL : &pBsp->m_Leafs[iLeaf];
+
+	query.m_AddObject = pInfo->m_AddObject;
+	query.m_pLeaf = pLeaf;
+	query.m_pBsp = pBsp;
+	query.m_pUserData = pInfo->m_pUserData;
+	query.m_Unknown0C = pInfo->m_Unknown20;
+	query.m_Unknown10 = pInfo->m_Unknown18;
+	query.m_FrameCode = pInfo->m_pTree->GetFrameCode();
+	query.m_Unknown14 = pInfo->m_Unknown24;
+	wb_Unknown49e330(&query);
+}
+
 // FUNCTION: LITHTECH 0x004671f0
 void WorldModelInstance::RemoveFromWorldTree()
 {
@@ -346,8 +422,7 @@ void WorldModelInstance::RemoveFromWorldTree()
 	LTObject::RemoveFromWorldTree();
 }
 
-// STUB: LITHTECH 0x00467220
-// The FindNode call loads its argument before pTree's vtable in the original.
+// FUNCTION: LITHTECH 0x00467220
 LTBOOL WorldModelInstance::InsertSpecial(WorldTree *pTree)
 {
 	WorldTreeNode *pNode;
@@ -370,7 +445,8 @@ LTBOOL WorldModelInstance::InsertSpecial(WorldTree *pTree)
 	// Terrain sections go on the node they were built for.
 	if (IsUntransformed() && m_pOriginalBsp->IsUntransformed() == 1)
 	{
-		pNode = pTree->FindNode(m_pOriginalBsp->m_NodePath);
+		WTNodePath *pPath = (WTNodePath*)m_pOriginalBsp->m_NodePath;
+		pNode = pTree->FindNode(pPath);
 		if (pNode)
 		{
 			pNode->AddObjectToList(&m_Links[0], NOA_Objects);
@@ -465,10 +541,7 @@ LTBOOL WorldModelInstance::IsPointInside(const LTVector *pPos)
 // ModelInstance.
 // ------------------------------------------------------------------------- //
 
-// STUB: LITHTECH 0x004674a0
-// Inlining now matches (Jupiter writes m_Link.m_pNext directly; SetNext() was one inline call too many,
-// which left too little budget to inline CMoArray::Init). Remaining: the sprite loop keeps an extra
-// pointer register (ebp) and ebx/edi are swapped.
+// FUNCTION: LITHTECH 0x004674a0
 ModelInstance::ModelInstance() : LTObject(OT_MODEL)
 {
 	uint32 i;
@@ -492,7 +565,11 @@ ModelInstance::ModelInstance() : LTObject(OT_MODEL)
 	for (i=0; i < MAX_MODEL_TEXTURES; i++)
 	{
 		m_pSprites[i] = LTNULL;
-		memset(m_SpriteTrackers[i], 0, sizeof(m_SpriteTrackers[i]));
+		((uint32*)m_SpriteTrackers[i])[0] = 0;
+		((uint32*)m_SpriteTrackers[i])[1] = 0;
+		((uint32*)m_SpriteTrackers[i])[2] = 0;
+		((uint32*)m_SpriteTrackers[i])[3] = 0;
+		((uint32*)m_SpriteTrackers[i])[4] = 0;
 	}
 
 	m_Unknown2B0 = LTVector(0.0f, 0.0f, 0.0f);
@@ -627,12 +704,12 @@ static LTBOOL CompareFrameLocators(FrameLocator *pA, FrameLocator *pB)
 	return LTTRUE;
 }
 
-// STUB: LITHTECH 0x004679b0
-// The caller tests CompareFrameLocators' result as a bool (test al,al) and memcmp is byte-wise.
+// FUNCTION: LITHTECH 0x004679b0
 LTBOOL ModelInstance::IsTransformCacheValid()
 {
 	LTAnimTracker *pTracker;
 	uint32 i;
+	uint8 bDifferent;
 
 	if (m_Unknown2CC)
 	{
@@ -649,7 +726,8 @@ LTBOOL ModelInstance::IsTransformCacheValid()
 	i = 0;
 	for (pTracker=m_AnimTrackers; pTracker; pTracker=pTracker->GetNext())
 	{
-		if (CompareFrameLocators(&pTracker->m_TimeRef.m_Cur, &m_TrackerStates[i]))
+		bDifferent = CompareFrameLocators(&pTracker->m_TimeRef.m_Cur, &m_TrackerStates[i]);
+		if (bDifferent)
 			return LTFALSE;
 		i++;
 	}
@@ -667,6 +745,54 @@ LTBOOL ModelInstance::IsTransformCacheValid()
 	}
 
 	return LTTRUE;
+}
+
+// Rebuilds the cached node transforms from the trackers.
+// FUNCTION: LITHTECH 0x00467b70
+void ModelInstance::UpdateTransforms()
+{
+	LTMatrix mToWorld, mTemp, *pMat;
+	LTAnimTracker *pTracker;
+	uint32 i;
+
+	if (m_Transforms.GetSize() != GetModelDB()->NumNodes())
+		m_Transforms.SetSize(GetModelDB()->NumNodes());
+
+	if (m_TrackerStates.GetSize() != NumAnimTrackers())
+		m_TrackerStates.SetSize(NumAnimTrackers());
+
+	// Remember what the cache was built from.
+	i = 0;
+	for (pTracker=m_AnimTrackers; pTracker; pTracker=pTracker->GetNext())
+	{
+		m_TrackerStates[i] = pTracker->m_TimeRef.m_Cur;
+		i++;
+	}
+
+	pMat = &mToWorld;
+	if (m_NodeControlFn)
+		SetupTransform(*pMat);
+	else
+		pMat->Identity();
+
+	TransformMaker maker;
+	maker.m_pStartMat = &mToWorld;
+	maker.m_pOutput = m_Transforms.GetArray();
+	maker.m_hObject = (HOBJECT)this;
+	SetupTransformMaker(&maker);
+
+	if (maker.SetupTransforms() && m_NodeControlFn)
+	{
+		// The node control callback works in object space: take the transforms out of the world.
+		if (mToWorld.Inverse())
+		{
+			for (i=0; i < m_Transforms.GetSize(); i++)
+			{
+				mTemp = mToWorld * m_Transforms[i];
+				m_Transforms[i] = mTemp;
+			}
+		}
+	}
 }
 
 // FUNCTION: LITHTECH 0x00467e90
@@ -753,33 +879,30 @@ CameraInstance::~CameraInstance()
 // Store scheduling differs (the original keeps the -500/300/-1 stores after the vptr).
 LTParticleSystem::LTParticleSystem() : LTObject(OT_PARTICLESYSTEM)
 {
-	// Particles default to RGB 255.
-	m_SoftwareR = m_SoftwareG = m_SoftwareB = 255;
 	m_ColorR = m_ColorG = m_ColorB = 255;
-
-	m_ParticleHead.m_pNext = m_ParticleHead.m_pPrev = &m_ParticleHead;
-
-	m_SystemRadius = 1.0f;
 	m_OldRadius = 1.0f;
 	m_pParticleBank = LTNULL;
+	m_SoftwareR = m_SoftwareG = m_SoftwareB = 255;
+	m_ParticleHead.m_pNext = m_ParticleHead.m_pPrev = &m_ParticleHead;
 	m_pCurTexture = LTNULL;
 	m_Padding = 0;
 	m_pSprite = LTNULL;
+	m_SystemRadius = 1.0f;
 	((uint32*)m_SpriteTracker)[0] = 0;
 	((uint32*)m_SpriteTracker)[1] = 0;
 	((uint32*)m_SpriteTracker)[2] = 0;
 	((uint32*)m_SpriteTracker)[3] = 0;
+	m_GravityAccel = -500.0f;
 	((uint32*)m_SpriteTracker)[4] = 0;
 	m_SystemCenter.x = m_SystemCenter.y = m_SystemCenter.z = 0.0f;
 	m_OldCenter.x = m_OldCenter.y = m_OldCenter.z = 0.0f;
 	m_nParticles = 0;
-	m_nChangedParticles = 0;
 	m_MinPos.x = m_MinPos.y = m_MinPos.z = 0.0f;
 	m_MaxPos.x = m_MaxPos.y = m_MaxPos.z = 0.0f;
-	m_Unknown260 = 0;
-	m_GravityAccel = -500.0f;
-	m_ParticleRadius = 300.0f;
+	m_nChangedParticles = 0;
 	m_Unknown258 = m_Unknown25C = -1;
+	m_Unknown260 = 0;
+	m_ParticleRadius = 300.0f;
 }
 
 // FUNCTION: LITHTECH 0x00468190 ??_GLTParticleSystem@@UAEPAXI@Z
@@ -1142,3 +1265,18 @@ void om_ClearSerializeIDs(ObjectMgr *pMgr)
 		}
 	}
 }
+
+
+// ------------------------------------------------------------------------- //
+// Template instances this file kept (CMoArray<FrameLocator> of ModelInstance).
+// ------------------------------------------------------------------------- //
+
+// FUNCTION: LITHTECH 0x00468a70 ?GenGetNext@?$CMoArray@VFrameLocator@@VNoCache@@@@UBE?AVFrameLocator@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00468aa0 ?GenGetAt@?$CMoArray@VFrameLocator@@VNoCache@@@@UBE?AVFrameLocator@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00468ad0 ?GenAppend@?$CMoArray@VFrameLocator@@VNoCache@@@@UAEHAAVFrameLocator@@@Z
+// FUNCTION: LITHTECH 0x00468bd0 ?GenRemoveAt@?$CMoArray@VFrameLocator@@VNoCache@@@@UAEXVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00468d00 ?GenCopyList@?$CMoArray@VFrameLocator@@VNoCache@@@@UAEHABV?$GenList@VFrameLocator@@@@@Z
+// FUNCTION: LITHTECH 0x00468e20 ?GenAppendList@?$CMoArray@VFrameLocator@@VNoCache@@@@UAEHABV?$GenList@VFrameLocator@@@@@Z
+// FUNCTION: LITHTECH 0x00468f20 ?SetSize2@?$CMoArray@VFrameLocator@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00468f80 ?InternalNiceSetSize@?$CMoArray@VFrameLocator@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00469060 ?_InitArray@?$CMoArray@VFrameLocator@@VNoCache@@@@AAEXK@Z

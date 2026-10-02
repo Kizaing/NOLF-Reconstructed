@@ -29,8 +29,8 @@ uint32 g_dwMaxInstancesPerBuffer = 32;
 
 
 // The original calls the out-of-line CMoArray<uint8> constructor (0x004961c0, Clear() only) for
-// m_SoundUpdatePacket; the StdLith header here inlines it with Clear() and Init() calls.
-// STUB: LITHTECH 0x00492570
+// m_SoundUpdatePacket.
+// FUNCTION: LITHTECH 0x00492570
 CSoundMgr::CSoundMgr()
 {
 	m_ClientServerType = ClientType;
@@ -2406,7 +2406,7 @@ LTRESULT CSoundMgr::GetFilterParamIndex(const char *pFilter, const char *pParam,
 
 
 // Out-of-line template code instantiated here.
-// 0x004961c0 CMoArray<uint8>::CMoArray (see CSoundMgr::CSoundMgr) is not emitted here.
+// FUNCTION: LITHTECH 0x004961c0 ??0?$CMoArray@EVDefaultCache@@@@QAE@XZ
 // FUNCTION: LITHTECH 0x004961e0 ?AllocVoid@?$ObjectBank@VCSoundBuffer@@VNullCS@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00496220 ?AllocVoid@?$ObjectBank@VCLocalSoundInstance@@VNullCS@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00496260 ?AllocVoid@?$ObjectBank@VCAmbientSoundInstance@@VNullCS@@@@UAEPAXXZ

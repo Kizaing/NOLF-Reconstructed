@@ -1,6 +1,8 @@
 // Jupiter runtime/client/src/clientmgr.cpp
 // Talon passes the manager explicitly to the C-style helpers (cm_*), keeps the client shell in
 // m_pClientShell (no holders) and authenticates peers through WONAPI (PeerAuthClient).
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC /IE:/AVP2Source/build/proj/LT2/lithshared/wonapi
+#include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,80 +30,15 @@
 #include "effects.h"
 #include "servermgr.h"
 #include "../../build/proj/LT2/lithshared/stdlith/struct_bank.h"
-
-#define ERROR_DISCONNECT	(1<<25)
-#define ERROR_SHUTDOWN		(1<<26)
+#include "WONAuth/AuthContext.h"
+#include "WONAuth/PeerAuthClient.h"
 
 #define CMD_USERCOMMAND		(1<<0)
+#define CMSG_HELLO			5
+#define CMSG_PEERTOPEERAUTH	0xd
 
 #define MUSIC_IMMEDIATE		0
 
-
-// ------------------------------------------------------------------ //
-// WONAPI reference counting (WONCommon/SmartPtr.h). The engine only holds
-// the client shell's auth context and its peer auth client.
-// ------------------------------------------------------------------ //
-namespace WONAPI
-{
-	class RefCount
-	{
-	private:
-		mutable long mRefCount;
-	protected:
-		virtual ~RefCount() {}
-	public:
-		RefCount() : mRefCount(0) {}
-		const RefCount* CreateRef() const
-		{
-			InterlockedIncrement(&mRefCount);
-			return this;
-		}
-		void Release()
-		{
-			if(InterlockedDecrement(&mRefCount)<=0)
-				delete this;
-		}
-	};
-
-	template <class T> class ConstSmartPtr
-	{
-	protected:
-		T *mObject;
-	public:
-		ConstSmartPtr() : mObject(NULL) {}
-		~ConstSmartPtr() { if(mObject!=NULL) mObject->Release(); }
-
-		const T* operator=(const T* thePtr)
-		{
-			if(mObject!=thePtr) // prevent self-assignment
-			{
-				if(mObject!=NULL) mObject->Release();
-				mObject = (T*)(thePtr?thePtr->CreateRef():NULL);
-			}
-			return thePtr;
-		}
-
-		const T* get() const { return mObject; }
-	};
-
-	template <class T> class SmartPtr : public ConstSmartPtr<T>
-	{
-	public:
-		SmartPtr() {}
-		T* operator=(T* thePtr)
-		{
-			ConstSmartPtr<T>::operator =(thePtr);
-			return thePtr;
-		}
-		T* operator->() const { return mObject; }
-		operator T*() const { return mObject; }
-		T* get() const { return mObject; }
-	};
-
-	class AuthContext : public RefCount {};
-	class AuthCertificateBase : public RefCount {};
-	class PeerAuthClient;
-};
 
 using namespace WONAPI;
 
@@ -116,8 +53,6 @@ extern int32 g_ScreenWidth;
 extern int32 g_ScreenHeight;
 // GLOBAL: LITHTECH 0x004d217c
 extern int32 g_CV_BitDepth;
-// GLOBAL: LITHTECH 0x004e33d4
-extern CClientMgr *g_pCommandClientMgr;
 // GLOBAL: LITHTECH 0x004e3734
 extern LTBOOL g_bNullRender;
 // GLOBAL: LITHTECH 0x004d21f4
@@ -237,18 +172,19 @@ uint32 g_Ticks_ClientShell;
 // GLOBAL: LITHTECH 0x004defa8
 uint32 g_Ticks_Render;
 
-// FUNCTION: LITHTECH 0x0040fa60 _$E4
-// FUNCTION: LITHTECH 0x0040fa70 _$E1
-// FUNCTION: LITHTECH 0x0040fa80 _$E3
-// FUNCTION: LITHTECH 0x0040fa90 _$E2
-// FUNCTION: LITHTECH 0x0040fac0 _$E9
-// FUNCTION: LITHTECH 0x0040fad0 _$E6
-// FUNCTION: LITHTECH 0x0040fae0 _$E8
-// FUNCTION: LITHTECH 0x0040faf0 _$E7
-// FUNCTION: LITHTECH 0x0040fb20 _$E14
-// FUNCTION: LITHTECH 0x0040fb30 _$E11
-// FUNCTION: LITHTECH 0x0040fb60 _$E13
-// FUNCTION: LITHTECH 0x0040fb70 _$E12
+// The WONAPI headers (via <string>) use up 28 static initializer numbers first.
+// FUNCTION: LITHTECH 0x0040fa60 _$E32
+// FUNCTION: LITHTECH 0x0040fa70 _$E29
+// FUNCTION: LITHTECH 0x0040fa80 _$E31
+// FUNCTION: LITHTECH 0x0040fa90 _$E30
+// FUNCTION: LITHTECH 0x0040fac0 _$E37
+// FUNCTION: LITHTECH 0x0040fad0 _$E34
+// FUNCTION: LITHTECH 0x0040fae0 _$E36
+// FUNCTION: LITHTECH 0x0040faf0 _$E35
+// FUNCTION: LITHTECH 0x0040fb20 _$E42
+// FUNCTION: LITHTECH 0x0040fb30 _$E39
+// FUNCTION: LITHTECH 0x0040fb60 _$E41
+// FUNCTION: LITHTECH 0x0040fb70 _$E40
 
 
 // FUNCTION: LITHTECH 0x0040fba0
@@ -300,7 +236,6 @@ void _GetRModeFromConsoleVariables(RMode *pMode)
 
 
 // cutil.cpp
-LTRESULT cm_ProcessError(CClientMgr *pClientMgr, LTRESULT theError);	// 0x00425d60
 void cm_FreeSharedTextures(CClientMgr *pClientMgr);					// 0x004260f0
 
 // The console commands keep their own client manager pointer.
@@ -463,6 +398,61 @@ LTRESULT CClientMgr::Init(const char **resTrees, uint32 nResTrees, const char *p
 }
 
 
+// Starts the peer to peer authentication: sends the shell's auth context to the server.
+// FUNCTION: LITHTECH 0x00410050
+void CClientMgr::StartPeerAuth()
+{
+	g_pAuthContext = (AuthContext*)m_pClientShell->GetAuthContext();
+	if(g_pAuthContext.get())
+	{
+		g_pPeerAuthClient = new PeerAuthClient;
+
+		ByteBufferPtr outMsg;
+
+		g_pPeerAuthClient->SetUseAuth2(true);
+
+		outMsg = g_pPeerAuthClient->Start(g_pAuthContext->GetPeerData(), AUTH_TYPE_PERSISTENT, 4);
+
+		CPacketRef cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+		cPacket->m_Data[0] = CMSG_PEERTOPEERAUTH;
+		cPacket->WriteRaw((void*)outMsg->data(), (uint16)outMsg->length());
+		m_NetMgr.SendPacket(cPacket, m_pCurShell->m_HostID, MESSAGE_GUARANTEED);
+	}
+}
+
+
+// Handles the server's peer to peer authentication packet and answers it.
+// FUNCTION: LITHTECH 0x004101c0
+void CClientMgr::OnPeerAuthPacket(CPacket *pPacket)
+{
+	char buf[512];
+	uint32 len;
+
+	memset(buf, 0, sizeof(buf));
+
+	len = pPacket->m_DataLen - pPacket->m_Pos;
+	pPacket->ReadRaw(buf, (uint16)len);
+
+	ByteBufferPtr outMsg;
+
+	g_pPeerAuthClient->HandleRecvMsg(buf + 4, len - 4, outMsg);
+
+	delete g_pPeerAuthClient;
+
+	if(outMsg.get() && outMsg->length())
+	{
+		CPacketRef cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+		cPacket->m_Data[0] = CMSG_PEERTOPEERAUTH;
+		cPacket->WriteRaw((void*)outMsg->data(), (uint16)outMsg->length());
+		m_NetMgr.SendPacket(cPacket, m_pCurShell->m_HostID, MESSAGE_GUARANTEED);
+	}
+	else
+	{
+		g_pAuthContext = LTNULL;
+	}
+}
+
+
 // FUNCTION: LITHTECH 0x004103d0
 void CClientMgr::TermClientShellDE()
 {
@@ -539,6 +529,196 @@ void CClientMgr::OnExitWorld(CClientShell *pShell)
 	{
 		m_pClientShell->OnExitWorld();
 	}
+}
+
+
+// Starts a shell: hosts or joins a game, or runs one locally, and sends the hello message.
+// Remaining diff: register allocation only (the original keeps pShell in esi and pRequest in edi).
+// STUB: LITHTECH 0x00410500
+LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
+{
+	CClientShell *pShell;
+	LTRESULT dResult;
+	char errorString[256];
+	CBaseDriver *pDriver;
+	char playbackWorldName[256];
+	CPacketRef cHello;
+
+	// Kill the old server connection if there is one.
+	EndShell();
+
+	pShell = new CClientShell;
+
+	// Start a shell.
+	pShell->m_ShellMode = pRequest->m_Type;
+	pShell->Init(this);
+
+	dsi_SetConsoleUp(LTFALSE);
+
+	switch(pRequest->m_Type)
+	{
+		case STARTGAME_CLIENT:
+		{
+			// Use the first net driver..
+			pDriver = m_NetMgr.m_pMainDriver;
+			if(!pDriver)
+			{
+				RETURN_ERROR(1, StartGame, LT_NOTINITIALIZED);
+			}
+
+			// Try to actually connect...
+			if(pRequest->m_flags & SG_LOBBY)
+			{
+				if(!pDriver->JoinLobbyLaunchSession())
+				{
+					RETURN_ERROR(1, StartGame, LT_ERROR);
+				}
+			}
+			else
+			{
+				if(!pRequest->m_pNetSession)
+				{
+					RETURN_ERROR_PARAM(1, StartGame, LT_INVALIDPARAMS, "Missing m_pNetSession");
+				}
+
+				dResult = pDriver->JoinSession(pRequest->m_pNetSession);
+				if(dResult != LT_OK)
+				{
+					return dResult;
+				}
+			}
+
+			// Setup the shell.
+			dResult = pShell->StartupClient(pDriver);
+			if(dResult != LT_OK)
+				return dResult;
+		}
+		break;
+
+		case STARTGAME_CLIENTTCP:
+		{
+			// Use the first net driver..
+			pDriver = m_NetMgr.GetDriver("internet");
+			if(!pDriver)
+			{
+				RETURN_ERROR(1, StartGame, LT_NOTINITIALIZED);
+			}
+
+			// Connect to the given address.
+			dResult = pDriver->ConnectTCP(pRequest->m_TCPAddress);
+			if(dResult != LT_OK)
+				return dResult;
+
+			// Setup the shell.
+			dResult = pShell->StartupClient(pDriver);
+			if(dResult != LT_OK)
+				return dResult;
+		}
+		break;
+
+		default:
+		{
+			pDriver = LTNULL;
+			if(pRequest->m_Type == STARTGAME_HOST)
+			{
+				pDriver = m_NetMgr.m_pMainDriver;
+				if(!pDriver)
+				{
+					RETURN_ERROR(1, StartGame, LT_NOTINITIALIZED);
+				}
+
+				if(pRequest->m_flags & SG_LOBBY)
+				{
+					if(pDriver->HostLobbyLaunchSession(&pRequest->m_HostInfo) != LT_OK)
+					{
+						RETURN_ERROR(1, StartGame, LT_ERROR);
+					}
+				}
+				else
+				{
+					dResult = pDriver->HostSession(&pRequest->m_HostInfo);
+					if(dResult != LT_OK)
+					{
+						return dResult;
+					}
+				}
+			}
+
+			// Record or play back a demo.
+			if(pRequest->m_RecordFilename[0])
+			{
+				dResult = m_DemoMgr.RecordDemo(pRequest->m_WorldName, pRequest->m_RecordFilename);
+				if(dResult != LT_OK)
+				{
+					delete pShell;
+					return dResult;
+				}
+
+				pRequest->m_WorldName[0] = 0;
+			}
+			else if(pRequest->m_PlaybackFilename[0])
+			{
+				dResult = m_DemoMgr.PlayDemo(pRequest->m_PlaybackFilename, playbackWorldName, sizeof(playbackWorldName));
+				if(dResult != LT_OK)
+				{
+					delete pShell;
+					return dResult;
+				}
+
+				pRequest->m_WorldName[0] = 0;
+			}
+
+			// Setup the shell.
+			dResult = pShell->StartupLocal(pRequest, pRequest->m_Type == STARTGAME_HOST, pDriver);
+			if(dResult != LT_OK)
+			{
+				delete pShell;
+				return dResult;
+			}
+
+			if(pRequest->m_WorldName[0] != 0)
+			{
+				dResult = pShell->m_pServerMgr->DoStartWorld(pRequest->m_WorldName, LOADWORLD_LOADWORLDOBJECTS|LOADWORLD_RUNWORLD, m_CurTime);
+				if(dResult != LT_OK)
+				{
+					pShell->m_pServerMgr->GetErrorString(errorString, 256);
+					SetupError(LT_SERVERERROR, errorString);
+					delete pShell;
+					RETURN_ERROR_PARAM(1, CClientMgr::StartShell, LT_SERVERERROR, "error loading world");
+				}
+			}
+
+			// If they asked for a playdemo, fill in the world name.
+			if(pRequest->m_PlaybackFilename[0] != 0)
+			{
+				strncpy(pRequest->m_WorldName, playbackWorldName, 99);
+				pRequest->m_WorldName[99] = 0;
+			}
+		}
+		break;
+	}
+
+	// 'Enter' the server.
+	m_pCurShell = pShell;
+	cm_OnEnterServer(this);
+
+	// Send the hello message.
+	if(m_pCurShell)
+	{
+		cHello = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+
+		cHello->WriteType((uint16)pRequest->m_ClientDataLen);
+		cHello->WriteRaw(pRequest->m_pClientData, (uint16)pRequest->m_ClientDataLen);
+		cHello->m_Data[0] = CMSG_HELLO;
+		m_NetMgr.SendPacket(cHello, m_pCurShell->m_HostID, MESSAGE_GUARANTEED);
+	}
+
+	if(pRequest->m_Type != STARTGAME_HOST && pRequest->m_Type != STARTGAME_HOSTTCP && pRequest->m_Type != STARTGAME_NORMAL)
+	{
+		StartPeerAuth();
+	}
+
+	return LT_OK;
 }
 
 
@@ -1177,16 +1357,18 @@ static void FreeSpriteList(LTList *pList)
 // Gets a packet for a game message (its ILTMessage reads and writes object references
 // through m_pSerializeHelper).
 // Only the Release call is scheduled differently (the original sets ecx before the stores).
-// STUB: LITHTECH 0x00411c50
+// FUNCTION: LITHTECH 0x00411c50
 CPacket* CClientMgr::AllocPacket()
 {
+	CPacketRef cPacket;
 	CPacket *pPacket;
 
-	pPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
+	// (The reference the caller gets is the one packet_Get's smart pointer drops at the end.)
+	cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+	pPacket = cPacket.m_pPacket;
 	pPacket->AddRef();
 	pPacket->m_Message.m_Unknown04 = (uint32)m_pSerializeHelper;
 	pPacket->m_ErrorFlags |= PACKETFLAG_MESSAGE;
-	pPacket->Release();
 	return pPacket;
 }
 
@@ -1449,6 +1631,15 @@ LTRESULT cm_StartRenderFromGlobals(CClientMgr *pClientMgr)
 
 // What cm_Render hands the renderer (RenderStruct::RenderScene). Talon layout, names from
 // Jupiter's SceneDesc where the use matches.
+// The scene's screen rectangle. The original's LTRect constructor sits out of line at 0x00412660
+// (it is called with four zeros for sceneDesc.m_Rect), so it can't be the SDK's inline LTRect.
+struct SceneRect
+{
+	SceneRect(int l=0, int t=0, int r=0, int b=0);
+
+	int left, top, right, bottom;
+};
+
 struct SceneDesc
 {
 	int			m_DrawMode;						// 0x00 DRAWMODE_
@@ -1471,7 +1662,7 @@ struct SceneDesc
 	SkyDef		m_SkyDef;						// 0x84
 	LTObject	**m_SkyObjects;					// 0xb4
 	int			m_nSkyObjects;					// 0xb8
-	LTRect		m_Rect;							// 0xbc
+	SceneRect	m_Rect;							// 0xbc
 	float		m_xFov, m_yFov;					// 0xcc
 	float		m_FarZ;							// 0xd4
 	LTVector	m_Pos;							// 0xd8
@@ -1512,9 +1703,12 @@ extern uint32 g_Ticks_RenderScene;
 LTObject* cm_FindObject(CClientMgr *pClientMgr, uint16 id);	// 0x004265e0 (cutil.cpp)
 
 
-// Identical except that the original calls the LTRect constructor out of line (0x00412660)
-// for sceneDesc.m_Rect, where we inline it.
-// STUB: LITHTECH 0x00412260
+// FUNCTION: LITHTECH 0x00412660 ??0SceneRect@@QAE@HHHH@Z
+SceneRect::SceneRect(int l, int t, int r, int b) : left(l), top(t), right(r), bottom(b)
+{
+}
+
+// FUNCTION: LITHTECH 0x00412260
 LTBOOL cm_Render(CClientMgr *pClientMgr, CameraInstance *pCamera, int drawMode,
 	LTObject **pObjects, int nObjects)
 {
@@ -1611,7 +1805,10 @@ LTBOOL cm_Render(CClientMgr *pClientMgr, CameraInstance *pCamera, int drawMode,
 	}
 
 	pClientMgr->m_bRendering = LTFALSE;
-	pClientMgr->m_DemoMgr.m_nFramesDrawn++;
+	{
+		CDemoMgr *pDemoMgr = &pClientMgr->m_DemoMgr;
+		pDemoMgr->m_nFramesDrawn++;
+	}
 	g_Render.m_Unknown154 = 0;
 
 	return LTTRUE;
@@ -1856,6 +2053,13 @@ LTRESULT cm_OnModelRefRemoved(void *pUser, ClientModelUser *pUser2, LTBOOL bServ
 // FUNCTION: LITHTECH 0x00414570 ??_G?$ObjectBank@VCanvas@@VNullCS@@@@UAEPAXI@Z
 // FUNCTION: LITHTECH 0x004145b0 ??_G?$ObjectBank@USharedTexture@@VNullCS@@@@UAEPAXI@Z
 // FUNCTION: LITHTECH 0x004145f0 ??_G?$ObjectBank@VLTLink@@VNullCS@@@@UAEPAXI@Z
+// Template code the WONAPI smart pointers and std::string leave behind.
+// FUNCTION: LITHTECH 0x00410310 ??1PeerAuthClient@WONAPI@@QAE@XZ
+// (folded with the std::string<char> one)
+// FUNCTION: LITHTECH 0x00413b40 ??1?$_String_base@EV?$allocator@E@_STL@@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x00413b90 ??4?$ConstSmartPtr@VByteBuffer@WONAPI@@@WONAPI@@QAEPBVByteBuffer@1@PBV21@@Z
+// FUNCTION: LITHTECH 0x00413bf0 ?_M_do_lock@?$_STL_mutex_spin@$0A@@_STL@@SAXPCK@Z
+// FUNCTION: LITHTECH 0x00414630 ?Insert2@?$CMoArray@EVDefaultCache@@@@QAEHKABEPAVLAlloc@@@Z
 // FUNCTION: LITHTECH 0x00414720 ?_DeleteAndDestroyArray@?$CMoArray@ULightAnim@@VDefaultCache@@@@AAEXPAVLAlloc@@K@Z
 // FUNCTION: LITHTECH 0x00414860 ?BaseNew@@YAPAPAUWorldPoly@@PAVLAlloc@@PAPAU1@K@Z
 // FUNCTION: LITHTECH 0x004148c0 ?BaseNew@@YAPAULAPolyFrame@@PAVLAlloc@@PAU1@K@Z

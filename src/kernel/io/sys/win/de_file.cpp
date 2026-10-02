@@ -211,13 +211,8 @@ public:
 
 			uint32 seekOffset = m_SeekOffset;
 			if ((g_pDeFileLastRezItm == m_pRezItm) && (g_nDeFileLastRezPos == seekOffset))
-			{
-				sizeRead = m_pRezItm->Read(pData, size);
-			}
-			else
-			{
-				sizeRead = m_pRezItm->Read(pData, size, seekOffset);
-			}
+				seekOffset = (uint32)-1;
+			sizeRead = m_pRezItm->Read(pData, size, seekOffset);
 
 			LeaveCriticalSection(&m_pTree->m_CriticalSection);
 
@@ -869,6 +864,8 @@ int df_GetRawInfo(HLTFileTree *hTree, const char *pName, char* sFileName, unsign
 // FUNCTION: LITHTECH 0x004272e0 ?SeekTo@DosFileStream@@UAEKK@Z
 // FUNCTION: LITHTECH 0x00427310 ?Read@DosFileStream@@UAEKPAXK@Z
 // FUNCTION: LITHTECH 0x004273b0 ?SeekTo@RezFileStream@@UAEKK@Z
+// Remaining diff (19 bytes): the original keeps the if/else with two CRezItm::Read calls (push -1 / push seekOffset into one
+// shared call) and loads pData into edi before comparing g_pDeFileLastRezItm; we load it after.
 // STUB: LITHTECH 0x004273e0 ?Read@RezFileStream@@UAEKPAXK@Z
 // (Read: the original loads the seek offset after the item compare and keeps pData in edi.)
 // FUNCTION: LITHTECH 0x00427ac0 ?AllocVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEPAXXZ

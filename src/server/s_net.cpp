@@ -10,6 +10,11 @@
 #include "server_interface.h"
 #include "soundtrack.h"
 #include "server_filemgr.h"
+#include "animtracker.h"
+#include "s_object.h"
+#include "impl_common.h"
+#include "de_objects.h"
+#include "de_world.h"
 
 LTRESULT sm_HandleCommand(ConsoleState *pState, char *pCommand);	// s_concommand, 0x00473e80
 
@@ -30,8 +35,6 @@ LTRESULT sm_HandleCommand(ConsoleState *pState, char *pCommand);	// s_concommand
 #define DISCONNECTREASON_VOLUNTARY_SERVERSIDE	5
 
 #define OBJINFOSOUNDF_CLIENTDONE	(1<<0)
-
-ObjectMapEntry* sm_FindRecord(CServerMgr *pServerMgr, uint16 objectID);	// s_object, 0x00477e10
 
 // GLOBAL: LITHTECH 0x004e49f8
 ServerPacketHandlerFn g_ServerHandlers[256];
@@ -100,6 +103,444 @@ void sm_WriteModelFiles(LTObject *pObj, CPacket *pPacket, uint32 *pSize)
 		if (pSize)
 			*pSize += 2;
 	}
+}
+
+
+// Writes the model's scale/dims and animation trackers (or just counts the bytes if pPacket is null).
+// FUNCTION: LITHTECH 0x00474160
+void WriteAnimInfo(ModelInstance *pInst, CPacket *pPacket, uint32 *pSize)
+{
+	LTAnimTracker *pTracker;
+	ModelAnim *pAnim;
+	uint16 nTrackers, wFlags;
+	uint32 nPercent;
+
+	if (pPacket)
+		pPacket->m_Message.WriteCompVector(pInst->m_Dims);
+
+	if (pSize)
+		*pSize += 9;
+
+	nTrackers = (uint16)pInst->NumAnimTrackers();
+	if (nTrackers > 256)
+	{
+		DEBUG_PRINT(1, ("Model (%s) with > 256 AnimTrackers, ignoring animation.", pInst->GetModelFilename()));
+
+		if (pPacket)
+			pPacket->WriteType((uint8)0);
+
+		if (pSize)
+			(*pSize)++;
+
+		return;
+	}
+
+	if (pPacket)
+		pPacket->WriteType((uint8)nTrackers);
+
+	if (pSize)
+		(*pSize)++;
+
+	for (pTracker=pInst->m_AnimTrackers; pTracker; pTracker=pTracker->GetNext())
+	{
+		if (pPacket)
+		{
+			wFlags = pTracker->m_TimeRef.m_Cur.m_iAnim;
+			if (pTracker->m_Flags & AT_LOOPING)
+				wFlags |= 0x8000;
+			if (pTracker->m_Flags & AT_PLAYING)
+				wFlags |= 0x4000;
+
+			nPercent = 0;
+			pAnim = pTracker->GetCurAnim();
+			if (pAnim && pAnim->GetAnimTime())
+				nPercent = (pTracker->m_TimeRef.m_Cur.m_Time * 255) / pAnim->GetAnimTime();
+
+			pPacket->WriteType(wFlags);
+			pPacket->WriteType((uint8)nPercent);
+			pPacket->WriteType((uint8)pTracker->m_bAllowInterpolation);
+			pPacket->WriteType((uint32)pTracker->m_TimeScaleNum);
+			pPacket->WriteType((uint32)pTracker->m_TimeScaleDenom);
+			pPacket->WriteType((uint8)pTracker->m_TimeRef.m_Prev.m_iWeightSet);
+			pPacket->WriteType((uint8)pTracker->m_TimeRef.m_Cur.m_iWeightSet);
+		}
+
+		if (pSize)
+			*pSize += 14;
+	}
+}
+
+
+// Adds to the running byte count when only measuring (pSize non-null).
+static inline void AddSize(uint32 *pSize, uint32 nBytes)
+{
+	if (pSize)
+		*pSize += nBytes;
+}
+
+// ----------------------------------------------------------------------- //
+// Looks at the flags in pInfo and fills the packet with update data (or just counts the bytes
+// if pPacket is null).
+// ----------------------------------------------------------------------- //
+
+// STUB: LITHTECH 0x004745c0
+LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pObj, ObjInfo *pInfo,
+	CPacket *pPacket, uint32 *pSize)
+{
+	uint16 changeFlags, netFlags;
+	uint8 nObjectType;
+	LTVector vObjectVelocity;
+	Attachment *pCur;
+	CompWorldPos compPos;
+	CompRot compRot;
+
+	// Does the client's object want its rotations sent?
+	changeFlags = pInfo->m_ChangeFlags;
+	if (!(pClient->m_ClientFlags & CFLAG_SENDCOBJROTATION) && pClient->m_pObject == pObj)
+		changeFlags &= ~(CF_ROTATION|CF_SNAPROTATION);
+
+	// If it needs a position cap, set the position change flag.
+	if (changeFlags & CF_POSITION_PREDICTIONCAP)
+		changeFlags |= CF_POSITION;
+
+	// Clear certain flags if we'll be sending that stuff unguaranteed.
+	netFlags = pObj->sd->m_NetFlags;
+	if (netFlags & NETFLAG_POSUNGUARANTEED)
+		changeFlags &= ~CF_POSITION;
+
+	if (netFlags & NETFLAG_ROTUNGUARANTEED)
+		changeFlags &= ~CF_ROTATION;
+
+	if (pObj->m_ObjectType == OT_MODEL && (netFlags & NETFLAG_ANIMUNGUARANTEED))
+		changeFlags &= ~CF_MODELINFO;
+
+	// If it's a new object the client will teleport it automatically.
+	if (changeFlags & CF_NEWOBJECT)
+	{
+		changeFlags &= ~CF_TELEPORT;
+		changeFlags |= CF_POSITION;
+	}
+
+	// Only send color info for objects that will use it.
+	if (changeFlags & CF_RENDERINFO)
+	{
+		if (pObj->m_ObjectType == OT_NORMAL || pObj->m_ObjectType == OT_CONTAINER ||
+			pObj->m_ObjectType == OT_CAMERA)
+		{
+			changeFlags &= ~CF_RENDERINFO;
+		}
+	}
+
+	if (!changeFlags)
+		return FALSE;
+
+	// Write the header.
+	if (changeFlags & CF_OTHERFLAGMASK)
+	{
+		if (pPacket)
+		{
+			pPacket->WriteType((uint8)(changeFlags | CF_OTHER));
+			pPacket->WriteType((uint8)(changeFlags >> 8));
+		}
+
+		AddSize(pSize, 2);
+	}
+	else
+	{
+		if (pPacket)
+		{
+			if (!(uint8)changeFlags)
+				return FALSE;
+
+			pPacket->WriteType((uint8)changeFlags);
+		}
+
+		AddSize(pSize, 1);
+	}
+
+	// Write the object ID.
+	if (pPacket)
+		pPacket->WriteType(pObj->m_ObjectID);
+
+	AddSize(pSize, 2);
+
+	// Add some extra info if it's a new object.
+	if (changeFlags & CF_NEWOBJECT)
+	{
+		nObjectType = pObj->m_ObjectType;
+
+		if (pObj->sd->m_pSFXMsg)
+		{
+			nObjectType |= 0x40;
+			if (pObj->sd->m_pSFXMsg->m_DataLen >= 256)
+				nObjectType |= 0x80;
+		}
+
+		if (pObj->sd->m_bCreateFlag1 & 1)
+			nObjectType |= 0x20;
+
+		if (pPacket)
+			pPacket->WriteType(nObjectType);
+
+		AddSize(pSize, 1);
+
+		// Write its special effect info.
+		if (pObj->sd->m_pSFXMsg)
+		{
+			if (pPacket)
+			{
+				if (nObjectType & 0x80)
+					pPacket->WriteType((uint16)pObj->sd->m_pSFXMsg->m_DataLen);
+				else
+					pPacket->WriteType((uint8)pObj->sd->m_pSFXMsg->m_DataLen);
+
+				pPacket->WriteRaw(pObj->sd->m_pSFXMsg->m_Data.GetArray(), pObj->sd->m_pSFXMsg->m_DataLen);
+			}
+
+			if (pSize)
+			{
+				*pSize += (nObjectType & 0x80) ? 2 : 1;
+				*pSize += pObj->sd->m_pSFXMsg->m_DataLen;
+			}
+		}
+
+		// Write the WorldModel name or the filename.
+		if (pObj->m_ObjectType == OT_WORLDMODEL)
+		{
+			if (pPacket)
+				pPacket->WriteString(((WorldModelInstance*)pObj)->m_pOriginalBsp->m_WorldName);
+
+			AddSize(pSize, 0x41);
+		}
+		else if (pObj->m_ObjectType == OT_CONTAINER)
+		{
+			if (pPacket)
+			{
+				pPacket->WriteString(((ContainerInstance*)pObj)->m_pOriginalBsp->m_WorldName);
+				pPacket->WriteType(((ContainerInstance*)pObj)->m_ContainerCode);
+			}
+
+			AddSize(pSize, 0x43);
+		}
+		else if (pObj->m_ObjectType == OT_MODEL)
+		{
+			sm_WriteModelFiles(pObj, pPacket, pSize);
+		}
+		else if (pObj->m_ObjectType == OT_SPRITE)
+		{
+			if (pPacket)
+				pPacket->WriteType((uint16)pObj->sd->m_pFile->m_FileID);
+
+			AddSize(pSize, 2);
+		}
+	}
+
+	if (changeFlags & CF_NEWOBJECT)
+	{
+		if (pPacket)
+			pPacket->WriteType(pObj->m_BPriority);
+
+		AddSize(pSize, 1);
+	}
+
+	// Write the model info?
+	if (changeFlags & (CF_MODELINFO|CF_FORCEMODELINFO))
+	{
+		if (pObj->m_ObjectType == OT_MODEL)
+		{
+			WriteAnimInfo((ModelInstance*)pObj, pPacket, pSize);
+		}
+		else if (pObj->m_ObjectType == OT_SPRITE)
+		{
+			if (pPacket)
+				pPacket->WriteType((uint32)((SpriteInstance*)pObj)->m_ClipperPoly);
+
+			AddSize(pSize, 4);
+		}
+	}
+
+	// Write which things have changed.
+	if (changeFlags & CF_FLAGS)
+	{
+		if (pPacket)
+		{
+			pPacket->WriteType((uint32)(pObj->m_Flags & CLIENT_FLAGMASK));
+			pPacket->WriteType((uint16)pObj->m_Flags2);
+			pPacket->WriteType((uint32)pObj->m_UserFlags);
+		}
+
+		AddSize(pSize, 10);
+	}
+
+	if (changeFlags & CF_RENDERINFO)
+	{
+		if (pPacket)
+		{
+			pPacket->WriteType(pObj->m_ColorR);
+			pPacket->WriteType(pObj->m_ColorG);
+			pPacket->WriteType(pObj->m_ColorB);
+			pPacket->WriteType(pObj->m_ColorA);
+		}
+
+		AddSize(pSize, 4);
+
+		if (pObj->m_ObjectType == OT_LIGHT)
+		{
+			if (pPacket)
+			{
+				float fRadius = ((DynamicLight*)pObj)->m_LightRadius;
+				if (fRadius < 0.0f)
+					pPacket->WriteType((uint16)0);
+				else
+					pPacket->WriteType((uint16)fRadius);
+			}
+
+			AddSize(pSize, 2);
+		}
+	}
+
+	if (changeFlags & CF_SCALE)
+	{
+		if (pPacket)
+		{
+			pPacket->WriteType(pObj->m_Scale.x);
+			pPacket->WriteType(pObj->m_Scale.y);
+		}
+
+		AddSize(pSize, 8);
+
+		if (pObj->m_ObjectType != OT_SPRITE)
+		{
+			if (pPacket)
+				pPacket->WriteType(pObj->m_Scale.z);
+
+			AddSize(pSize, 4);
+		}
+	}
+
+	if (changeFlags & (CF_POSITION|CF_TELEPORT))
+	{
+		vObjectVelocity = pObj->m_Velocity;
+
+		if (pPacket)
+		{
+			// Turn off the prediction cap if we're sending the prediction cap position message,
+			// otherwise turn it on.
+			if (!(pInfo->m_ChangeFlags & CF_POSITION))
+			{
+				pInfo->m_ChangeFlags &= ~CF_POSITION_PREDICTIONCAP;
+				vObjectVelocity.Init();
+			}
+			else
+			{
+				pInfo->m_ChangeFlags |= CF_POSITION_PREDICTIONCAP;
+			}
+		}
+
+		if (pObj->m_Flags & FLAG_FULLPOSITIONRES)
+		{
+			if (pPacket)
+			{
+				pPacket->WriteType(pObj->m_Pos.x);
+				pPacket->WriteType(pObj->m_Pos.y);
+				pPacket->WriteType(pObj->m_Pos.z);
+				pPacket->m_Message.WriteVector(vObjectVelocity);
+			}
+
+			AddSize(pSize, 0x18);
+		}
+		else
+		{
+			if (pPacket)
+			{
+				ic_EncodeCompPos(&compPos, &pObj->m_Pos, &pServerMgr->m_World);
+				ic_WriteCompWorldPos(&pPacket->m_Message, &compPos);
+				pPacket->m_Message.WriteCompVector(vObjectVelocity);
+			}
+
+			AddSize(pSize, 0x10);
+		}
+	}
+
+	if (changeFlags & (CF_ROTATION|CF_SNAPROTATION))
+	{
+		if (pObj->m_Flags & FLAG_FULLPOSITIONRES)
+		{
+			if (pPacket)
+				pPacket->m_Message.WriteRotation(pObj->m_Rotation);
+
+			AddSize(pSize, 0x10);
+		}
+		else
+		{
+			if (pPacket)
+			{
+				ic_EncodeCompRotation(&pObj->m_Rotation, &compRot);
+				ic_WriteCompRot(&pPacket->m_Message, &compRot);
+			}
+
+			AddSize(pSize, 6);
+		}
+	}
+
+	if (changeFlags & CF_ATTACHMENTS)
+	{
+		if (pPacket)
+			pPacket->WriteType((uint8)((pObj->m_InternalFlags & IFLAG_HASCHILDMODELS) != 0));
+
+		AddSize(pSize, 1);
+
+		// Write the attachments.
+		for (pCur=pObj->m_Attachments; pCur; pCur=pCur->m_pNext)
+		{
+			if (pPacket)
+			{
+				pPacket->WriteType(pCur->m_nChildID);
+				pPacket->WriteType(pCur->m_iSocket);
+			}
+
+			AddSize(pSize, 6);
+
+			if (pObj->m_Flags & FLAG_FULLPOSITIONRES)
+			{
+				if (pPacket)
+				{
+					pPacket->WriteType(pCur->m_Offset.m_Pos.x);
+					pPacket->WriteType(pCur->m_Offset.m_Pos.y);
+					pPacket->WriteType(pCur->m_Offset.m_Pos.z);
+					pPacket->m_Message.WriteRotation(pCur->m_Offset.m_Rot);
+				}
+
+				AddSize(pSize, 0x1c);
+			}
+			else
+			{
+				if (pPacket)
+				{
+					pPacket->m_Message.WriteCompVector(pCur->m_Offset.m_Pos);
+					ic_WriteCompRotation(&pPacket->m_Message, &pCur->m_Offset.m_Rot);
+				}
+
+				AddSize(pSize, 0xf);
+			}
+		}
+
+		if (pPacket)
+			pPacket->WriteType((uint16)0xFFFF);
+
+		AddSize(pSize, 2);
+
+		// Write the hidden piece list.
+		if (pObj->m_ObjectType == OT_MODEL)
+		{
+			if (pPacket)
+				pPacket->WriteType((uint32)((ModelInstance*)pObj)->m_HiddenPieces);
+
+			AddSize(pSize, 4);
+		}
+	}
+
+	return TRUE;
 }
 
 
@@ -248,6 +689,152 @@ CServerEvent* CreateServerEvent(CServerMgr *pServerMgr, int type)
 }
 
 
+// ----------------------------------------------------------------------- //
+// Fills the packet with the sound track's update info.
+// ----------------------------------------------------------------------- //
+
+// STUB: LITHTECH 0x004759c0
+void FillSoundTrackPacketFromInfo(CServerMgr *pServerMgr, CSoundTrack *pSoundTrack, ObjInfo *pInfo,
+	Client *pClient, CPacket *pPacket)
+{
+	FileIDInfo *pFileIDInfo, fileIDInfoCurrent;
+	uint16 wFlags, nOuter, nInner, dwOffsetTime;
+	float fFadeTime;
+
+	if (!pPacket)
+		return;
+
+	wFlags = (uint16)pSoundTrack->m_dwFlags;
+
+	// If the sound is attached to this client's object, then we can assume certain things about the
+	// position and orientation and not have to send a message for position changes...
+	if (wFlags & (PLAYSOUND_ATTACHED | PLAYSOUND_CLIENTLOCAL))
+	{
+		if (pSoundTrack->GetObject() == pClient->m_pObject)
+		{
+			wFlags |= PLAYSOUND_CLIENTLOCAL;
+			pInfo->m_ChangeFlags &= ~CF_POSITION;
+		}
+		else
+		{
+			if (wFlags & PLAYSOUND_CLIENTLOCAL)
+			{
+				// Make sure it sends the location of the client making the sound.
+				pSoundTrack->m_vPosition = pSoundTrack->GetObject()->GetPos();
+				pInfo->m_ChangeFlags |= CF_POSITION;
+			}
+
+			// Not attached to the client object, so this client doesn't get the PLAYSOUND_CLIENTLOCAL
+			// flag, but it does need to be 3D at that point.
+			wFlags &= ~PLAYSOUND_CLIENTLOCAL;
+			wFlags |= PLAYSOUND_3D;
+		}
+	}
+
+	pPacket->WriteType((uint8)0);
+	pPacket->WriteType((uint8)1);
+
+	// Send the change flags and the id for this sound.
+	pPacket->WriteType((uint8)pInfo->m_ChangeFlags);
+	pPacket->WriteType((uint16)GetLinkID(pSoundTrack->m_pIDLink));
+
+	// Handle the new sound info...
+	if (pInfo->m_ChangeFlags & CF_NEWOBJECT)
+	{
+		pSoundTrack->AddRef();
+		pPacket->WriteType((uint16)pSoundTrack->m_pFile->m_FileID);
+
+		nOuter = (uint16)LTMIN(pSoundTrack->m_fOuterRadius, 65535.0f);
+		nInner = LTMIN((uint8)(pSoundTrack->m_fInnerRadius * 255.0f / nOuter), 255);
+
+		// Some of the info for sounds using the same file don't change from instance to instance,
+		// so the server remembers what it sent to the client for a file and only sends the changed info.
+		pFileIDInfo = sm_GetClientFileIDInfo(pClient, (uint16)pSoundTrack->m_pFile->m_FileID);
+		if (!pFileIDInfo)
+		{
+			// Should never get here.
+			fileIDInfoCurrent.m_nChangeFlags = 7;
+			pFileIDInfo = &fileIDInfoCurrent;
+		}
+		else
+		{
+			fileIDInfoCurrent.m_wSoundPlaySoundFlags = wFlags;
+			fileIDInfoCurrent.m_nSoundPriority = pSoundTrack->m_nPriority;
+			fileIDInfoCurrent.m_nSoundOuterRadius = nOuter;
+			fileIDInfoCurrent.m_nSoundInnerRadius = (uint8)nInner;
+			GetSoundFileIDInfoFlags(pFileIDInfo, &fileIDInfoCurrent);
+		}
+
+		// Write the change flags for the file dependent info...
+		pPacket->WriteType(pFileIDInfo->m_nChangeFlags);
+
+		if (pFileIDInfo->m_nChangeFlags & FILEIDINFOF_SOUNDPLAYSOUNDFLAGS)
+		{
+			pFileIDInfo->m_nChangeFlags &= ~FILEIDINFOF_SOUNDPLAYSOUNDFLAGS;
+			pPacket->WriteType(wFlags);
+		}
+
+		if (pFileIDInfo->m_nChangeFlags & FILEIDINFOF_SOUNDPRIORITY)
+		{
+			pFileIDInfo->m_nChangeFlags &= ~FILEIDINFOF_SOUNDPRIORITY;
+			pPacket->WriteType(pSoundTrack->m_nPriority);
+		}
+
+		if (wFlags & (PLAYSOUND_AMBIENT | PLAYSOUND_3D))
+		{
+			if (pFileIDInfo->m_nChangeFlags & FILEIDINFOF_RADIUS)
+			{
+				pFileIDInfo->m_nChangeFlags &= ~FILEIDINFOF_RADIUS;
+				pPacket->WriteType(nOuter);
+				pPacket->WriteType((uint8)nInner);
+			}
+		}
+
+		if (wFlags & PLAYSOUND_CTRL_VOL)
+			pPacket->WriteType(pSoundTrack->m_nVolume);
+
+		if (wFlags & PLAYSOUND_CTRL_PITCH)
+			pPacket->WriteType(pSoundTrack->m_fPitchShift);
+
+		if (wFlags & PLAYSOUND_TIMESYNC)
+		{
+			dwOffsetTime = (uint16)((1000.0 * (pServerMgr->m_GameTime - pSoundTrack->m_fStartTime)) + 0.5);
+			if (dwOffsetTime < 255)
+			{
+				pPacket->WriteType((uint8)dwOffsetTime);
+			}
+			else
+			{
+				pPacket->WriteType((uint8)0xFF);
+				pPacket->WriteType((uint32)dwOffsetTime);
+			}
+		}
+
+		if (wFlags & PLAYSOUND_CTRL_TYPE)
+			pPacket->WriteType(pSoundTrack->m_nUserSoundType);
+
+		if (wFlags & PLAYSOUND_USER_DATA)
+			pPacket->WriteType(pSoundTrack->m_UserData);
+	}
+
+	// Position info.
+	if (pInfo->m_ChangeFlags & CF_POSITION)
+		ic_WriteCompPos(&pPacket->m_Message, &pSoundTrack->m_vPosition, &pServerMgr->m_World);
+
+	// The sound was told to fade out.
+	if (pInfo->m_ChangeFlags & CF_SOUNDINFO)
+	{
+		fFadeTime = pSoundTrack->m_Unknown5C * 10.0f;
+		if (fFadeTime < 0.0f)
+			fFadeTime = 0.0f;
+		else if (fFadeTime > 255.0f)
+			fFadeTime = 255.0f;
+
+		pPacket->WriteType((uint8)fFadeTime);
+	}
+}
+
+
 // Set the change flags based on what's different...
 // FUNCTION: LITHTECH 0x004760a0
 void GetSoundFileIDInfoFlags(FileIDInfo *pFileIDInfo, FileIDInfo *pCurrent)
@@ -268,6 +855,123 @@ void GetSoundFileIDInfoFlags(FileIDInfo *pFileIDInfo, FileIDInfo *pCurrent)
 		pFileIDInfo->m_nSoundOuterRadius = pCurrent->m_nSoundOuterRadius;
 		pFileIDInfo->m_nSoundInnerRadius = pCurrent->m_nSoundInnerRadius;
 	}
+}
+
+
+// Writes a server event into the update packet.
+// FUNCTION: LITHTECH 0x00476120
+void WriteEventToPacket(CServerMgr *pServerMgr, CServerEvent *pEvent, Client *pClient, CPacket *pPacket)
+{
+	if (pEvent->m_EventType == EVENT_PLAYSOUND)
+		FillInPlaysoundMessage(pEvent, pClient, pPacket);
+}
+
+
+// Writes the PlaySound event: the file, the changed file info, and the sound's parameters.
+// STUB: LITHTECH 0x00476140
+void FillInPlaysoundMessage(CServerEvent *pEvent, Client *pClient, CPacket *pPacket)
+{
+	PlaySoundInfo *pPlaySoundInfo;
+	FileIDInfo *pFileIDInfo, fileIDInfoCurrent;
+	uint16 wFlags, nOuter, nInner;
+	LTBOOL bLocalOverride;
+
+	if (!pEvent || !pPacket || !pEvent->m_pUsedFile)
+		return;
+
+	pPlaySoundInfo = &pEvent->m_PlaySoundInfo;
+	wFlags = (uint16)pPlaySoundInfo->m_dwFlags;
+
+	// Check if the sound is supposed to be played locally to a client object...
+	bLocalOverride = FALSE;
+	if (wFlags & PLAYSOUND_CLIENTLOCAL)
+	{
+		if ((LTObject*)pPlaySoundInfo->m_hObject == pClient->m_pObject)
+		{
+			bLocalOverride = TRUE;
+		}
+		else
+		{
+			wFlags &= ~PLAYSOUND_CLIENTLOCAL;
+
+			// Play it as a 3D sound on the non-local clients.
+			wFlags |= PLAYSOUND_3D;
+		}
+	}
+
+	// Check if sound is in range...
+	if (wFlags & (PLAYSOUND_3D | PLAYSOUND_AMBIENT))
+	{
+		if (pPlaySoundInfo->m_vPosition.DistSqr(pClient->m_pObject->m_Pos) > 4.0f * pPlaySoundInfo->m_fOuterRadius * pPlaySoundInfo->m_fOuterRadius)
+			return;
+	}
+
+	// Signal the event subpacket.
+	pPacket->WriteType((uint8)0);
+	pPacket->WriteType((uint8)0);
+	pPacket->WriteType((uint16)pEvent->m_pUsedFile->m_FileID);
+
+	nOuter = (uint16)LTMIN(pPlaySoundInfo->m_fOuterRadius, 65535.0f);
+	nInner = LTMIN((uint16)(pPlaySoundInfo->m_fInnerRadius * 255.0f / nOuter), 255);
+
+	// Some of the info for sounds using the same file don't change from instance to instance, so
+	// the server remembers what it sent to the client for a file and only sends the changed info...
+	pFileIDInfo = sm_GetClientFileIDInfo(pClient, (uint16)pEvent->m_pUsedFile->m_FileID);
+	if (!pFileIDInfo)
+	{
+		// Should never get here.
+		fileIDInfoCurrent.m_nChangeFlags = 7;
+		pFileIDInfo = &fileIDInfoCurrent;
+	}
+	else
+	{
+		// Compare the current values with the value we sent last time and create change flags...
+		fileIDInfoCurrent.m_wSoundPlaySoundFlags = wFlags;
+		fileIDInfoCurrent.m_nSoundPriority = pPlaySoundInfo->m_nPriority;
+		fileIDInfoCurrent.m_nSoundOuterRadius = nOuter;
+		fileIDInfoCurrent.m_nSoundInnerRadius = (uint8)nInner;
+		GetSoundFileIDInfoFlags(pFileIDInfo, &fileIDInfoCurrent);
+	}
+
+	// Write the change flags for the file dependent info...
+	pPacket->WriteType(pFileIDInfo->m_nChangeFlags);
+
+	if (pFileIDInfo->m_nChangeFlags & FILEIDINFOF_SOUNDPLAYSOUNDFLAGS)
+	{
+		pFileIDInfo->m_nChangeFlags &= ~FILEIDINFOF_SOUNDPLAYSOUNDFLAGS;
+		pPacket->WriteType(wFlags);
+	}
+
+	if (pFileIDInfo->m_nChangeFlags & FILEIDINFOF_SOUNDPRIORITY)
+	{
+		pFileIDInfo->m_nChangeFlags &= ~FILEIDINFOF_SOUNDPRIORITY;
+		pPacket->WriteType(pPlaySoundInfo->m_nPriority);
+	}
+
+	if (wFlags & (PLAYSOUND_AMBIENT | PLAYSOUND_3D))
+	{
+		if (pFileIDInfo->m_nChangeFlags & FILEIDINFOF_RADIUS)
+		{
+			pFileIDInfo->m_nChangeFlags &= ~FILEIDINFOF_RADIUS;
+			pPacket->WriteType(nOuter);
+			pPacket->WriteType((uint8)nInner);
+		}
+	}
+
+	if (wFlags & PLAYSOUND_CTRL_VOL)
+		pPacket->WriteType(pPlaySoundInfo->m_nVolume);
+
+	if (wFlags & PLAYSOUND_CTRL_PITCH)
+		pPacket->WriteType(pPlaySoundInfo->m_fPitchShift);
+
+	if (!bLocalOverride && (wFlags & (PLAYSOUND_AMBIENT | PLAYSOUND_3D)))
+		ic_WriteCompPos(&pPacket->m_Message, &pPlaySoundInfo->m_vPosition, &g_pServerMgr->m_World);
+
+	if (wFlags & PLAYSOUND_CTRL_TYPE)
+		pPacket->WriteType(pPlaySoundInfo->m_nUserSoundType);
+
+	if (wFlags & PLAYSOUND_USER_DATA)
+		pPacket->WriteType(pPlaySoundInfo->m_UserData);
 }
 
 

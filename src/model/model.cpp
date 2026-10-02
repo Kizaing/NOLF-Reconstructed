@@ -2,13 +2,17 @@
 // Talon's model classes have vtables (CMoArray-based), Model keeps its child models in a
 // fixed array at 0x194 and its node transforms in a raw array allocated from m_pAlloc.
 #include <string.h>
+#include <stdlib.h>
 #include "bdefs.h"
 #include "model.h"
+#include "transformmaker.h"
 #include "ltanimtracker.h"
 #include "../../build/proj/LT2/lithshared/stdlith/l_allocator.h"
 
 // GLOBAL: LITHTECH 0x004d483c
 extern char *g_pNoModelFilename;
+
+#define DEFAULT_MODEL_VIS_RADIUS	50.0f
 
 
 // FUNCTION: LITHTECH 0x0044db70
@@ -132,8 +136,8 @@ LTBOOL AnimTimeRef::IsValid()
 	pModel = m_pModel;
 	if(pModel &&
 		m_Prev.m_iAnim < pModel->NumAnims() && m_Cur.m_iAnim < pModel->NumAnims() &&
-		m_Prev.m_iFrame < pModel->GetAnim(m_Prev.m_iAnim)->m_nKeyFrames &&
-		m_Cur.m_iFrame < pModel->GetAnim(m_Cur.m_iAnim)->m_nKeyFrames &&
+		m_Prev.m_iFrame < pModel->GetAnim(m_Prev.m_iAnim)->m_KeyFrames.GetSize() &&
+		m_Cur.m_iFrame < pModel->GetAnim(m_Cur.m_iAnim)->m_KeyFrames.GetSize() &&
 		m_Percent >= 0.0f && m_Percent <= 1.0f)
 	{
 		return LTTRUE;
@@ -165,6 +169,32 @@ ModelVert::ModelVert()
 }
 
 
+// FUNCTION: LITHTECH 0x0044dde0
+ChildInfo::ChildInfo()
+{
+	m_AnimOffset = 0;
+	m_pFilename = g_EmptyString;
+	m_pModel = LTNULL;
+	m_pParentModel = LTNULL;
+	m_Unknown14 = 0;
+	m_bTreesValid = LTTRUE;
+}
+
+// FUNCTION: LITHTECH 0x0044de20
+ChildInfo::~ChildInfo()
+{
+	Term();
+}
+
+// FUNCTION: LITHTECH 0x0044de60
+void ChildInfo::Term()
+{
+	m_pModel = LTNULL;
+	m_pFilename = g_EmptyString;
+	m_Relation.Term(m_pParentModel->m_pAlloc);
+}
+
+
 // FUNCTION: LITHTECH 0x0044dea0
 AnimKeyFrame::AnimKeyFrame()
 {
@@ -180,17 +210,42 @@ AnimKeyFrame::AnimKeyFrame()
 // AnimNode.
 // ------------------------------------------------------------------------ //
 
+// FUNCTION: LITHTECH 0x0044dec0 ??0AnimNode@@QAE@XZ
+AnimNode::AnimNode()
+{
+	Clear();
+}
+
 // FUNCTION: LITHTECH 0x0044df20 ?GetAnim@AnimNode@@UAEPAVModelAnim@@XZ
 
-// STUB: LITHTECH 0x0044dfc0
-// Talon's member CMoArrays are padding here; their destructors aren't generated yet.
+// FUNCTION: LITHTECH 0x0044df30 ??_GAnimNode@@UAEPAXI@Z
+
+// FUNCTION: LITHTECH 0x0044df50 ??0AnimNode@@QAE@PAVModelAnim@@PAV0@@Z
+AnimNode::AnimNode(ModelAnim *pAnim, AnimNode *pParent)
+{
+	Clear();
+	m_pAnim = pAnim;
+	m_pParentNode = pParent;
+}
+
+// FUNCTION: LITHTECH 0x0044dfc0
 AnimNode::~AnimNode()
 {
 	Term();
 }
 
-// STUB: LITHTECH 0x0044e150
-// The original frees the arrays through out-of-line BaseDelete<T> calls (CMoArray::Term inlined one level deeper).
+// FUNCTION: LITHTECH 0x0044e020
+void AnimNode::Clear()
+{
+	m_pAnim = LTNULL;
+	m_pParentNode = LTNULL;
+	m_pNode = LTNULL;
+	m_KeyFrames = CMoArray<NodeKeyFrame, NoCache>();
+}
+
+// FUNCTION: LITHTECH 0x0044e110 ??4NodeKeyFrame@@QAEXABV0@@Z
+
+// FUNCTION: LITHTECH 0x0044e150
 void AnimNode::Term()
 {
 	Model *pModel;
@@ -198,12 +253,7 @@ void AnimNode::Term()
 	uint32 i;
 
 	pModel = GetModel();
-	if(m_KeyFrames)
-	{
-		LDelete_Array(pModel->m_pAlloc, m_KeyFrames, m_nKeyFrames);
-		m_KeyFrames = LTNULL;
-	}
-	m_nKeyFrames = 0;
+	m_KeyFrames.SetSize2(0, pModel->m_pAlloc);
 
 	pAlloc = GetModel()->m_pAlloc;
 	for(i=0; i < NumChildren(); i++)
@@ -211,12 +261,8 @@ void AnimNode::Term()
 		LDelete(pAlloc, m_Children[i]);
 	}
 
-	if(m_Children)
-	{
-		LDelete_Array(pAlloc, m_Children, m_nChildren);
-		m_Children = LTNULL;
-	}
-	m_nChildren = 0;
+	m_Children.SetSize2(0, pAlloc);
+	m_Children.GetSize();	// pending inline call: the original had one more inline site here
 }
 
 // FUNCTION: LITHTECH 0x0044e1e0 ?SetAnim@AnimNode@@UAEXPAVModelAnim@@@Z
@@ -277,6 +323,40 @@ Model* AnimNode::GetModel()
 // ModelAnim.
 // ------------------------------------------------------------------------ //
 
+// FUNCTION: LITHTECH 0x0044e2e0
+ModelAnim::ModelAnim(Model *pModel)
+{
+	m_pModel = pModel;
+	m_pName = g_EmptyString;
+	m_AnimNodes = LTNULL;
+	m_Unknown18 = -1;
+	m_InterpolationMS = 200;
+	m_pRootNode = &m_RootNode;
+	m_pRootNode->SetAnim(this);
+}
+
+// FUNCTION: LITHTECH 0x0044e340 ??_GModelAnim@@UAEPAXI@Z
+
+// FUNCTION: LITHTECH 0x0044e360
+ModelAnim::~ModelAnim()
+{
+	Term();
+}
+
+// FUNCTION: LITHTECH 0x0044e3b0
+void ModelAnim::Term()
+{
+	if(m_AnimNodes)
+	{
+		m_pModel->m_pAlloc->Free(m_AnimNodes);
+		m_AnimNodes = LTNULL;
+	}
+
+	m_KeyFrames.Term(m_pModel->m_pAlloc);
+	m_RootNode.Term();
+	FreeRootNode();
+}
+
 // FUNCTION: LITHTECH 0x0044e410
 void ModelAnim::SetModel(Model *pModel)
 {
@@ -315,13 +395,16 @@ LTBOOL ModelAnim::SetupNodeLists(LTBOOL bRebuild)
 // FUNCTION: LITHTECH 0x0044e4b0
 LTBOOL ModelAnim::PrecalcNodeLists(LTBOOL bRebuild)
 {
+	LAlloc *pAlloc;
+
 	if(!bRebuild && m_AnimNodes)
 		return LTTRUE;
 
 	if(m_AnimNodes)
 		m_pModel->m_pAlloc->Free(m_AnimNodes);
 
-	m_AnimNodes = (AnimNode**)m_pModel->m_pAlloc->Alloc(m_pModel->m_nNodes * 4);
+	pAlloc = m_pModel->m_pAlloc;
+	m_AnimNodes = (AnimNode**)pAlloc->Alloc(m_pModel->NumNodes() * 4);
 	if(!m_AnimNodes)
 		return LTFALSE;
 
@@ -335,8 +418,8 @@ LTBOOL ModelAnim::PrecalcNodeLists(LTBOOL bRebuild)
 // FUNCTION: LITHTECH 0x0044e520
 uint32 ModelAnim::GetAnimTime()
 {
-	if(m_nKeyFrames > 0)
-		return m_KeyFrames[m_nKeyFrames-1].m_Time;
+	if(m_KeyFrames.GetSize() > 0)
+		return m_KeyFrames[m_KeyFrames.GetSize()-1].m_Time;
 	else
 		return 0;
 }
@@ -348,10 +431,26 @@ uint32 ModelAnim::GetAnimTime()
 
 // FUNCTION: LITHTECH 0x0044e5b0 ?MNSlot1@ModelNode@@UAEXKKK@Z
 
-// STUB: LITHTECH 0x0044e610
-// Talon's member CMoArray is padding here; its destructor isn't generated yet.
+// FUNCTION: LITHTECH 0x0044e570 ??0ModelNode@@QAE@XZ
+ModelNode::ModelNode()
+{
+	Clear();
+	m_pModel = LTNULL;
+}
+
+// FUNCTION: LITHTECH 0x0044e5c0 ??_GModelNode@@UAEPAXI@Z
+
+// FUNCTION: LITHTECH 0x0044e5e0 ??0ModelNode@@QAE@PAVModel@@@Z
+ModelNode::ModelNode(Model *pModel)
+{
+	Clear();
+	m_pModel = pModel;
+}
+
+// FUNCTION: LITHTECH 0x0044e610
 ModelNode::~ModelNode()
 {
+	Term();
 }
 
 // FUNCTION: LITHTECH 0x0044e650
@@ -366,12 +465,7 @@ void ModelNode::Term()
 		LDelete(pAlloc, m_Children[i]);
 	}
 
-	if(m_Children)
-	{
-		pAlloc->Free(m_Children);
-		m_Children = LTNULL;
-	}
-	m_nChildren = 0;
+	m_Children.Term(pAlloc);
 
 	Clear();
 }
@@ -425,7 +519,7 @@ LTBOOL ModelNode::FillNodeList(uint32 &curNodeIndex)
 {
 	uint32 i;
 
-	if(curNodeIndex >= m_pModel->m_nFlatNodes)
+	if(curNodeIndex >= m_pModel->m_FlatNodeList.GetSize())
 		return LTFALSE;
 
 	m_NodeIndex = (uint16)curNodeIndex;
@@ -455,6 +549,84 @@ void ModelNode::SetParent_R(uint32 iParent)
 }
 
 
+// ------------------------------------------------------------------------ //
+// AnimInfo / PieceLOD / ModelPiece / WeightSet.
+// ------------------------------------------------------------------------ //
+
+// FUNCTION: LITHTECH 0x0044e540
+AnimInfo::AnimInfo()
+{
+	m_pAnim = LTNULL;
+	m_pChildInfo = LTNULL;
+	m_vDims.Init(128.0f, 16.0f, 16.0f);
+	m_vTranslation.Init(0.0f, 0.0f, 0.0f);
+}
+
+// FUNCTION: LITHTECH 0x0044e8b0 ??0PieceLOD@@QAE@PAVModel@@@Z
+PieceLOD::PieceLOD(Model *pModel)
+{
+	Init(pModel);
+}
+
+// FUNCTION: LITHTECH 0x0044e910 ??0PieceLOD@@QAE@XZ
+PieceLOD::PieceLOD()
+{
+	Init(LTNULL);
+}
+
+// FUNCTION: LITHTECH 0x0044e970
+void PieceLOD::Init(Model *pModel)
+{
+	m_pModel = pModel;
+}
+
+// FUNCTION: LITHTECH 0x0044e980
+PieceLOD::~PieceLOD()
+{
+	m_Tris.Term(m_pModel->GetAlloc());
+	m_Verts.Term(m_pModel->GetAlloc());
+}
+
+// FUNCTION: LITHTECH 0x0044ea20
+ModelPiece::ModelPiece(Model *pModel) : PieceLOD(pModel)
+{
+	m_Name[0] = 0;
+	m_TextureIndex = 0;
+	m_pPieceModel = pModel;
+	m_SpecularScale = 1.0f;
+	m_LODWeight = 1.0f;
+	m_SpecularPower = 5.0f;
+}
+
+// FUNCTION: LITHTECH 0x0044ea60
+ModelPiece::~ModelPiece()
+{
+	Term();
+}
+
+// FUNCTION: LITHTECH 0x0044eac0
+void ModelPiece::Term()
+{
+	LAlloc *pAlloc;
+
+	pAlloc = m_pPieceModel->m_pAlloc;
+	m_LODs.Term(pAlloc);
+}
+
+// FUNCTION: LITHTECH 0x0044eb20
+WeightSet::WeightSet(Model *pModel)
+{
+	m_Name[0] = 0;
+	m_pModel = pModel;
+}
+
+// FUNCTION: LITHTECH 0x0044eb50
+WeightSet::~WeightSet()
+{
+	m_Weights.Term(m_pModel->m_pAlloc);
+}
+
+
 // FUNCTION: LITHTECH 0x0044ebb0
 ModelSocket::ModelSocket()
 {
@@ -469,6 +641,228 @@ ModelSocket::ModelSocket()
 // ------------------------------------------------------------------------ //
 // Model.
 // ------------------------------------------------------------------------ //
+
+// FUNCTION: LITHTECH 0x0044ebe0
+Model::Model(LAlloc *pAlloc, LAlloc *pDefAlloc) :
+	m_StringList(pAlloc),
+	m_LODDist0(0.0f)
+{
+	m_pAlloc = pAlloc;
+	m_pDefAlloc = pDefAlloc;
+	m_GlobalRadius = 96.0f;
+	m_Link.m_pData = this;
+
+	m_pFilename = g_pNoModelFilename;
+	m_nTotalVerts = 0;
+	m_Flags = 0;
+	m_RefCount = 0;
+	m_FlatNodeList = CMoArray<ModelNode*, NoCache>();
+
+	m_nNodeDWords = 0;
+	m_VisRadius = DEFAULT_MODEL_VIS_RADIUS;
+	m_bNoAnimation = LTFALSE;
+	SetFadeRange(20000.0f, 20000.0f);
+	m_FadeSpriteSizeY = 100.0f;
+	m_FadeSpriteSizeX = 100.0f;
+	m_ShadowProjectLength = 200.0f;
+	m_ShadowLightDist = 200.0f;
+	m_ShadowSizeX = 50.0f;
+	m_ShadowSizeY = 50.0f;
+	m_pFadeSpriteTex = LTNULL;
+	m_AmbientLight = 0.25f;
+	m_DirLight = 0.75f;
+	m_bFovOffset = LTFALSE;
+	m_bSpecularEnable = LTFALSE;
+	m_bShadowEnable = LTFALSE;
+	m_ShadowCenterOffset.Init();
+	m_bRigid = LTFALSE;
+	m_iNormalRefNode = (uint32)-1;
+	m_iNormalRefAnim = (uint32)-1;
+	m_bNormalRef = LTFALSE;
+	m_Transforms = CMoArray<LTMatrix, NoCache>();
+
+	m_CommandString = g_EmptyString;
+	m_pRootNode = &m_RootNode;
+	m_pRootNode->SetModel(this);
+
+	m_nChildModels = 1;
+	m_ChildModels[0] = &m_SelfChildModel;
+	GetSelfChildModel()->m_pParentModel = this;
+	GetSelfChildModel()->m_pModel = this;
+	m_SelfChildModel.m_ModelStamp = rand();
+	m_Unknown190 = 0;
+
+	// Memory tracking
+	g_ModelMemory += sizeof(Model);
+}
+
+// FUNCTION: LITHTECH 0x0044eed0 ??_GModel@@UAEPAXI@Z
+
+// FUNCTION: LITHTECH 0x0044eef0
+Model::~Model()
+{
+	Term(LTTRUE);
+
+	// Memory tracking
+	g_ModelMemory -= sizeof(Model);
+	g_ModelMemory -= m_BlockAlloc.GetBlockSize();
+}
+
+// FUNCTION: LITHTECH 0x0044f050
+void Model::Term(LTBOOL bX)
+{
+	m_Nexus.Term();
+
+	if(m_pRootNode != &m_RootNode)
+	{
+		LDelete(GetAlloc(), m_pRootNode);
+	}
+
+	m_RootNode.Term();
+	m_pRootNode = &m_RootNode;
+	DeleteAndClearArray2(m_Pieces, GetAlloc());
+
+	TermAnims();
+	TermChildModels(bX);
+	DeleteAndClearArray2(m_Sockets, GetAlloc());
+	DeleteAndClearArray2(m_WeightSets, GetAlloc());
+	m_Transforms.Term(GetAlloc());
+	m_VertexWeights.Term(GetAlloc());
+	m_FlatNodeList.Term(GetAlloc());
+	m_StringList.Term();
+	FreeFilename();
+	m_LODDists.Term(GetAlloc());
+	m_nTotalVerts = 0;
+}
+
+// FUNCTION: LITHTECH 0x0044f200
+void Model::TermAnims()
+{
+	uint32 i;
+	ModelAnim *pAnim;
+
+	for(i=0; i < NumAnims(); i++)
+	{
+		pAnim = GetAnim(i);
+		if(pAnim->m_pModel == this)
+		{
+			LDelete(GetAlloc(), pAnim);
+		}
+	}
+
+	m_Anims.Term(m_pDefAlloc);
+}
+
+// FUNCTION: LITHTECH 0x0044f280
+void Model::TermChildModels(LTBOOL bX)
+{
+	uint32 i;
+	ChildInfo *pInfo;
+
+	for(i=0; i < NumChildModels(); i++)
+	{
+		pInfo = GetChildModel(i);
+		if(pInfo)
+		{
+			if(pInfo != GetSelfChildModel())
+			{
+				if(pInfo->m_pModel && pInfo->m_pModel != this)
+				{
+					if(pInfo->m_pModel->m_RefCount > 0)
+						pInfo->m_pModel->m_RefCount--;
+
+					if(bX)
+					{
+						if(pInfo->m_pModel->m_RefCount == 0 && pInfo->m_pModel)
+							pInfo->m_pModel->Delete();
+					}
+				}
+			}
+
+			pInfo->Term();
+			if(pInfo != GetSelfChildModel() && pInfo != &m_SelfChildModel)
+			{
+				LDelete(GetAlloc(), pInfo);
+			}
+		}
+	}
+
+	m_nChildModels = 1;
+	m_ChildModels[0] = &m_SelfChildModel;
+}
+
+// FUNCTION: LITHTECH 0x0044f360
+LTBOOL Model::PostLoadNodes(LTBOOL bX)
+{
+	uint32 i, curVert;
+
+	if(AllocTransforms(bX) && AllocFlatNodeList(bX))
+	{
+		curVert = 0;
+		for(i=0; i < NumPieces(); i++)
+		{
+			GetPiece(i)->m_VertOffset = curVert;
+			curVert += GetPiece(i)->m_Verts.GetSize();
+		}
+
+		for(i=0; i < NumAnims(); i++)
+		{
+			if(GetAnim(i)->m_pModel == this)
+			{
+				if(!GetAnim(i)->SetupNodeLists(bX))
+					return LTFALSE;
+			}
+		}
+
+		m_nTotalVerts = CalcNumVerts();
+		m_nTotalTris = CalcNumTris(0);
+		return LTTRUE;
+	}
+
+	return LTFALSE;
+}
+
+// FUNCTION: LITHTECH 0x0044f410
+LTBOOL Model::AllocTransforms(LTBOOL bForce)
+{
+	uint32 nNodes;
+
+	if(!bForce && NumNodes() == m_pRootNode->CalcNumNodes())
+		return LTTRUE;
+
+	m_Transforms.Term();
+	nNodes = m_pRootNode->CalcNumNodes();
+	if(!m_Transforms.SetSize2(nNodes, GetAlloc()))
+		return LTFALSE;
+
+	return LTTRUE;
+}
+
+// FUNCTION: LITHTECH 0x0044f4b0
+LTBOOL Model::AllocFlatNodeList(LTBOOL bForce)
+{
+	uint32 nNodes, curNodeIndex;
+
+	if(!bForce && m_FlatNodeList.GetSize() == NumNodes())
+		return LTTRUE;
+
+	m_FlatNodeList.Term(GetAlloc());
+	nNodes = NumNodes();
+	if(!m_FlatNodeList.SetSizeInit4(nNodes, LTNULL, GetAlloc()))
+		return LTFALSE;
+
+	curNodeIndex = 0;
+	if(!GetRootNode()->FillNodeList(curNodeIndex))
+		return LTFALSE;
+
+	m_nNodeDWords = nNodes / 4;
+	if(nNodes % 4)
+		m_nNodeDWords++;
+
+	GetRootNode()->SetParent_R((uint32)-1);
+	return LTTRUE;
+}
+
 
 // FUNCTION: LITHTECH 0x0044f590
 ModelPiece* Model::FindPiece(const char *pName, uint32 *index)
@@ -588,6 +982,32 @@ AnimInfo* Model::FindAnimInfo(const char *pAnimName, Model *pOwner, uint32 *inde
 }
 
 
+// FUNCTION: LITHTECH 0x0044f790
+void Model::SetNodeParentOffsets()
+{
+	uint32 i;
+	ModelNode *pNode, *pParent;
+	LTMatrix mLocal;
+
+	for(i=0; i < NumNodes(); i++)
+	{
+		pNode = GetNode(i);
+
+		if(pNode->m_iParentNode < NumNodes())
+		{
+			pParent = GetNode(pNode->m_iParentNode);
+			mLocal = pParent->m_mGlobalTransform.MakeInverseTransform() * pNode->m_mGlobalTransform;
+			mLocal.GetTranslation(pNode->m_vOffsetFromParent);
+		}
+		else
+		{
+			pNode->m_vOffsetFromParent.Init();
+		}
+	}
+}
+
+// FUNCTION: LITHTECH 0x0044f830 ?Mat_InverseTransformation@@YAXPAVLTMatrix@@0@Z
+
 // FUNCTION: LITHTECH 0x0044f920
 uint32 Model::CalcNumTris(uint32 iLOD)
 {
@@ -640,7 +1060,7 @@ uint32 Model::CalcNumChildModelAnims(LTBOOL bIncludeSelf)
 		if(pChildModel == GetSelfChildModel() && !bIncludeSelf)
 			continue;
 
-		total += pChildModel->m_pModel->m_nAnims;
+		total += pChildModel->m_pModel->m_Anims.GetSize();
 	}
 
 	return total;
@@ -662,6 +1082,136 @@ uint32 Model::CalcNumParentAnims()
 	return total;
 }
 
+
+// Parses the model's command string (the "ModelEdit" properties).
+// STUB: LITHTECH 0x0044fa10
+// Only the register choice of the NormalRef matrix copy (edx/esi) differs.
+void Model::ParseCommandString()
+{
+	struct FloatCommand
+	{
+		const char	*m_pName;
+		float		*m_pValue;
+	};
+
+	ConParse parse;
+	TransformMaker maker;
+	FloatCommand floatCommands[7];
+	uint32 i;
+
+	floatCommands[0].m_pName = "VisRadius";				floatCommands[0].m_pValue = &m_VisRadius;
+	floatCommands[1].m_pName = "AmbientLight";			floatCommands[1].m_pValue = &m_AmbientLight;
+	floatCommands[2].m_pName = "DirLight";				floatCommands[2].m_pValue = &m_DirLight;
+	floatCommands[3].m_pName = "ShadowProjectLength";	floatCommands[3].m_pValue = &m_ShadowProjectLength;
+	floatCommands[4].m_pName = "ShadowLightDist";		floatCommands[4].m_pValue = &m_ShadowLightDist;
+	floatCommands[5].m_pName = "ShadowSizeX";			floatCommands[5].m_pValue = &m_ShadowSizeX;
+	floatCommands[6].m_pName = "ShadowSizeY";			floatCommands[6].m_pValue = &m_ShadowSizeY;
+
+	if(!m_CommandString)
+		return;
+
+	m_bFovOffset = LTFALSE;
+	parse.Init(m_CommandString);
+	while(parse.Parse())
+	{
+		switch(parse.m_nArgs)
+		{
+			case 1:
+			{
+				if(stricmp("NoAnimation", parse.m_Args[0]) == 0)
+					m_bNoAnimation = LTTRUE;
+				else if(stricmp("ShadowEnable", parse.m_Args[0]) == 0)
+					m_bShadowEnable = LTTRUE;
+				else if(stricmp("SpecularEnable", parse.m_Args[0]) == 0)
+					m_bSpecularEnable = LTTRUE;
+				else if(stricmp("Rigid", parse.m_Args[0]) == 0)
+					m_bRigid = LTTRUE;
+			}
+			break;
+
+			case 2:
+			{
+				for(i=0; i < 7; i++)
+				{
+					if(floatCommands[i].m_pName && stricmp(floatCommands[i].m_pName, parse.m_Args[0]) == 0)
+						*floatCommands[i].m_pValue = (float)atof(parse.m_Args[1]);
+				}
+
+				if(stricmp("FadeRangeMin", parse.m_Args[0]) == 0)
+				{
+					SetFadeRange((float)atof(parse.m_Args[1]), m_FadeRangeMax);
+				}
+				else if(stricmp("FadeRangeMax", parse.m_Args[0]) == 0)
+				{
+					SetFadeRange(m_FadeRangeMin, (float)atof(parse.m_Args[1]));
+				}
+				else if(stricmp("FovXOffset", parse.m_Args[0]) == 0)
+				{
+					m_FovXOffset = MATH_DEGREES_TO_RADIANS((float)atof(parse.m_Args[1]));
+					m_bFovOffset = LTTRUE;
+				}
+				else if(stricmp("FovYOffset", parse.m_Args[0]) == 0)
+				{
+					m_FovYOffset = MATH_DEGREES_TO_RADIANS((float)atof(parse.m_Args[1]));
+					m_bFovOffset = LTTRUE;
+				}
+			}
+			break;
+
+			case 3:
+			{
+				if(stricmp("FadeSpriteSize", parse.m_Args[0]) == 0)
+				{
+					m_FadeSpriteSizeX = (float)atof(parse.m_Args[1]);
+					m_FadeSpriteSizeY = (float)atof(parse.m_Args[2]);
+				}
+				else if(stricmp("NormalRef", parse.m_Args[0]) == 0)
+				{
+					// Node name and animation name: the reference transform is the first frame of the animation.
+					m_bNormalRef = LTFALSE;
+					m_iNormalRefNode = (uint32)-1;
+					if(FindNode(parse.m_Args[1], &m_iNormalRefNode))
+					{
+						m_iNormalRefAnim = (uint32)-1;
+						if(FindAnim(parse.m_Args[2], &m_iNormalRefAnim, LTNULL))
+						{
+							maker.m_Anims[0].Init(this, m_iNormalRefAnim, 0, m_iNormalRefAnim, 0, 0.0f);
+							maker.m_nAnims = 1;
+							if(maker.SetupTransforms())
+							{
+								m_mNormalRef = m_Transforms[m_iNormalRefNode];
+								m_bNormalRef = LTTRUE;
+							}
+						}
+					}
+				}
+			}
+			break;
+
+			case 4:
+			{
+				if(stricmp("ShadowCenterOffset", parse.m_Args[0]) == 0)
+				{
+					m_ShadowCenterOffset.x = (float)atof(parse.m_Args[1]);
+					m_ShadowCenterOffset.y = (float)atof(parse.m_Args[2]);
+					m_ShadowCenterOffset.z = (float)atof(parse.m_Args[3]);
+				}
+			}
+			break;
+		}
+	}
+}
+
+// FUNCTION: LITHTECH 0x0044fed0 ?Init@AnimTimeRef@@QAEXPAVModel@@KKKKM@Z
+
+// FUNCTION: LITHTECH 0x0044ff10
+void Model::SetFadeRange(float fMin, float fMax)
+{
+	m_FadeRangeMin = fMin;
+	m_FadeRangeMinSqr = fMin * fMin;
+	m_FadeRangeMax = fMax;
+	m_FadeRangeMaxSqr = fMax * fMax;
+}
 
 // FUNCTION: LITHTECH 0x0044ff50
 LTBOOL Model::SetFilename(const char *pInFilename)
@@ -751,9 +1301,8 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 // ------------------------------------------------------------------------ //
 // CMoArray instances.
 // The linker kept model.obj's copies of the arrays used by the model classes
-// (0x00450140-0x004552c0, after this file's code).  The original instantiates
-// them from the constructors and destructors above, which aren't matched yet,
-// so this function references them instead.  It isn't in lithtech.exe.
+// (0x00450140-0x004552c0, after this file's code).  They are instantiated by the
+// constructors, destructors and Term functions above.
 // ------------------------------------------------------------------------ //
 
 // FUNCTION: LITHTECH 0x00450140 ?GenAppend@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UAEHAAVNodeKeyFrame@@@Z
@@ -827,7 +1376,6 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 // FUNCTION: LITHTECH 0x00453a00 ?GenGetSize@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UBEKXZ
 // FUNCTION: LITHTECH 0x00453a10 ?GenCopyList@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEHABV?$GenList@VAnimInfo@@@@@Z
 // FUNCTION: LITHTECH 0x00453b40 ?GenAppendList@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEHABV?$GenList@VAnimInfo@@@@@Z
-// FUNCTION: LITHTECH 0x00453c40 ??4NodeRelation@@QAEAAV0@ABV0@@Z
 // FUNCTION: LITHTECH 0x00453c80 ?SetSize2@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
 // FUNCTION: LITHTECH 0x00453cf0 ?InternalNiceSetSize@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
 // FUNCTION: LITHTECH 0x00453e10 ?InternalNiceSetSize@?$CMoArray@PAVModelNode@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
@@ -872,35 +1420,3 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 // FUNCTION: LITHTECH 0x00455260 ?BaseNew@@YAPAVAnimInfo@@PAVLAlloc@@PAV1@K@Z
 // FUNCTION: LITHTECH 0x004552a0 ??_GPieceLOD@@QAEPAXI@Z
 
-#define MODEL_ARRAY_INSTANCE(T, C) \
-	{ \
-		CMoArray<T, C> theArray; \
-		theArray.SetSize2(0, &g_DefAlloc); \
-		theArray.Init(0, 0); \
-		theArray.CopyArray2(theArray, &g_DefAlloc); \
-		theArray.NiceSetSize2(0, &g_DefAlloc); \
-	}
-
-// STANDIN: instantiates CMoArray members until the model constructors are written (not in lithtech.exe)
-void model_InstantiateArrays()
-{
-	MODEL_ARRAY_INSTANCE(NodeRelation, DefaultCache)
-	MODEL_ARRAY_INSTANCE(NodeKeyFrame, NoCache)
-	MODEL_ARRAY_INSTANCE(AnimNode*, NoCache)
-	MODEL_ARRAY_INSTANCE(AnimKeyFrame, NoCache)
-	MODEL_ARRAY_INSTANCE(ModelNode*, NoCache)
-	MODEL_ARRAY_INSTANCE(ModelVert, NoCache)
-	MODEL_ARRAY_INSTANCE(ModelTri, NoCache)
-	MODEL_ARRAY_INSTANCE(PieceLOD, NoCache)
-	MODEL_ARRAY_INSTANCE(float, DefaultCache)
-	MODEL_ARRAY_INSTANCE(WeightSet*, NoCache)
-	MODEL_ARRAY_INSTANCE(NewVertexWeight, NoCache)
-	MODEL_ARRAY_INSTANCE(LTMatrix, NoCache)
-	MODEL_ARRAY_INSTANCE(LODDistance, DefaultCache)
-	MODEL_ARRAY_INSTANCE(ModelSocket*, NoCache)
-	MODEL_ARRAY_INSTANCE(AnimInfo, NoCache)
-	MODEL_ARRAY_INSTANCE(ModelPiece*, NoCache)
-
-	LDelete(&g_DefAlloc, (ModelPiece*)LTNULL);
-	LDelete(&g_DefAlloc, (WeightSet*)LTNULL);
-}

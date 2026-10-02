@@ -45,7 +45,9 @@
 	A::Mask(pDestPos, iPixel, invAlphaMask);\
 	A::Or(pDestPos, iPixel, abstract.m_AlphaValues[(blockData>>shift) & 15]);
 
-// (PValue_Set makes this a dynamic initializer: $E at 0046a1e0 -> 0046a1f0, outside units.csv range)
+// (PValue_Set makes this a dynamic initializer.)
+// FUNCTION: LITHTECH 0x0046a1e0 _$E2
+// FUNCTION: LITHTECH 0x0046a1f0 _$E1
 // GLOBAL: LITHTECH 0x004e4618
 static uint32 g_FullAlphaValues[16] =
 {

@@ -234,8 +234,8 @@ LTRESULT LMessageImpl::ReadCompRotationFL(LTRotation &rot)
 	return LT_OK;
 }
 
-// STUB: LITHTECH 0x00445cc0
 // The original calls CPacket::WriteType<uint8> out of line (0x00417c20).
+// STUB: LITHTECH 0x00445cc0
 LTRESULT LMessageImpl::ReadMessageFL(ILTMessage* &pMsg)
 {
 	CPacket *pPacket;

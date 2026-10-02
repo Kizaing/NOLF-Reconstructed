@@ -424,6 +424,14 @@ public:
 };
 
 
+// Global profile counter (Jupiter client_ticks.cpp's g_TotalGlobalTimeCounter); only its constructor
+// is referenced in lithtech.exe.
+// FUNCTION: LITHTECH 0x004049f0 _$E2
+// FUNCTION: LITHTECH 0x00404a00 _$E1
+// GLOBAL: LITHTECH 0x004decb4
+CountPercent g_TotalGlobalTimeCounter;
+
+
 // ------------------------------------------------------------------------ //
 // Light anims.
 // ------------------------------------------------------------------------ //
@@ -3382,8 +3390,7 @@ void ci_SetListener(LTBOOL bListenerInClient, LTVector *pPos, LTRotation *pRot)
 	GetClientILTSoundMgrImpl()->SetListener(bListenerInClient, pPos, pRot, bTeleport);
 }
 
-// STUB: LITHTECH 0x0040a1d0
-// (Not matching: x87 operand order in the inline cross product differs (32 bytes).)
+// FUNCTION: LITHTECH 0x0040a1d0
 void ci_GetListener(LTBOOL *bListenerInClient, LTVector *pPos, LTRotation *pRot)
 {
 	// Get the "in client" state
@@ -3402,13 +3409,13 @@ void ci_GetListener(LTBOOL *bListenerInClient, LTVector *pPos, LTRotation *pRot)
 
 		vForward = GetClientILTSoundMgrImpl()->GetListenerFront();
 		vRight = GetClientILTSoundMgrImpl()->GetListenerRight();
-		VEC_CROSS(vUp, vRight, vForward);
+		vUp = vRight.Cross(vForward);
 		mListener.SetBasisVectors(&vRight, &vUp, &vForward);
 		quat_ConvertFromMatrix((float*)pRot, mListener.m);
 	}
 }
 
-// (0x004049c0 is outside this unit.)
+// FUNCTION: LITHTECH 0x004049c0
 LTBOOL ci_IntersectSegment(ClientIntersectQuery *pQuery, ClientIntersectInfo *pInfo)
 {
 	if(g_pClientMgr && g_pClientMgr->m_pCurShell)

@@ -17,6 +17,8 @@ public:
 	void	Term();
 
 	float	GetDuration()	{ return m_fDuration; }
+	LTBOOL	IsTouched()		{ return m_bTouched; }
+	UsedFile*	GetFile()	{ return m_pFile; }
 
 	LTLink		m_Link;			// 0x00
 	UsedFile	*m_pFile;		// 0x0c
@@ -61,6 +63,17 @@ public:
 			// Time it out if no references left...
 			if (m_nClientRefs == 0)
 				m_fTimeLeft = 0.0f;
+		}
+	}
+
+	// A client has been sent the sound (inlined in s_net; Jupiter soundtrack.cpp).
+	void			AddRef()
+	{
+		// Some sounds the client has to tell us when it's done...
+		if (m_dwFlags & (PLAYSOUND_TIME | PLAYSOUND_TIMESYNC | PLAYSOUND_ATTACHED) &&
+			!(m_dwFlags & PLAYSOUND_LOOP))
+		{
+			m_nClientRefs++;
 		}
 	}
 

@@ -9,6 +9,7 @@
 // Init/term the memory system.
 void dm_Init();
 void dm_Term();
+void dm_HeapCompact();		// 0x0042fdd0
 
 // Talon: callbacks run when an allocation fails, before the allocation is retried
 // (the client registers one to free memory).

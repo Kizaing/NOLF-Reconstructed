@@ -2,7 +2,6 @@
 // Talon reads and writes reference-counted CPackets, and the local server tells the client
 // about files directly through clienthack_NewFile.
 // FLAGS: /O2 /GX-
-#define PACKET_INLINE_PAD	m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0; m_ErrorFlags|=0;
 #include <string.h>
 #include "bdefs.h"
 #include "ftclient.h"
@@ -103,12 +102,11 @@ void ftc_SetUserData1(FTClient *pClient, void *pUser)
 }
 
 
-// STUB: LITHTECH 0x00436e50
-// The original calls CPacket::ReadType<uint16>/<uint32> and WriteType<uint16> out of line
-// (copies below); VC6 inlines them here, even with the inlines padded.
+// FUNCTION: LITHTECH 0x00436e50
 void ftc_ProcessPacket(FTClient *pClient, const CPacket_Read &cPacket_Read)
 {
-	CPacket *pPacket, *pResponse;
+	CPacket *pPacket;
+	CPacketRef pResponse;
 	uint32 i, fileID, fileSize;
 	char *pFilename;
 	int spaceLeft;
@@ -120,7 +118,7 @@ void ftc_ProcessPacket(FTClient *pClient, const CPacket_Read &cPacket_Read)
 	if((pPacket->GetPacketID() & 0x3F) != STC_FILEDESC)
 		return;
 
-	pResponse = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
+	pResponse = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
 
 	for(i=0; i < MAX_FILEDESCS; i++)
 	{
@@ -137,15 +135,13 @@ void ftc_ProcessPacket(FTClient *pClient, const CPacket_Read &cPacket_Read)
 		}
 
 		// Send what we have if this one won't fit.
-		spaceLeft = pResponse->m_MaxSize - pResponse->m_Pos - 7;
-		if(spaceLeft < 0)
-			spaceLeft = 0;
+		spaceLeft = pResponse->GetSpaceLeft();
 
 		if((uint32)spaceLeft < sizeof(uint32))
 		{
 			pResponse->m_Data[0] = CTS_FILESTATUS;
 			pClient->m_Init.m_pNetMgr->SendPacket(pResponse, pClient->m_Init.m_ConnID, MESSAGE_GUARANTEED);
-			pResponse->m_DataLen = pResponse->m_Pos = 1;
+			pResponse->ResetWrite();
 		}
 
 		pResponse->WriteType((uint16)fileID);
@@ -157,7 +153,6 @@ void ftc_ProcessPacket(FTClient *pClient, const CPacket_Read &cPacket_Read)
 		pClient->m_Init.m_pNetMgr->SendPacket(pResponse, pClient->m_Init.m_ConnID, MESSAGE_GUARANTEED);
 	}
 
-	pResponse->Release();
 }
 
 
@@ -171,19 +166,7 @@ void clienthack_NewFile(uint16 fileID, uint32 fileSize, char *pFilename)
 }
 
 
-// Template code emitted into this object (the linker kept these copies). The original's
-// ftc_ProcessPacket calls them; here they're referenced through this table so that VC6 emits them.
+// Template code this object instantiated first (the out-of-line copies ftc_ProcessPacket calls):
 // FUNCTION: LITHTECH 0x00436fc0 ?ReadTypeImpl@CPacket@@QAEGPAG@Z
 // FUNCTION: LITHTECH 0x00437040 ?ReadTypeImpl@CPacket@@QAEKPAK@Z
 // FUNCTION: LITHTECH 0x004370c0 ?WriteTypeImpl@CPacket@@QAEXG@Z
-// STANDIN: emits the ReadTypeImpl/WriteTypeImpl copies ftc_ProcessPacket calls (not in lithtech.exe)
-void ftc_EmitPacketTemplates(CPacket *pPacket)
-{
-	uint16 (CPacket::*pReadWord)(uint16*) = &CPacket::ReadTypeImpl;
-	uint32 (CPacket::*pReadDWord)(uint32*) = &CPacket::ReadTypeImpl;
-	void (CPacket::*pWriteWord)(uint16) = &CPacket::WriteTypeImpl;
-
-	(pPacket->*pReadWord)(0);
-	(pPacket->*pReadDWord)(0);
-	(pPacket->*pWriteWord)(0);
-}

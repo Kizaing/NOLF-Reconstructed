@@ -53,7 +53,8 @@ struct CSoundTypeVolumes
 {
 	CSoundTypeVolumes()
 	{
-		memset(m_nVolume, 100, sizeof(m_nVolume));
+		for (int i = 0; i < 256; i++)
+			m_nVolume[i] = 100;
 	}
 
 	// Inline accessors (names unknown). CSoundMgr::Init calls SetVolume after

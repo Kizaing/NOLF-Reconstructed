@@ -16,9 +16,6 @@
 // Reads an LTRotation (out of line in Talon).
 void LTStream_Read(ILTStream *pStream, LTRotation &rot);
 
-// GLOBAL: LITHTECH 0x004e4524
-extern uint32 g_ModelMemory;
-
 // ILTServer::LinkModelToExtraChildModel: child model filename -> extra child models to load with it.
 typedef std::set<std::string> ExtraChildSet;
 typedef std::map<std::string, ExtraChildSet> ExtraChildMap;
@@ -58,20 +55,20 @@ LTBOOL FindSection(ILTStream &file, const char *pSectionName)
 // AnimNode.
 // ------------------------------------------------------------------------ //
 
-// STUB: LITHTECH 0x00455370
+// FUNCTION: LITHTECH 0x00455370
 // The original keeps &m_Children in a local and calls _DeleteAndDestroyArray out of line in DeleteAndClearArray2.
 LTBOOL AnimNode::Load(ILTStream &file)
 {
 	uint32 i;
 	AnimNode *pChild;
 
-	if(!KeyFrameArray().SetSize2(m_pAnim->m_nKeyFrames, GetModel()->GetAlloc()))
+	if(!m_KeyFrames.SetSize2(m_pAnim->m_KeyFrames.GetSize(), GetModel()->GetAlloc()))
 		return LTFALSE;
 
-	for(i=0; i < m_pAnim->m_nKeyFrames; i++)
+	for(i=0; i < m_pAnim->m_KeyFrames.GetSize(); i++)
 		file.Read(&m_KeyFrames[i], sizeof(NodeKeyFrame));
 
-	if(!ChildArray().SetSizeInit4(m_pNode->NumChildren(), LTNULL, GetModel()->GetAlloc()))
+	if(!m_Children.SetSizeInit4(m_pNode->NumChildren(), LTNULL, GetModel()->GetAlloc()))
 		return LTFALSE;
 
 	for(i=0; i < m_pNode->NumChildren(); i++)
@@ -84,7 +81,7 @@ LTBOOL AnimNode::Load(ILTStream &file)
 		if(!pChild->Load(file))
 		{
 			LDelete(GetModel()->GetAlloc(), pChild);
-			DeleteAndClearArray2(ChildArray(), GetModel()->GetAlloc());
+			DeleteAndClearArray2(m_Children, GetModel()->GetAlloc());
 			return LTFALSE;
 		}
 
@@ -117,7 +114,7 @@ LTBOOL ModelAnim::Load(ILTStream &file)
 			file >> m_InterpolationMS;
 
 		file >> nKeyFrames;
-		if(!KeyFrameArray().SetSize2(nKeyFrames, m_pModel->GetAlloc()))
+		if(!m_KeyFrames.SetSize2(nKeyFrames, m_pModel->GetAlloc()))
 			return LTFALSE;
 
 		for(i=0; i < nKeyFrames; i++)
@@ -141,7 +138,7 @@ LTBOOL ModelAnim::Load(ILTStream &file)
 // ModelNode.
 // ------------------------------------------------------------------------ //
 
-// STUB: LITHTECH 0x00455670
+// FUNCTION: LITHTECH 0x00455670
 // Only the tail differs: the original calls CMoArray::_DeleteAndDestroyArray out of line in DeleteAndClearArray2.
 LTBOOL ModelNode::Load(ILTStream &file)
 {
@@ -165,7 +162,7 @@ LTBOOL ModelNode::Load(ILTStream &file)
 	// Load the child nodes.
 	file >> nChildren;
 
-	if(!ChildArray().SetSizeInit4(nChildren, LTNULL, m_pModel->GetAlloc()))
+	if(!m_Children.SetSizeInit4(nChildren, LTNULL, m_pModel->GetAlloc()))
 		return LTFALSE;
 
 	for(i=0; i < nChildren; i++)
@@ -177,7 +174,7 @@ LTBOOL ModelNode::Load(ILTStream &file)
 		if(!pChild->Load(file))
 		{
 			LDelete(m_pModel->GetAlloc(), pChild);
-			DeleteAndClearArray2(ChildArray(), m_pModel->GetAlloc());
+			DeleteAndClearArray2(m_Children, m_pModel->GetAlloc());
 			return LTFALSE;
 		}
 
@@ -324,7 +321,7 @@ LTBOOL ModelPiece::Load(ILTStream &file, uint32 &curWeight)
 	for(i=0; i < nUnknown; i++)
 		file >> dummy;
 
-	nLODs = m_pPieceModel->m_nLODDists;
+	nLODs = m_pPieceModel->m_LODDists.GetSize();
 	if(!m_LODs.SetSize2(nLODs, m_pPieceModel->GetAlloc()))
 		return LTFALSE;
 
@@ -449,7 +446,7 @@ LTBOOL Model::LoadSockets(ILTStream &file)
 		return LTFALSE;
 
 	file >> nSockets;
-	if(!SocketArray().SetSizeInit4(nSockets, LTNULL, GetAlloc()))
+	if(!m_Sockets.SetSizeInit4(nSockets, LTNULL, GetAlloc()))
 		return LTFALSE;
 
 	for(i=0; i < nSockets; i++)
@@ -551,8 +548,6 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 	ChildInfo *pChildInfo, *pInfo;
 	ExtraChildMap *pExtraChildren;
 	ExtraChildSet::iterator iExtra;
-	std::vector<const char*> fileNames, childFileNames;
-	std::vector<ChildInfo*> childInfos, childInfoList;
 	char *pFilename;
 	const char *pName;
 	ModelNode *pErrNode;
@@ -598,7 +593,7 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 	for(i=0; i < 62; i++)
 		*pFile >> reserved;
 
-	if(!LODDistArray().SetSize2(nLODDists, GetAlloc()))
+	if(!m_LODDists.SetSize2(nLODDists, GetAlloc()))
 		return LTFALSE;
 
 	for(i=0; i < nLODDists; i++)
@@ -619,7 +614,7 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 	}
 
 	*pFile >> nPieces;
-	if(!PieceArray().SetSizeInit4(nPieces, LTNULL, GetAlloc()))
+	if(!m_Pieces.SetSizeInit4(nPieces, LTNULL, GetAlloc()))
 	{
 		err = 4;
 		goto Error;
@@ -682,6 +677,10 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 		err = 12;
 		goto Error;
 	}
+
+	{
+	std::vector<const char*> fileNames, childFileNames;
+	std::vector<ChildInfo*> childInfos, childInfoList;
 
 	nLoads = 0;
 	pExtraChildren = (ExtraChildMap*)pRequest->m_pExtraChildModels;
@@ -816,6 +815,7 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 		if(childInfos[i])
 			delete childInfos[i];
 	}
+	}
 
 	// Animations.
 	if(!FindSection(*pFile, "Animation"))
@@ -825,7 +825,7 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 	}
 
 	*pFile >> nAnims;
-	if(!AnimArray().SetSize2(CalcNumChildModelAnims(LTFALSE) + nAnims, m_pDefAlloc))
+	if(!m_Anims.SetSize2(CalcNumChildModelAnims(LTFALSE) + nAnims, m_pDefAlloc))
 	{
 		err = 23;
 		goto Error;
@@ -858,7 +858,7 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 		if(pChildModel && pChildModel != this)
 		{
 			pInfo->m_AnimOffset = iCurAnim;
-			for(j=0; j < pChildModel->m_nAnims; j++)
+			for(j=0; j < pChildModel->m_Anims.GetSize(); j++)
 			{
 				m_Anims[iCurAnim] = pChildModel->m_Anims[j];
 				m_Anims[iCurAnim].m_pChildInfo = pInfo;

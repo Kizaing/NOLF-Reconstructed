@@ -72,7 +72,7 @@ LTBOOL TransformMaker::SetupCall()
 	}
 
 	if(!m_pOutput)
-		m_pOutput = m_pModel->m_Transforms;
+		m_pOutput = m_pModel->m_Transforms.GetArray();
 
 	m_pChildInfo = m_pModel->GetAnimInfo(m_Anims[0].m_Prev.m_iAnim)->m_pChildInfo;
 	return LTTRUE;
@@ -112,7 +112,7 @@ void TransformMaker::InitTransformAdditive(uint32 iAnim, uint32 iNode, LTRotatio
 	NodeKeyFrame *pBase, *pKey1, *pKey2;
 
 	pTimeRef = &m_Anims[iAnim];
-	pBase = m_pAnimPrev[iAnim]->GetAnimNode(iNode)->m_KeyFrames;
+	pBase = m_pAnimPrev[iAnim]->GetAnimNode(iNode)->m_KeyFrames.GetArray();
 	pKey1 = &pBase[pTimeRef->m_Prev.m_iFrame];
 	pKey2 = &m_pAnimCur[iAnim]->GetAnimNode(iNode)->m_KeyFrames[pTimeRef->m_Cur.m_iFrame];
 

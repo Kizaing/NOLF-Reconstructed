@@ -14,6 +14,9 @@
 #include "clientmgr.h"
 #include "iltclient.h"
 #include "interface_helpers.h"
+#include "ltdynarray.h"
+#include "pixelformat.h"
+#include "streamsim.h"
 
 // Constants
 #define SEPERATOR_CHARACTERS " .()\""
@@ -43,6 +46,24 @@ extern int32 g_CV_ConsoleBottom;
 
 // 0x00435240
 void* dsi_GetMainWindow();
+
+// LoadedBitmap over the real CMoArray (load_pcx.h mirrors an older one), as in winclientde_impl.cpp;
+// LoadBackground inlines its destructor.
+class LoadedBitmap
+{
+public:
+					LoadedBitmap();		// 0x00446170
+
+	PFormat			m_Format;			// 0x000
+	RPaletteColor	m_Palette[256];		// 0x038
+	unsigned long	m_Width;			// 0x438
+	unsigned long	m_Height;			// 0x43C
+	unsigned long	m_Pitch;			// 0x440
+	CMoArray<uint8>	m_Data;				// 0x444
+};
+
+LTBOOL pcx_Create2(ILTStream *pStream, LoadedBitmap *pBitmap);	// 0x004461d0
+HSURFACE cis_CreateSurfaceFromPcx(LoadedBitmap *pLoadedBitmap);	// 0x0040c650
 
 // Default empty iterator
 // FUNCTION: LITHTECH 0x004206d0 _$E4
@@ -629,10 +650,109 @@ void CConsole::FreeBackground()
 
 
 // Builds the monochrome console font from the "ConsoleFont" bitmap resource.
+// Builds the console font from the console font bitmap resource (a 16x16 character sheet).
+// Same logic; register allocation differs (the original keeps this in ebx, the stream in ebp) and the
+// frame is 4 bytes larger here.
 // STUB: LITHTECH 0x004212f0
 LTBOOL CConsole::InitFont()
 {
-	return LTFALSE;
+	LoadedBitmap bitmap;
+	LTBOOL bResult = LTFALSE;
+	LTCommandVar *pVar;
+	uint32 resID;
+	HRSRC hResource;
+	HGLOBAL hGlobal;
+	void *pResData;
+	ILTStream *pStream;
+	HDC hDC;
+	uint32 charHeight, charWidth, iRow, iCol, x, y, mask, bits, iChar;
+	uint8 *pRowStart, *pSrc;
+	uint32 *pDest;
+
+	if(!m_CS.IsValid())
+		return LTFALSE;
+
+	resID = 140;
+	pVar = cc_FindConsoleVar(&g_ClientConsoleState, "ConsoleFontRes");
+	if(pVar)
+		resID = atoi(pVar->pStringVal);
+
+	hResource = FindResource(LTNULL, MAKEINTRESOURCE(resID & 0xFFFF), "PCX");
+	if(!hResource)
+	{
+		hResource = FindResource(LTNULL, MAKEINTRESOURCE(140), "PCX");
+		if(!hResource)
+			return LTFALSE;
+	}
+
+	hGlobal = LoadResource(LTNULL, hResource);
+	if(!hGlobal)
+		return LTFALSE;
+
+	pResData = LockResource(hGlobal);
+	if(!pResData)
+		return LTFALSE;
+
+	pStream = streamsim_OpenMemStream(256);
+	if(!pStream)
+		return LTFALSE;
+
+	pStream->Write(pResData, SizeofResource(LTNULL, hResource));
+	pStream->SeekTo(0);
+
+	if(pcx_Create2(pStream, &bitmap) && bitmap.m_Format.m_eType == BPP_8)
+	{
+		hDC = GetDC(m_hWnd);
+		if(hDC)
+		{
+			charHeight = bitmap.m_Height >> 4;
+			charWidth = bitmap.m_Width >> 4;
+
+			m_pFontBitmapData = new uint32[charHeight * 256];
+			if(m_pFontBitmapData)
+			{
+				m_FontHeight = (uint16)charHeight;
+				m_FullFontHeight = (uint16)charHeight;
+				for(iChar=0; iChar < NUM_CONSOLE_CHARACTERS; iChar++)
+					m_CharWidths[iChar] = (uint16)charWidth;
+
+				for(iRow=0; iRow < 16; iRow++)
+				{
+					pRowStart = bitmap.m_Data.GetArray() + bitmap.m_Pitch * iRow * charHeight;
+					iChar = iRow * 16;
+					for(iCol=0; iCol < 16; iCol++)
+					{
+						pDest = m_pFontBitmapData + m_FullFontHeight * iChar;
+						for(y=0; y < charHeight; y++)
+						{
+							pSrc = pRowStart + y * bitmap.m_Pitch;
+							bits = 0;
+							mask = 1;
+							for(x=0; x < charWidth; x++)
+							{
+								if(*pSrc++)
+									bits |= mask;
+
+								mask += mask;
+							}
+
+							*pDest++ = bits;
+						}
+
+						pRowStart += charWidth;
+						iChar++;
+					}
+				}
+
+				bResult = LTTRUE;
+			}
+
+			ReleaseDC(m_hWnd, hDC);
+		}
+	}
+
+	pStream->Release();
+	return bResult;
 }
 
 // FUNCTION: LITHTECH 0x00421630
@@ -852,10 +972,33 @@ void CConsole::EndNav()
 	SetState( STATE_NORMAL );
 }
 
+// The original stores the OptimizeSurface result before loading m_fBackgroundAlpha for the call.
 // STUB: LITHTECH 0x00421a70
 LTRESULT CConsole::LoadBackground()
 {
-	return LT_ERROR;
+	ILTStream *pStream;
+	LoadedBitmap bitmap;
+	LTRESULT dResult;
+
+	FreeBackground();
+
+	dResult = LT_ERROR;
+	if ( (pStream = streamsim_Open("console.pcx", "rb")) == LTNULL )
+		return dResult;
+
+	if ( pcx_Create2(pStream, &bitmap) )
+	{
+		m_hBackground = cis_CreateSurfaceFromPcx( &bitmap );
+
+		m_bBackgroundOptimized = g_ClientGlob.m_pClientMgr->m_pClientDE->OptimizeSurface(m_hBackground, RGB(0,0,0));
+		SetBackgroundAlpha( m_fBackgroundAlpha );
+
+		dResult = LT_OK;
+	}
+
+	pStream->Release();
+
+	return dResult;
 }
 
 // Register allocation differs in the SetSurfaceAlpha call (eax/ecx vs edx/eax).

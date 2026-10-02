@@ -86,7 +86,7 @@ struct ClientPacketBuf
 	}
 
 	CPacketRef	m_pPacket;			// 0x00
-	uint32		m_Unknown4;			// 0x04
+	float		m_Unknown4;			// 0x04 send rate (5.0 naggle, 15.0 naggle fast)
 	uint32		m_Unknown8;			// 0x08 packet flags it's sent with
 };
 
@@ -115,6 +115,8 @@ struct SentList
 
 struct Client
 {
+	Client();	// inlined into sm_OnNewConnection (s_client.cpp)
+
 	LTLink		m_Link;				// 0x00 in CServerMgr::m_Clients
 	LightAnimChange	m_LightAnimChanges[MAX_LIGHTANIM_CHANGES];	// 0x0c
 	uint32		m_nLightAnimChanges;	// 0x10c
@@ -165,8 +167,7 @@ typedef char CLIENT_CHECK_SIZE[(sizeof(Client) == 0x3e8) ? 1 : -1];
 struct ClientRef
 {
 	LTLink		m_Link;				// 0x00 in CServerMgr::m_ClientReferences
-	uint8		m_ClientFlags;		// 0x0c CFLAG_
-	uint8		m_Pad0D[0x10 - 0xd];
+	uint32		m_ClientFlags;		// 0x0c CFLAG_
 	uint16		m_ObjectID;			// 0x10
 	char		m_ClientName[1];	// 0x12 (variable length)
 };
@@ -201,6 +202,7 @@ public:
 	LTRESULT	FreeUnusedModels();			// 0x004855b0
 	LPBASECLASS	EZCreateObject(CClassData *pClass, ObjectCreateStruct *pStruct);	// 0x00483850
 	void		SetGlobalLightObject(HOBJECT hObj);	// 0x00486fd0
+	HOBJECT		GetGlobalLightObject()	{ return (HOBJECT)m_pGlobalLightObject; }
 	class CPacket*	AllocPacket();				// 0x00486f60
 	void		SetupPacketMessage(class CPacket *pPacket);	// 0x00486fc0
 

@@ -81,7 +81,7 @@ struct RenderStruct
 	void			(*BindTexture)(SharedTexture *pTexture, LTBOOL bTextureChanged);	// 0x78
 	void			(*UnbindTexture)(SharedTexture *pTexture);						// 0x7c
 
-	uint8			m_Pad80[0x84 - 0x80];
+	void			(*RebindLightmaps)(uint32 hContext);	// 0x80 (con_RebindLightmaps; name from the console command)
 	HRENDERCONTEXT	(*CreateContext)(RenderContextInit *pInit);	// 0x84 (CClientShell::BindWorlds)
 	void			(*DeleteContext)(HRENDERCONTEXT hContext);		// 0x88
 	void			(*Clear)(LTRect *pRect, uint32 flags, LTVector *pColor);	// 0x8c
@@ -96,7 +96,7 @@ struct RenderStruct
 	LTBOOL			(*SetOptimized2DColor)(HLTCOLOR hColor);		// 0xb0
 	uint8			m_PadB4[0xb8 - 0xb4];
 	int				(*RenderScene)(struct SceneDesc *pScene);	// 0xb8 (cm_Render)
-	uint8			m_PadBC[0xc0 - 0xbc];
+	void			(*RenderCommand)(int argc, char *argv[]);	// 0xbc (console RenderCommand)
 	void*			(*GetHook)(char *pName);			// 0xc0 renderer objects by name ("LPDIRECTDRAW", "BACKBUFFER")
 	void			(*SwapBuffers)(uint32 flags);		// 0xc4
 	uint8			m_PadC8[0xcc - 0xc8];

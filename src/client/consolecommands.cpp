@@ -1,19 +1,71 @@
 // Jupiter runtime/client/src/consolecommands.cpp
-// NOTE: in Talon this unit really starts around 0x00422220 (static init of g_ClientConIterator at
-// 0x00422240, then the console command handlers in a region Ghidra never disassembled); only the
-// tail from con_ListCommands on is covered here.
+// Talon: the unit starts at 0x00422220 with the static initializers, then the command handlers.
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include "bdefs.h"
 #include "concommand.h"
 #include "console.h"
 #include "consolecommands.h"
 #include "dhashtable.h"
+#include "clientmgr.h"
+#include "clientshell.h"
+#include "client_filemgr.h"
+#include "dsys_interface.h"
+#include "input.h"
+#include "render.h"
+#include "sprite.h"
 
-void* dalloc(size_t size);
-void dfree(void *ptr);
+#undef feof		// the original calls the CRT function
+
+#include "de_memory.h"
 
 // From engine_vars.cpp.
 extern LTEngineVar* GetEngineVars();
 extern int GetNumEngineVars();
+
+// Console variables the commands set (declared per unit in this tree).
+// GLOBAL: LITHTECH 0x004e36b4
+extern LTVector g_ConsoleModelAdd;
+// GLOBAL: LITHTECH 0x004e369c
+extern LTVector g_ConsoleModelDirAdd;
+// GLOBAL: LITHTECH 0x004e36a8
+extern LTVector g_ConsoleModelDirAdd2;
+// GLOBAL: LITHTECH 0x004d2190
+extern char g_SSFile[];
+// GLOBAL: LITHTECH 0x004d2174
+extern LTBOOL g_bUpdateServer;
+// GLOBAL: LITHTECH 0x004d2180
+extern int32 g_ScreenWidth;
+// GLOBAL: LITHTECH 0x004d2184
+extern int32 g_ScreenHeight;
+// GLOBAL: LITHTECH 0x004d2218
+extern int32 g_CV_ConsoleLeft;
+// GLOBAL: LITHTECH 0x004d221c
+extern int32 g_CV_ConsoleTop;
+// GLOBAL: LITHTECH 0x004d2220
+extern int32 g_CV_ConsoleRight;
+// GLOBAL: LITHTECH 0x004d2224
+extern int32 g_CV_ConsoleBottom;
+// The EnvMap command's texture.
+// GLOBAL: LITHTECH 0x004e4994
+extern SharedTexture *g_pEnvMapTexture;
+// ShowTicks flags.
+// GLOBAL: LITHTECH 0x004e3760
+extern int32 g_ShowTickCounts;
+#define CLIENT_TICKS_SUMMARY	(1<<0)
+#define CLIENT_TICKS_RENDER		(1<<1)
+#define CLIENT_TICKS_GAME		(1<<2)
+#define CLIENT_TICKS_ENGINE		(1<<3)
+#define CLIENT_TICKS_GRAPH		(1<<4)
+#define CLIENT_TICKS_ALL		(~0)
+
+#define TYPECODE_WORLD			0
+#define INPUTMGR				g_pCommandClientMgr->m_InputMgr
+
+void dm_HeapCompact();
+void con_DoWorldCommand(char *pWorldName, char *pRecordFilename);
 
 // The console tables (static data in this file, not reconstructed yet).
 // GLOBAL: LITHTECH 0x004d09b8
@@ -24,6 +76,15 @@ extern LTSaveFn g_SaveFns[2];
 extern LTCommandStruct g_LTCommandStructs[36];
 #define NUM_COMMANDSTRUCTS (sizeof(g_LTCommandStructs) / sizeof(g_LTCommandStructs[0]))
 
+
+// Static initializers: g_ClientConsoleState (its LTLink member has an empty constructor), then
+// g_ClientConIterator.
+// FUNCTION: LITHTECH 0x00422220 _$E2
+// FUNCTION: LITHTECH 0x00422230 _$E1
+// FUNCTION: LITHTECH 0x00422240 _$E7
+// FUNCTION: LITHTECH 0x00422250 _$E4
+// FUNCTION: LITHTECH 0x00422260 _$E6
+// FUNCTION: LITHTECH 0x00422270 _$E5
 
 // The main console state.
 // GLOBAL: LITHTECH 0x004e3378
@@ -60,7 +121,711 @@ CClientConIterator	g_ClientConIterator;
 
 
 // The command handlers are static in the original and referenced from g_LTCommandStructs; they are
-// extern here so the compiler keeps them while the table isn't reconstructed.
+// not static here so the compiler keeps them while the table isn't reconstructed.
+
+//------------------------------------------------------------------
+// ModelAdd, ModelDirAdd and WMAmbient (cm_Render hands them to the renderer).
+// FUNCTION: LITHTECH 0x00422280
+void con_ModelAdd(int argc, char *argv[])
+{
+	if(argc >= 3)
+	{
+		g_ConsoleModelAdd.x = (float)atof(argv[0]);
+		g_ConsoleModelAdd.y = (float)atof(argv[1]);
+		g_ConsoleModelAdd.z = (float)atof(argv[2]);
+
+		g_ConsoleModelAdd.x = LTCLAMP(g_ConsoleModelAdd.x, 0.0f, 250.0f);
+		g_ConsoleModelAdd.y = LTCLAMP(g_ConsoleModelAdd.y, 0.0f, 250.0f);
+		g_ConsoleModelAdd.z = LTCLAMP(g_ConsoleModelAdd.z, 0.0f, 250.0f);
+	}
+}
+
+// FUNCTION: LITHTECH 0x00422380
+void con_ModelDirAdd(int argc, char *argv[])
+{
+	if(argc >= 3)
+	{
+		g_ConsoleModelDirAdd.x = (float)atof(argv[0]);
+		g_ConsoleModelDirAdd.y = (float)atof(argv[1]);
+		g_ConsoleModelDirAdd.z = (float)atof(argv[2]);
+
+		g_ConsoleModelDirAdd.x = LTCLAMP(g_ConsoleModelDirAdd.x, 0.0f, 250.0f);
+		g_ConsoleModelDirAdd.y = LTCLAMP(g_ConsoleModelDirAdd.y, 0.0f, 250.0f);
+		g_ConsoleModelDirAdd.z = LTCLAMP(g_ConsoleModelDirAdd.z, 0.0f, 250.0f);
+	}
+}
+
+// FUNCTION: LITHTECH 0x00422480
+void con_WMAmbient(int argc, char *argv[])
+{
+	if(argc >= 3)
+	{
+		g_ConsoleModelDirAdd2.x = (float)atof(argv[0]);
+		g_ConsoleModelDirAdd2.y = (float)atof(argv[1]);
+		g_ConsoleModelDirAdd2.z = (float)atof(argv[2]);
+
+		g_ConsoleModelDirAdd2.x = LTCLAMP(g_ConsoleModelDirAdd2.x, 0.0f, 250.0f);
+		g_ConsoleModelDirAdd2.y = LTCLAMP(g_ConsoleModelDirAdd2.y, 0.0f, 250.0f);
+		g_ConsoleModelDirAdd2.z = LTCLAMP(g_ConsoleModelDirAdd2.z, 0.0f, 250.0f);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422580
+void con_World(int argc, char *argv[])
+{
+	if(argc >= 1)
+	{
+		con_DoWorldCommand(argv[0], LTNULL);
+	}
+	else
+	{
+		dsi_ConsolePrint("World <world name>");
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x004225b0
+void con_DoWorldCommand(char *pWorldName, char *pRecordFilename)
+{
+	CClientShell *pShell = LTNULL;
+	char str[200], testName[200];
+	FileRef ref;
+	StartGameRequest request;
+
+	memset(&request, 0, sizeof(request));
+
+	// Attempt to get the file id
+	sprintf(testName, "%s.dat", pWorldName);
+	ref.m_pFilename = testName;
+	ref.m_FileType = FILE_ANYFILE;
+	if(!cf_GetFileIdentifier(g_pCommandClientMgr->m_hFileMgr, &ref, TYPECODE_WORLD))
+	{
+		// Retry, prepending the worlds folder name first
+		sprintf(testName, "worlds\\%s.dat", pWorldName);
+		ref.m_pFilename = testName;
+		if(cf_GetFileIdentifier(g_pCommandClientMgr->m_hFileMgr, &ref, TYPECODE_WORLD))
+		{
+			sprintf(testName, "worlds\\%s", pWorldName);
+			pWorldName = testName;
+		}
+	}
+
+	// Send the load request (there is no "world not found" message in Talon)
+	// Add the record info..
+	if(pRecordFilename)
+	{
+		strncpy(request.m_RecordFilename, pRecordFilename, MAX_SGR_STRINGLEN-1);
+		request.m_RecordFilename[MAX_SGR_STRINGLEN-1] = 0;
+	}
+
+	pShell = g_pCommandClientMgr->m_pCurShell;
+	if(pShell && (pShell->m_ShellMode == STARTGAME_NORMAL || pShell->m_ShellMode == STARTGAME_HOST) &&
+		request.m_RecordFilename[0] != 0)
+	{
+		sprintf(str, "world %s", pWorldName);
+		pShell->SendCommandToServer(str);
+	}
+	else
+	{
+		request.m_Type = STARTGAME_NORMAL;
+		strncpy(request.m_WorldName, pWorldName, MAX_SGR_STRINGLEN);
+		g_pCommandClientMgr->StartShell(&request);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422730
+void con_TimeDemo(int argc, char *argv[])
+{
+	char str[256];
+	StartGameRequest request;
+
+	if(argc >= 1)
+	{
+		if(!g_pCommandClientMgr->m_pCurShell)
+		{
+			memset(&request, 0, sizeof(request));
+			request.m_Type = STARTGAME_NORMAL;
+			g_pCommandClientMgr->StartShell(&request);
+			if(!g_pCommandClientMgr->m_pCurShell)
+			{
+				dsi_ConsolePrint("Unable to start a server to run demo.");
+				return;
+			}
+		}
+
+		sprintf(str, "timedemo %s", argv[0]);
+		g_pCommandClientMgr->m_pCurShell->SendCommandToServer(str);
+	}
+	else
+	{
+		dsi_ConsolePrint("TimeDemo <record filename (w/o extension)>");
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422850
+void con_EnableDevice(int argc, char *argv[])
+{
+	if( argc >= 1 )
+	{
+		if( !INPUTMGR->EnableDevice(INPUTMGR, argv[0]) )
+			con_Printf( CONRGB(255,255,255), 1, "Error enabling device: %s", argv[0] );
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422890
+void con_Bind( int argc, char *argv[] )
+{
+	int i;
+
+	if( argc >= 2 )
+	{
+		INPUTMGR->ClearBindings(INPUTMGR, argv[0], argv[1]);
+
+		for(i=2; i < argc; i++)
+		{
+			if(!INPUTMGR->AddBinding(INPUTMGR, argv[0], argv[1], argv[i], 0.0f, 0.0f))
+			{
+				con_Printf(CONRGB(255,255,255), 1, "Error binding device: %s, trigger: %s",
+					argv[0], argv[1]);
+			}
+		}
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422910
+void con_RangeBind( int argc, char *argv[] )
+{
+	int i, nActions;
+
+	if( argc >= 4 )
+	{
+		INPUTMGR->ClearBindings(INPUTMGR, argv[0], argv[1]);
+
+		nActions = (argc - 2) / 3;
+		for(i=0; i < nActions; i++)
+		{
+			if(!INPUTMGR->AddBinding(INPUTMGR, argv[0], argv[1],
+				argv[i*3+4], (float)atof(argv[i*3+2]), (float)atof(argv[i*3+3])))
+			{
+				con_Printf(CONRGB(255,255,255), 1, "Error binding device: %s, trigger: %s",
+					argv[0], argv[1]);
+			}
+		}
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x004229d0
+void con_UnBind( int argc, char *argv[] )
+{
+	if( argc >= 2 )
+	{
+		INPUTMGR->ClearBindings(INPUTMGR, argv[0], argv[1]);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422a00
+void con_Scale( int argc, char *argv[] )
+{
+	if( argc >= 3 )
+	{
+		if( !INPUTMGR->ScaleTrigger(INPUTMGR, argv[0], argv[1], (float)atof(argv[2]), 0.0f, 0.0f, 0.0f))
+			con_Printf( CONRGB(255,255,255), 1, "Error finding device: %s, trigger: %s",
+				argv[0], argv[1] );
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422a70
+void con_RangeScale( int argc, char *argv[] )
+{
+	if( argc >= 5 )
+	{
+		if( !INPUTMGR->ScaleTrigger(INPUTMGR, argv[0], argv[1], (float)atof(argv[2]),
+				(float)atof(argv[3]), (float)atof(argv[4]), (float)atof(argv[5]) ))
+			con_Printf( CONRGB(255,255,255), 1, "Error finding device: %s, trigger: %s",
+				argv[0], argv[1] );
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422b00
+void con_AddAction(int argc, char *argv[])
+{
+	if(argc >= 2)
+	{
+		INPUTMGR->AddAction(INPUTMGR, argv[0], atoi(argv[1]));
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422b40
+void con_SSFile( int argc, char *argv[] )
+{
+	if(argc >= 1)
+	{
+		strcpy(g_SSFile, argv[0]);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422b60
+void con_UpdateServer(int argc, char *argv[])
+{
+	// This is a command because you never really want to save this variable in the config file.
+	if(argc >= 1)
+	{
+		g_bUpdateServer = (LTBOOL)atoi(argv[0]);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422b80
+void con_RenderCommand(int argc, char *argv[])
+{
+	g_Render.RenderCommand(argc, argv);
+}
+
+
+// FUNCTION: LITHTECH 0x00422b90
+void con_RestartConsole(int argc, char *argv[])
+{
+	g_pCommandClientMgr->InitConsole();
+}
+
+
+// FUNCTION: LITHTECH 0x00422ba0
+void con_RestartRender(int argc, char *argv[])
+{
+	char str[245];
+	LTRESULT dResult;
+
+	// Set renderdll automatically.
+	if(argc > 0)
+	{
+		sprintf(str, "renderDLL %s", argv[0]);
+		c_CommandHandler(str);
+	}
+
+	r_TermRender(g_pCommandClientMgr, 1);
+
+	if((dResult = cm_StartRenderFromGlobals(g_pCommandClientMgr)) != LT_OK)
+	{
+		cm_ProcessError(g_pCommandClientMgr, dResult | ERROR_SHUTDOWN);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422c10
+void con_ResizeScreen(int argc, char *argv[])
+{
+	uint32 oldScreenWidth, oldScreenHeight;
+	LTRESULT dResult;
+
+	if(argc >= 2)
+	{
+		oldScreenWidth = g_ScreenWidth;
+		oldScreenHeight = g_ScreenHeight;
+
+		g_ScreenWidth = atoi(argv[0]);
+		g_ScreenHeight = atoi(argv[1]);
+
+		con_Printf(CONRGB(0,255,0), 1, "Setting screen to %dx%d", g_ScreenWidth, g_ScreenHeight);
+
+		r_TermRender(g_pCommandClientMgr, 1);
+
+		if(cm_StartRenderFromGlobals(g_pCommandClientMgr) != LT_OK)
+		{
+			g_ScreenWidth = oldScreenWidth;
+			g_ScreenHeight = oldScreenHeight;
+
+			if((dResult = cm_StartRenderFromGlobals(g_pCommandClientMgr)) != LT_OK)
+			{
+				cm_ProcessError(g_pCommandClientMgr, dResult | ERROR_SHUTDOWN);
+			}
+		}
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422cc0
+void con_ServerCommand(int argc, char *argv[])
+{
+	char tempStr[300], fullCommand[500];
+	int i;
+
+	if(argc >= 1)
+	{
+		if(g_pCommandClientMgr->m_pCurShell)
+		{
+			// 'unparse' the string to send it to the server.
+			fullCommand[0] = 0;
+			for(i=0; i < argc; i++)
+			{
+				sprintf(tempStr, "\"%s\" ", argv[i]);
+				strcat(fullCommand, tempStr);
+			}
+
+			g_pCommandClientMgr->m_pCurShell->SendCommandToServer(fullCommand);
+		}
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422d70
+void con_Quit(int argc, char *argv[])
+{
+	dsi_OnClientShutdown( LTNULL );
+}
+
+
+// FUNCTION: LITHTECH 0x00422d80
+void con_ListInputDevices(int argc, char *argv[])
+{
+	INPUTMGR->ListDevices(INPUTMGR);
+}
+
+
+// FUNCTION: LITHTECH 0x00422da0
+void con_EnvMap(int argc, char *argv[])
+{
+	FileRef ref;
+
+	if(g_pCommandClientMgr && argc >= 1)
+	{
+		ref.m_FileType = FILE_CLIENTFILE;
+		ref.m_pFilename = argv[0];
+		g_pEnvMapTexture = cm_AddSharedTexture(g_pCommandClientMgr, &ref);
+		if(g_pEnvMapTexture)
+			dsi_ConsolePrint("Environment map set to %s.", argv[0]);
+		else
+			dsi_ConsolePrint("Couldn't find texture %s.", argv[0]);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422e20
+void con_RebindTextures(int argc, char *argv[])
+{
+	if(g_pCommandClientMgr)
+	{
+		cm_RebindTextures(g_pCommandClientMgr);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422e40
+void con_RebindLightmaps(int argc, char *argv[])
+{
+	if(g_pCommandClientMgr && g_pCommandClientMgr->m_pCurShell &&
+		g_pCommandClientMgr->m_pCurShell->GetWorld() && g_Render.m_bInitted)
+	{
+		g_Render.RebindLightmaps(g_pCommandClientMgr->m_pCurShell->GetWorld()->m_Unknown1C8);
+	}
+	else
+	{
+		g_Render.RebindLightmaps(0);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00422e90
+void con_HeapCompact(int argc, char *argv[])
+{
+	dm_HeapCompact();
+}
+
+
+// Toggle settings in the client ticks.
+// FUNCTION: LITHTECH 0x00422ea0
+void con_ShowTicks(int argc, char *argv[])
+{
+	int iArgLoop;
+
+	// Show some help if they don't specify a section
+	if (argc < 1)
+	{
+		con_Printf(CONRGB(255,192,192), 0, "Please include at least one command:");
+		con_Printf(CONRGB(255,192,192), 0, "  ALL - Show Everything");
+		con_Printf(CONRGB(255,192,192), 0, "  NONE - Show Nothing");
+		con_Printf(CONRGB(255,192,192), 0, "  SUMMARY - Toggle Summary information");
+		con_Printf(CONRGB(255,192,192), 0, "  RENDER - Toggle Renderer");
+		con_Printf(CONRGB(255,192,192), 0, "  GAME - Toggle Game processing");
+		con_Printf(CONRGB(255,192,192), 0, "  ENGINE - Toggle Engine processing");
+		con_Printf(CONRGB(255,192,192), 0, "  GRAPH - Toggle Summary graph");
+		con_Printf(CONRGB(255,192,192), 0, "          (Red = Renderer, Green = Game, Blue = Engine, White = System)");
+		return;
+	}
+
+	// Update the ShowTickCounts flags
+	for (iArgLoop = 0; iArgLoop < argc; ++iArgLoop)
+	{
+		if (stricmp(argv[iArgLoop], "ALL") == LTNULL)
+			g_ShowTickCounts = CLIENT_TICKS_ALL;
+		else if (stricmp(argv[iArgLoop], "NONE") == LTNULL)
+			g_ShowTickCounts = 0;
+		else if ((stricmp(argv[iArgLoop], "SUMMARY") == LTNULL) ||
+			(stricmp(argv[0], "1") == LTNULL))
+			g_ShowTickCounts ^= CLIENT_TICKS_SUMMARY;
+		else if (stricmp(argv[iArgLoop], "RENDER") == LTNULL)
+			g_ShowTickCounts ^= CLIENT_TICKS_RENDER;
+		else if (stricmp(argv[iArgLoop], "GAME") == LTNULL)
+			g_ShowTickCounts ^= CLIENT_TICKS_GAME;
+		else if (stricmp(argv[iArgLoop], "ENGINE") == LTNULL)
+			g_ShowTickCounts ^= CLIENT_TICKS_ENGINE;
+		else if (stricmp(argv[iArgLoop], "GRAPH") == LTNULL)
+			g_ShowTickCounts ^= CLIENT_TICKS_GRAPH;
+		// Dunno what they wanted....
+		else
+		{
+			con_Printf(CONRGB(192,192,255), 0, "Error: \"%s\" is not a valid ShowTicks section");	// (sic) the argument is missing in the original
+		}
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00423080
+void con_ConsoleHistory(int argc, char *argv[])
+{
+	// Get the history iterator
+	CConHistory *pHistory = GETCONSOLE()->GetCommandHistory();
+	int iCount;
+
+	// List the current history
+	if ( !pHistory->First() )
+		return;
+
+	iCount = 0;
+	do
+	{
+		const char *pLine = pHistory->Get();
+		if ( !pLine )
+			break;
+
+		dsi_ConsolePrint( (char *)pLine );
+		iCount++;
+	} while ( pHistory->Next() );
+	dsi_ConsolePrint( "%d commands", iCount );
+}
+
+
+// FUNCTION: LITHTECH 0x004230e0
+void con_ClearHistory(int argc, char *argv[])
+{
+	GETCONSOLE()->GetCommandHistory()->Clear();
+	dsi_ConsolePrint( "Command history cleared." );
+}
+
+
+// FUNCTION: LITHTECH 0x00423100
+void con_WriteHistory(int argc, char *argv[])
+{
+	CConHistory *pHistory;
+	FILE *fOutput;
+	int iCount;
+
+	// Argument checking
+	if ( argc < 1 )
+	{
+		dsi_ConsolePrint( "Specify a filename." );
+		return;
+	}
+
+	// Start the history iterator
+	pHistory = GETCONSOLE()->GetCommandHistory();
+
+	if ( !pHistory->First() )
+	{
+		dsi_ConsolePrint( "No commands in history." );
+		return;
+	}
+
+	// Open the file
+	if ( (fOutput = fopen( argv[0], "wt" )) == LTNULL )
+	{
+		dsi_ConsolePrint( "Error opening file %s.", argv[0] );
+		return;
+	}
+
+	iCount = 0;
+
+	do
+	{
+		// Write this history line to the file
+		const char *pLine = pHistory->Get();
+		if ( !pLine )
+			break;
+
+		fputs( pLine, fOutput );
+		fputc( '\n', fOutput );
+		iCount++;
+	} while ( pHistory->Next() );
+
+	// Close the file
+	fclose( fOutput );
+
+	dsi_ConsolePrint( "Successfully wrote %d commands to %s.", iCount, argv[0] );
+}
+
+
+// FUNCTION: LITHTECH 0x004231d0
+void con_ReadHistory(int argc, char *argv[])
+{
+	CConHistory *pHistory;
+	FILE *fInput;
+	int iCount;
+	char aBuffer[MAX_CONSOLE_TEXTLEN];
+
+	// Argument checking
+	if ( argc < 1 )
+	{
+		dsi_ConsolePrint( "Specify a filename." );
+		return;
+	}
+
+	// Open the file
+	if ( (fInput = fopen( argv[0], "rt" )) == LTNULL )
+	{
+		dsi_ConsolePrint( "Error opening file %s.", argv[0] );
+		return;
+	}
+
+	// Get the history iterator
+	pHistory = GETCONSOLE()->GetCommandHistory();
+
+	iCount = 0;
+
+	while ( !feof( fInput ) )
+	{
+		// Read a line from the file
+		if ( fgets( aBuffer, MAX_CONSOLE_TEXTLEN, fInput ) > 0 )
+		{
+			int iLength = strlen( aBuffer );
+			// Remove trailing newlines
+			if ( (iLength > 0) && (aBuffer[iLength - 1] == '\n') )
+				aBuffer[--iLength] = 0;
+
+			// Skip blank lines
+			if ( !iLength )
+				continue;
+
+			// Add the line to the history
+			pHistory->Add( aBuffer );
+			iCount++;
+		}
+	}
+
+	// Close the file
+	fclose( fInput );
+
+	dsi_ConsolePrint( "Successfully read %d commands from %s.", iCount, argv[0] );
+}
+
+
+// Execute a file.
+// FUNCTION: LITHTECH 0x004232c0
+void con_Exec(int argc, char *argv[])
+{
+	// Argument checking
+	if ( argc < 1 )
+	{
+		dsi_ConsolePrint( "Specify a filename." );
+		return;
+	}
+
+	// Execute the file
+	if ( cc_RunConfigFile(&g_ClientConsoleState, argv[0], 0, VARFLAG_SAVE) )
+		dsi_ConsolePrint( "Successfully executed %s.", argv[0] );
+	else
+		dsi_ConsolePrint( "Error executing %s.", argv[0] );
+}
+
+
+// Move the console window.
+// FUNCTION: LITHTECH 0x00423320
+void con_MoveConsole(int argc, char *argv[])
+{
+	LTRect rect;
+	char cmd[200];
+
+	// Report the console location
+	if (!argc)
+	{
+		dsi_ConsolePrint("Console position : (%d,%d, %d,%d)", g_CV_ConsoleLeft, g_CV_ConsoleTop, g_CV_ConsoleRight, g_CV_ConsoleBottom);
+		return;
+	}
+
+	// Change the console size
+	if (stricmp(argv[0], "Top") == 0)
+	{
+		rect.left = -1;
+		rect.top = -1;
+		rect.right = -1;
+		rect.bottom = -2;
+	}
+	else if (stricmp(argv[0], "Bottom" ) == 0)
+	{
+		rect.left = -1;
+		rect.top = -2;
+		rect.right = -1;
+		rect.bottom = -1;
+	}
+	else if (stricmp(argv[0], "Middle") == 0)
+	{
+		rect.left = -4;
+		rect.top = -4;
+		rect.right = -4;
+		rect.bottom = -4;
+	}
+	else if (stricmp(argv[0], "Full") == 0)
+	{
+		rect.left = -1;
+		rect.top = -1;
+		rect.right = -1;
+		rect.bottom = -1;
+	}
+	else
+	{
+		if (argc < 4)
+		{
+			dsi_ConsolePrint("Specify Top, Bottom, Full, Middle, or 4 screen coordinates");
+			return;
+		}
+
+		// Use the coordinates entered by the user
+		rect.left = atoi(argv[0]);
+		rect.top = atoi(argv[1]);
+		rect.right = atoi(argv[2]);
+		rect.bottom = atoi(argv[3]);
+	}
+
+	// Write the new console rectangle to the console variables
+	sprintf(cmd, "ConsoleLeft %d", rect.left);
+	c_CommandHandler(cmd);
+	sprintf(cmd, "ConsoleTop %d", rect.top);
+	c_CommandHandler(cmd);
+	sprintf(cmd, "ConsoleRight %d", rect.right);
+	c_CommandHandler(cmd);
+	sprintf(cmd, "ConsoleBottom %d", rect.bottom);
+	c_CommandHandler(cmd);
+}
+
+
+// Save functions.
+// FUNCTION: LITHTECH 0x004234d0
+void SaveModelAdd(FILE *fp)
+{
+	fprintf(fp, "ModelAdd %f %f %f\n", g_ConsoleModelAdd.x, g_ConsoleModelAdd.y, g_ConsoleModelAdd.z);
+	fprintf(fp, "ModelDirAdd %f %f %f\n", g_ConsoleModelDirAdd.x, g_ConsoleModelDirAdd.y, g_ConsoleModelDirAdd.z);
+	fprintf(fp, "WMAmbient %f %f %f\n", g_ConsoleModelDirAdd2.x, g_ConsoleModelDirAdd2.y, g_ConsoleModelDirAdd2.z);
+}
+
 
 //------------------------------------------------------------------
 // FUNCTION: LITHTECH 0x00423560

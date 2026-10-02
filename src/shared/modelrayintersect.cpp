@@ -8,20 +8,20 @@
 
 
 // Transformed vertices and triangles of the piece LOD being tested.
-// FUNCTION: LITHTECH 0x0045add0 _$E4
-// FUNCTION: LITHTECH 0x0045ade0 _$E1
-// FUNCTION: LITHTECH 0x0045ae10 _$E3
-// STUB: LITHTECH 0x0045ae20 _$E2
-// The original's destructor resets the vtable and is guarded by a flag byte (0x004e4550).
+// FUNCTION: LITHTECH 0x0045add0 _$E7
+// FUNCTION: LITHTECH 0x0045ade0 _$E3
+// FUNCTION: LITHTECH 0x0045ae10 _$E6
+// FUNCTION: LITHTECH 0x0045ae20 _$E4
+// The static members' destructors share one guard byte (0x004e4550), one bit each.
 // GLOBAL: LITHTECH 0x004e453c
-static CMoArray<LTVector> g_RayVerts;
+CMoArray<LTVector> CModelRayIntersect::s_RayVerts;
 
-// FUNCTION: LITHTECH 0x0045ae80 _$E9
-// FUNCTION: LITHTECH 0x0045ae90 _$E6
-// FUNCTION: LITHTECH 0x0045aec0 _$E8
-// STUB: LITHTECH 0x0045aed0 _$E7
+// FUNCTION: LITHTECH 0x0045ae80 _$E12
+// FUNCTION: LITHTECH 0x0045ae90 _$E9
+// FUNCTION: LITHTECH 0x0045aec0 _$E11
+// FUNCTION: LITHTECH 0x0045aed0 _$E10
 // GLOBAL: LITHTECH 0x004e4528
-static CMoArray<RayTri> g_RayTris;
+CMoArray<RayTri> CModelRayIntersect::s_RayTris;
 
 
 // FUNCTION: LITHTECH 0x0045af30
@@ -34,21 +34,20 @@ LTBOOL CModelRayIntersect::Init(HOBJECT hModel, const LTVector &vCamPos, int32 n
 }
 
 
-// STUB: LITHTECH 0x0045af60
-// The original calls the out-of-line LTVector(x,y,z) constructor and Mag() (0x00412960, 0x0041f6a0).
+// FUNCTION: LITHTECH 0x0045af60
+// Dist() inlines operator- but, with the m_LODDists.GetSize() sites pending after it, leaves the
+// LTVector(x,y,z) constructor (0x00412960) and Mag() (0x0041f6a0) out of line.
 uint32 CModelRayIntersect::CalcLOD(const LTVector &vCamPos, int32 nLODOffset)
 {
-	LTVector vPos;
 	float fDist;
 	uint32 i, iLOD;
 
-	vPos = m_hModel->GetPos();
-	fDist = (vCamPos - vPos).Mag();
+	fDist = vCamPos.Dist(m_hModel->GetPos());
 
 	if(nLODOffset > 0)
 	{
-		if(nLODOffset > (int32)m_pModel->m_nLODDists)
-			nLODOffset = m_pModel->m_nLODDists;
+		if(nLODOffset > (int32)m_pModel->m_LODDists.GetSize())
+			nLODOffset = m_pModel->m_LODDists.GetSize();
 
 		fDist += *m_pModel->GetLODDist(nLODOffset);
 	}
@@ -57,14 +56,14 @@ uint32 CModelRayIntersect::CalcLOD(const LTVector &vCamPos, int32 nLODOffset)
 		nLODOffset = -nLODOffset;
 		if(nLODOffset < 0)
 			nLODOffset = 0;
-		else if(nLODOffset > (int32)m_pModel->m_nLODDists)
-			nLODOffset = m_pModel->m_nLODDists;
+		else if(nLODOffset > (int32)m_pModel->m_LODDists.GetSize())
+			nLODOffset = m_pModel->m_LODDists.GetSize();
 
 		fDist -= *m_pModel->GetLODDist(nLODOffset);
 	}
 
 	iLOD = 0;
-	for(i=0; i < m_pModel->m_nLODDists+1; i++)
+	for(i=0; i < m_pModel->m_LODDists.GetSize()+1; i++)
 	{
 		if(fDist > *m_pModel->GetLODDist(i))
 			iLOD = i;
@@ -141,19 +140,18 @@ LTBOOL CModelRayIntersect::Intersect(HMODELPIECE *aPieces, uint32 nPieceCount, I
 }
 
 
-// STUB: LITHTECH 0x0045b260
-// Register choice differs in the inlined CMoArray::SetSize2 (eax vs ecx).
+// FUNCTION: LITHTECH 0x0045b260
 LTBOOL CModelRayIntersect::SetupArrays(PieceLOD *pLOD)
 {
-	if(pLOD->m_Verts.GetSize() > g_RayVerts.GetSize())
+	if(pLOD->m_Verts.GetSize() > s_RayVerts.GetSize())
 	{
-		if(!g_RayVerts.SetSize(pLOD->m_Verts.GetSize() + 32))
+		if(!s_RayVerts.SetSize(pLOD->m_Verts.GetSize() + 32))
 			return LTFALSE;
 	}
 
-	if(pLOD->m_Tris.GetSize() > g_RayTris.GetSize())
+	if(pLOD->m_Tris.GetSize() > s_RayTris.GetSize())
 	{
-		if(!g_RayTris.SetSize(pLOD->m_Tris.GetSize() + 32))
+		if(!s_RayTris.SetSize(pLOD->m_Tris.GetSize() + 32))
 			return LTFALSE;
 	}
 
@@ -174,8 +172,8 @@ void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 	uint32 i, iWeight;
 	float x, y, z, w, fInvW;
 
-	pTransforms = m_pModel->m_Transforms;
-	pOut = g_RayVerts.GetArray();
+	pTransforms = m_pModel->m_Transforms.GetArray();
+	pOut = s_RayVerts.GetArray();
 
 	for(i=0; i < pLOD->m_Verts.GetSize(); i++)
 	{
@@ -211,12 +209,12 @@ void CModelRayIntersect::SetupTris(PieceLOD *pLOD)
 	RayTri *pRayTri;
 	uint32 i;
 
-	pVerts = g_RayVerts.GetArray();
+	pVerts = s_RayVerts.GetArray();
 	m_nTris = pLOD->m_Tris.GetSize();
 
 	for(i=0; i < m_nTris; i++)
 	{
-		pRayTri = &g_RayTris[i];
+		pRayTri = &s_RayTris[i];
 		pTri = &pLOD->m_Tris[i];
 
 		pRayTri->m_vPt = pVerts[pTri->m_Indices[0]];
@@ -228,7 +226,11 @@ void CModelRayIntersect::SetupTris(PieceLOD *pLOD)
 
 // Moller-Trumbore ray/triangle test against every prepared triangle.
 // STUB: LITHTECH 0x0045b640
-// The original calls the out-of-line LTVector constructor, Cross() and Dot() (0x00412960, 0x0043eb30, 0x0041f6d0).
+// Call structure recovered from the disassembly: vP = e2.Cross(dir) and vQ = e1.Cross(vT) (the by-value
+// argument is the vector that gets copied), vNormal = e2.Cross(e1).  The original calls the
+// LTVector(x,y,z) constructor out of line in the first Cross and the operator-, Cross out of line for vQ and
+// Dot out of line for t (0x00412960, 0x0043eb30, 0x0041f6d0) but inlines the normal's Cross, Mag and *=;
+// our inline budget gives all-or-nothing, so the call pattern isn't reproduced yet.
 void CModelRayIntersect::IntersectRay(ILTModel::LTRayResult *pRay)
 {
 	RayTri *pTri;
@@ -238,9 +240,9 @@ void CModelRayIntersect::IntersectRay(ILTModel::LTRayResult *pRay)
 
 	for(i=0; i < m_nTris; i++)
 	{
-		pTri = &g_RayTris[i];
+		pTri = &s_RayTris[i];
 
-		vP = pRay->m_vDir.Cross(pTri->m_vEdge2);
+		vP = pTri->m_vEdge2.Cross(pRay->m_vDir);
 		fInvDet = 1.0f / pTri->m_vEdge1.Dot(vP);
 
 		vT = pRay->m_vOrigin - pTri->m_vPt;
@@ -248,7 +250,7 @@ void CModelRayIntersect::IntersectRay(ILTModel::LTRayResult *pRay)
 		if(u < 0.0f || u > 1.0f)
 			continue;
 
-		vQ = vT.Cross(pTri->m_vEdge1);
+		vQ = pTri->m_vEdge1.Cross(vT);
 		v = pRay->m_vDir.Dot(vQ) * fInvDet;
 		if(v < 0.0f || u + v > 1.0f)
 			continue;
@@ -259,7 +261,7 @@ void CModelRayIntersect::IntersectRay(ILTModel::LTRayResult *pRay)
 			pRay->m_fDistance = t;
 			pRay->m_bIntersect = LTTRUE;
 
-			vNormal = pTri->m_vEdge1.Cross(pTri->m_vEdge2);
+			vNormal = pTri->m_vEdge2.Cross(pTri->m_vEdge1);
 			fMag = vNormal.Mag();
 			if(fMag != 0.0f)
 			{

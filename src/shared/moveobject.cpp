@@ -89,7 +89,7 @@ struct SphereMoveInfo
 };
 
 // Moves a sphere physics object (0x00419d40).
-void MoveSphere(SphereMoveInfo *pInfo);
+LTBOOL MoveSphere(SphereMoveInfo *pInfo);
 
 // 0 = old (Talon) object collisions, else the newer per-object collision path.
 // GLOBAL: LITHTECH 0x004d2168
@@ -1063,6 +1063,7 @@ void DoNonsolidCollision(MoveAbstract *pAbstract, LTObject *pObj1, LTObject *pOb
 LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision)
 {
 	LTVector pos1, pos2, vecTo, vDir;
+	LTBOOL bWorldModel;
 	MoveState moveState;
 	LTVector minBox, maxBox;
 
@@ -1097,7 +1098,6 @@ LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &start
 			{
 				// There is a collision, so move the blocker to its new position...
 				moveState.Inherit(pState, pTestObj);
-		moveState.m_BPriority = pTestObj->m_BPriority;
 				moveState.m_BPriority = pTestObj->m_BPriority;
 				MoveObject(&moveState, pos2, MO_DETACHSTANDING|MO_SETCHANGEFLAG|MO_MOVESTANDINGONS);
 
@@ -1116,7 +1116,7 @@ LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &start
 
 				if(DoObjectsIntersect(pState->m_pObj, pTestObj, 
 					&pState->m_pObj->m_MinBox, &pState->m_pObj->m_MaxBox, 
-					&minBox, &maxBox, 0.001f, LTNULL))
+					&minBox, &maxBox, 0.001f, &bWorldModel))
 				{
 					// Still intersecting.. send a crush message to pTestObj.
 					pState->m_pAbstract->DoCrush(pTestObj, pState->m_pObj);
@@ -1164,7 +1164,6 @@ LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &start
 
 				// There is a collision, so move the blocker to its new position...
 				moveState.Inherit(pState, pTestObj);
-		moveState.m_BPriority = pTestObj->m_BPriority;
 				moveState.m_BPriority = pTestObj->m_BPriority;
 				MoveObject(&moveState, pos1, MO_DETACHSTANDING|MO_SETCHANGEFLAG|MO_MOVESTANDINGONS);
 
@@ -1183,7 +1182,7 @@ LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &start
 				// it's just date-crushing.
 				if(DoObjectsIntersect(pState->m_pObj, pTestObj,
 					&pState->m_pObj->m_MinBox, &pState->m_pObj->m_MaxBox, 
-					&minBox, &maxBox, 0.001f, LTNULL))
+					&minBox, &maxBox, 0.001f, &bWorldModel))
 				{
 					// Still intersecting.. send a crush message to pTestObj.
 					pState->m_pAbstract->DoCrush(pTestObj, pState->m_pObj);
@@ -1623,7 +1622,9 @@ int CompareObjectDists(const void *pA, const void *pB)
 }
 
 
-// Inline budget: the original calls Mag() and the LTVector(x,y,z) ctor out of line.
+// Inline budget: the original calls Mag() (inside dir.Norm()) and the LTVector(x,y,z) constructor (for
+// pTestObj->m_Velocity = pos2 - pos1) out of line.  Pending-call experiments reproduce the Mag call (extra inline
+// sites after Norm) but not the single ctor call without also moving the ctors in the min/max loop.
 // STUB: LITHTECH 0x00461ff0
 void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj)
 {
@@ -1803,7 +1804,8 @@ LTBOOL ChangeObjectDimensions(MoveState *pState, LTVector *pNewDims, uint32 bCol
 }
 
 
-// Inline budget: the original calls MoveState::Setup out of line and indexes vNewPos[nDim] each time.
+// Call pattern matches (Inherit's nested Setup is the out-of-line call at 0x0045f1a0).  Remaining diff: the original
+// keeps nDim in ebp and indexes vNewPos[nDim] as [esp+ebp*4+disp] each time; we hoist &vNewPos[nDim].
 // STUB: LITHTECH 0x00461700
 void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 {
@@ -1822,7 +1824,7 @@ void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 
 	// Move the object in negative dir...
 	vNewPos[nDim] -= fDiff;
-	moveState.Setup(pState->m_pWorldTree, pState->m_pAbstract, pObj, pState->m_BPriority);
+	moveState.Inherit(pState, pObj);
 	moveState.m_CustomTestObjects = pState->m_CustomTestObjects;
 	moveState.m_nCustomTestObjects = pState->m_nCustomTestObjects;
 	MoveObject(&moveState, vNewPos, MO_DETACHSTANDING);
