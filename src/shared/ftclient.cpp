@@ -173,14 +173,14 @@ void clienthack_NewFile(uint16 fileID, uint32 fileSize, char *pFilename)
 
 // Template code emitted into this object (the linker kept these copies). The original's
 // ftc_ProcessPacket calls them; here they're referenced through this table so that VC6 emits them.
-// FUNCTION: LITHTECH 0x00436fc0 ?ReadType@CPacket@@QAEGPAG@Z
-// FUNCTION: LITHTECH 0x00437040 ?ReadType@CPacket@@QAEKPAK@Z
-// FUNCTION: LITHTECH 0x004370c0 ?WriteType@CPacket@@QAEXG@Z
+// FUNCTION: LITHTECH 0x00436fc0 ?ReadTypeImpl@CPacket@@QAEGPAG@Z
+// FUNCTION: LITHTECH 0x00437040 ?ReadTypeImpl@CPacket@@QAEKPAK@Z
+// FUNCTION: LITHTECH 0x004370c0 ?WriteTypeImpl@CPacket@@QAEXG@Z
 void ftc_EmitPacketTemplates(CPacket *pPacket)
 {
-	uint16 (CPacket::*pReadWord)(uint16*) = &CPacket::ReadType;
-	uint32 (CPacket::*pReadDWord)(uint32*) = &CPacket::ReadType;
-	void (CPacket::*pWriteWord)(uint16) = &CPacket::WriteType;
+	uint16 (CPacket::*pReadWord)(uint16*) = &CPacket::ReadTypeImpl;
+	uint32 (CPacket::*pReadDWord)(uint32*) = &CPacket::ReadTypeImpl;
+	void (CPacket::*pWriteWord)(uint16) = &CPacket::WriteTypeImpl;
 
 	(pPacket->*pReadWord)(0);
 	(pPacket->*pReadDWord)(0);

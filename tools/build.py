@@ -24,6 +24,7 @@ OBJDIFF = r'E:\AVP2Source\tools\objdiff\objdiff-cli.exe'
 SRC, INC, BUILD = os.path.join(ROOT, 'src'), os.path.join(ROOT, 'include'), os.path.join(ROOT, 'build')
 SYMBOLS_CSV = os.path.join(ROOT, 'config', 'symbols.csv')
 RENAMES_CSV = os.path.join(ROOT, 'config', 'renames.csv')
+SPLITS_CSV = os.path.join(ROOT, 'config', 'splits.csv')
 SYMBOLS_FALLBACK =r'E:\AVP2Source\out\stage4\dump\avp2_now.tsv'
 NAMEMAP_JSON = os.path.join(BUILD, 'namemap.json')
 LIBRARIES_JSON = os.path.join(ROOT, 'config', 'libraries.json')     # tools/libmatch.py output
@@ -99,6 +100,12 @@ class SymTab:
                 self.funcs[va] = ((nxt[0] if nxt[0] else va + 16), name)
                 self.names[va] = name
             self.source = SYMBOLS_FALLBACK
+        # Function extents Ghidra merged (config/splits.csv), split as mktarget does.
+        import mktarget
+        fl = mktarget.apply_splits(sorted((va, e, n) for va, (e, n) in self.funcs.items()), SPLITS_CSV)
+        self.funcs = {va: (e, n) for va, e, n in fl}
+        for va, e, n in fl:
+            self.names.setdefault(va, n)
         # Names proven wrong by matched code, until they're synced back into Ghidra.
         if os.path.exists(RENAMES_CSV):
             import csv

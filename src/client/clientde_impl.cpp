@@ -1624,15 +1624,14 @@ LTRESULT CLTClient::EndMessage(HMESSAGEWRITE hMessage)
 	return EndMessage2(hMessage, MESSAGE_GUARANTEED);
 }
 
-// STUB: LITHTECH 0x00407770
-// The original calls CMoArray<uint8>::SetSize2 (0x0040c3f0) out of line from the inlined Init.
+// FUNCTION: LITHTECH 0x00407770
 HMESSAGEWRITE CLTClient::StartHMessageWrite()
 {
 	CPacket *pPacket;
 
 	pPacket = m_pClientMgr->AllocPacket();
 	pPacket->Init(8192, MAX_PACKET_LEN);
-	return &pPacket->m_Message;
+	return pPacket->GetMessageImpl();
 }
 
 // FUNCTION: LITHTECH 0x00407800

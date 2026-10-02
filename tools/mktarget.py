@@ -83,6 +83,31 @@ class Image:
         raise ValueError('read %08x+%x outside sections' % (va, n))
 
 
+def load_splits(path):
+    """config/splits.csv: {addr: name} where a Ghidra function extent must be split (Ghidra merged
+    two functions, e.g. a non-contiguous body swallowing its neighbour)."""
+    out = {}
+    if os.path.exists(path):
+        for r in csv.DictReader(l for l in open(path, encoding='utf-8') if not l.startswith('#')):
+            out[int(r['addr'], 16)] = r['name']
+    return out
+
+
+def apply_splits(funcs, path):
+    """funcs: sorted [(addr, end, name)] -> same, with each split point starting a new function."""
+    splits = load_splits(path)
+    if not splits:
+        return funcs
+    out = []
+    for a, e, n in funcs:
+        cuts = sorted(s for s in splits if a < s < e)
+        for s in cuts:
+            out.append((a, s, n))
+            a, n = s, splits[s]
+        out.append((a, e, n))
+    return out
+
+
 class SymTab:
     """funcs: sorted [(addr, end, name)], tables: {addr: (end, 'ptr'|'byte')},
     imports: {slot: 'DLL!name'}, data: sorted [(addr, end, name)] (data + labels outside .text)."""
@@ -126,6 +151,7 @@ class SymTab:
                         nm = imp.name.decode() if imp.name else 'ord%d' % imp.ordinal
                         st.imports[imp.address] = '%s!%s' % (d.dll.decode(), nm)
         st.funcs.sort()
+        st.funcs = apply_splits(st.funcs, os.path.join(os.path.dirname(path), 'splits.csv'))
         # VC6 emits catch blocks inside the parent function's section (and the parent's tail code can
         # follow them), so fold Ghidra's separate Catch@ funclets back into the preceding function.
         folded = []

@@ -1122,4 +1122,6 @@ void sm_SetLightAnimChanged(CServerMgr *pServerMgr, uint32 iLightAnim, uint32 fl
 
 
 // Out-of-line copies (inline budget).
-// FUNCTION: LITHTECH 0x00473600 ?WriteType@CPacket@@QAEXM@Z
+// FUNCTION: LITHTECH 0x00473600 ?WriteTypeImpl@CPacket@@QAEXM@Z
+// Forces the out-of-line copy now that WriteType wraps WriteTypeImpl (not in lithtech.exe).
+void (CPacket::*g_pfnWriteTypeImplFloat)(float val) = &CPacket::WriteTypeImpl;

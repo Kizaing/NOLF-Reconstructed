@@ -56,6 +56,12 @@ struct CSoundTypeVolumes
 		memset(m_nVolume, 100, sizeof(m_nVolume));
 	}
 
+	// Inline accessors (names unknown). CSoundMgr::Init calls SetVolume after
+	// m_SoundUpdatePacket.Init: that pending inline call is what keeps the packet's
+	// CMoArray::SetSize2/BaseDelete/BaseNew out of line there.
+	void		SetVolume(uint32 nType, uint8 nVolume)	{ m_nVolume[nType] = nVolume; }
+	uint8		GetVolume(uint32 nType)					{ return m_nVolume[nType]; }
+
 	uint8		m_nVolume[256];
 };
 

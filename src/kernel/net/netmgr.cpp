@@ -950,7 +950,7 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 			memcpy(pGPacket->m_pData, pPacket->m_Data.GetArray(), pPacket->m_DataLen);
 			pGPacket->m_DataLen = pPacket->m_DataLen;
 			pGPacket->m_FrameNum = idSendTo->m_OutgoingFrame;
-			idSendTo->m_SendQueue.AddTail(pGPacket);
+			idSendTo->m_SendQueue.Append(pGPacket);	// (Append, not AddTail: InsertAfter stays out of line)
 		}
 
 		++idSendTo->m_OutgoingFrame;
@@ -1763,6 +1763,6 @@ void CNetMgr::NetDebugOut2(CBaseConn *pConn, int debugLevel, char *pMsg, ...)
 // FUNCTION: LITHTECH 0x00466350 ??_GLatentPacket@@QAEPAXI@Z
 // FUNCTION: LITHTECH 0x004663b0 ?AddHead@?$CGLinkedList@PAVLatentPacket@@@@QAEPAVCGLLNode@@PAVLatentPacket@@@Z
 // FUNCTION: LITHTECH 0x00466400 ?InsertAfter@?$CGLinkedList@PAVGPacket@@@@QAEPAVCGLLNode@@PAV2@PAVGPacket@@@Z
-// 0x00466270 is CPacket::ReadType(uint8*) (?ReadType@CPacket@@QAEEPAE@Z); this object only emits it
-// once its callers stop inlining it (see the STUBs above).
+// The body of CPacket::ReadType<uint8> (see packet.h), refused by HandleNetMgrPacket and others.
+// FUNCTION: LITHTECH 0x00466270 ?ReadTypeImpl@CPacket@@QAEEPAE@Z
 // FUNCTION: LITHTECH 0x00466430 ?Insert2@?$CMoArray@PAVCBaseConn@@VDefaultCache@@@@QAEHKABQAVCBaseConn@@PAVLAlloc@@@Z

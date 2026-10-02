@@ -11,58 +11,12 @@
 #endif
 
 
-// LoadedBitmap::LoadedBitmap (0x00446170) constructs m_Data with Clear() alone, with no call to
-// CMoArray::Init, unlike every other user of CMoArray<uint8> (e.g. packet_Get). load_pcx.obj was
-// evidently built against an older StdLith dynarray.h, mirrored here. It can't be combined with
-// ltdynarray.h in one unit.
-#ifdef __MODYNARRAY_H__
-#error load_pcx.h mirrors an older CMoArray; it cannot be combined with ltdynarray.h
-#endif
-#define __MODYNARRAY_H__
-
+// The stock StdLith CMoArray. LoadedBitmap's constructor (0x00446170) inlines CMoArray::Init
+// completely: Term()/SetSize(0) fold away on the freshly cleared array, leaving only the stores
+// (m_pArray, wanted cache, cache size, m_nElements). Other callers run out of inline budget and
+// call Init or SetSize2 out of line.
+#include "ltdynarray.h"
 #include "bdefs.h"
-
-class DefaultCache
-{
-public:
-	uint32	GetCacheSize() const		{return m_CacheSize;}
-	void	SetCacheSize(uint32 val)	{m_CacheSize = val;}
-	uint32	GetWantedCache() const		{return m_WantedCache;}
-	void	SetWantedCache(uint32 val)	{m_WantedCache = val;}
-
-private:
-	uint32	m_CacheSize;
-	uint32	m_WantedCache;
-};
-
-// (size 0x14: vtable, m_pArray, m_nElements, m_Cache)
-template<class T, class C=DefaultCache>
-class CMoArray
-{
-public:
-					CMoArray()			{ Clear(); }
-
-	// The GenList interface lives in the vtable; it's not needed here.
-	virtual uint32	GenGetSize() const;
-
-	LTBOOL			SetSize(uint32 newSize)		{ return SetSize2(newSize, &g_DefAlloc); }
-	LTBOOL			SetSize2(uint32 newSize, LAlloc *pAlloc);
-
-	uint32			GetSize() const		{ return m_nElements; }
-	T*				GetArray()			{ return m_pArray; }
-
-	void	Clear()
-	{
-		m_pArray = 0;
-		m_Cache.SetWantedCache(0);
-		m_Cache.SetCacheSize(0);
-		m_nElements = 0;
-	}
-
-	T		*m_pArray;		// 0x04
-	uint32	m_nElements;	// 0x08
-	C		m_Cache;		// 0x0C
-};
 
 
 // PCX header structures.

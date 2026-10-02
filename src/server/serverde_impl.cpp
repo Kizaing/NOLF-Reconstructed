@@ -385,9 +385,7 @@ inline LTRESULT CLTServer::UnloadTexture(char *pFilename)
 	return LT_OK;
 }
 
-// Differs: the original calls CPacket::WriteType<uint8/uint16> out of line (0x00417c20,
-// 0x004370c0); VC6 inlines them here.
-// STUB: LITHTECH 0x0047bee0
+// FUNCTION: LITHTECH 0x0047bee0
 LTRESULT CLTServer::ThreadLoadFile(char *pFilename, uint32 type)
 {
 	CHECK_PARAMS(pFilename, ILTPhysics::ThreadLoadFile);
@@ -415,8 +413,9 @@ LTRESULT CLTServer::ThreadLoadFile(char *pFilename, uint32 type)
 	}
 }
 
-// Differs: the original calls CPacket::WriteType<uint8/uint16> out of line (0x00417c20,
-// 0x004370c0); VC6 inlines them here.
+// Matches with the wave-2 headers; after wave 3 two reloads after SendToClient swap order. The
+// swap flips with unrelated header declarations (e.g. CountPercent in counter.h), so it's
+// symbol-table noise in VC6's register allocator, not a source difference.
 // STUB: LITHTECH 0x0047c1c0
 LTRESULT CLTServer::UnloadFile(char *pFilename, uint32 type)
 {
@@ -1014,15 +1013,14 @@ HMESSAGEWRITE CLTServer::StartSpecialEffectMessage(LPBASECLASS pObject)
 	return pMsg;
 }
 
-// Differs: CPacket::Init: the original calls CMoArray<uint8>::SetSize2 (0x0040c3f0) out of line where we inline Term().
-// STUB: LITHTECH 0x0047d510
+// FUNCTION: LITHTECH 0x0047d510
 HMESSAGEWRITE CLTServer::StartHMessageWrite()
 {
 	CPacket *pPacket;
 
 	pPacket = m_pServerMgr->AllocPacket();
 	pPacket->Init(8192, MAX_PACKET_LEN);
-	return &pPacket->m_Message;
+	return pPacket->GetMessageImpl();
 }
 
 // FUNCTION: LITHTECH 0x0047d5a0

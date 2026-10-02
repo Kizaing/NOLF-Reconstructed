@@ -117,8 +117,18 @@ public:
 	void	WriteString(char *pStr);
 	void	WriteRaw(void *pData, uint16 len);
 
+	// WriteType/ReadType are one-line wrappers around the real bodies (names of the inner
+	// functions unknown). The extra inline level is what the original's decisions need: the
+	// bodies are expanded as nested sites whose share of the inline budget shrinks with every
+	// inline call still to come in the caller, so the early WriteType/ReadType calls in big
+	// functions (FillAckPacket, HandleNetMgrPacket, JoinSession, sm_SetPortalFlags...) stay
+	// out of line while later ones are inlined. The out-of-line copies (0x00417c20,
+	// 0x004370c0, 0x00437a50, 0x00466270, 0x00436fc0, 0x00437040) are the inner functions.
 	template<class T>
-	void	WriteType(T val)
+	void	WriteType(T val)	{ WriteTypeImpl(val); }
+
+	template<class T>
+	void	WriteTypeImpl(T val)
 	{
 		if(m_Pos + sizeof(T) < m_MaxSize)
 		{
@@ -137,7 +147,10 @@ public:
 	}
 
 	template<class T>
-	T		ReadType(T *pDummy)
+	T		ReadType(T *pDummy)	{ return ReadTypeImpl(pDummy); }
+
+	template<class T>
+	T		ReadTypeImpl(T *pDummy)
 	{
 		T val;
 
@@ -168,6 +181,11 @@ public:
 
 	// Empties the packet, keeping the packet ID byte.
 	void	ResetWrite()	{m_DataLen = m_Pos = 1;}
+
+	// The message interface embedded in the packet. StartHMessageWrite returns it through this
+	// inline call: a trailing inline call site halves the inline budget left for Init's nested
+	// expansions, which keeps all three CMoArray::SetSize2 calls out of line.
+	LMessageImpl*	GetMessageImpl()	{return &m_Message;}
 
 public:
 	LMessageImpl	m_Message;		// 0x08

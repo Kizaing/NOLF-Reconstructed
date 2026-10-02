@@ -470,7 +470,9 @@ LTBOOL WorldModelInstance::IsPointInside(const LTVector *pPos)
 // ------------------------------------------------------------------------- //
 
 // STUB: LITHTECH 0x004674a0
-// The original inlines CMoArray::Init into the member constructors and builds the LTVector temporaries differently.
+// Inlining now matches (Jupiter writes m_Link.m_pNext directly; SetNext() was one inline call too many,
+// which left too little budget to inline CMoArray::Init). Remaining: the sprite loop keeps an extra
+// pointer register (ebp) and ebx/edi are swapped.
 ModelInstance::ModelInstance() : LTObject(OT_MODEL)
 {
 	uint32 i;
@@ -484,7 +486,7 @@ ModelInstance::ModelInstance() : LTObject(OT_MODEL)
 
 	trk_Init(&m_AnimTracker, LTNULL, 0);
 	m_AnimTrackers = &m_AnimTracker;
-	m_AnimTracker.SetNext(LTNULL);
+	m_AnimTracker.m_Link.m_pNext = LTNULL;
 	m_AnimTracker.SetModelInstance(this);
 
 	m_NodeControlFn = LTNULL;

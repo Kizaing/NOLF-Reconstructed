@@ -145,7 +145,8 @@ LTRESULT OnUnloadWorldPacket(CClientShell *pShell, CPacket *pPacket)
 
 
 
-// FUNCTION: LITHTECH 0x0048abc0
+// Our build inlines more than the original here (592 vs 480 bytes); see README "How VC6 decides what to inline".
+// STUB: LITHTECH 0x0048abc0
 LTRESULT OnPacketGroupPacket(CClientShell *pShell, CPacket *pPacket)
 {
 	CPacket *pSubPacket;
@@ -606,10 +607,10 @@ void CClientShell::SendGoodbye()
 // Template and inline code emitted into this object (the linker kept these copies). The
 // original's handlers call them; this function only makes VC6 emit them.
 // FUNCTION: LITHTECH 0x0048e8d0 ??4CPacketRef@@QAEPAVCPacket@@ABV0@@Z
-// FUNCTION: LITHTECH 0x0048e900 ?ReadType@CPacket@@QAEMPAM@Z
+// FUNCTION: LITHTECH 0x0048e900 ?ReadTypeImpl@CPacket@@QAEMPAM@Z
 void shellnet_EmitInlines(CPacket *pPacket, CPacketRef *pRef)
 {
-	float (CPacket::*pReadFloat)(float*) = &CPacket::ReadType;
+	float (CPacket::*pReadFloat)(float*) = &CPacket::ReadTypeImpl;
 	CPacket* (CPacketRef::*pAssign)(const CPacketRef&) = &CPacketRef::operator=;
 
 	(pPacket->*pReadFloat)(0);

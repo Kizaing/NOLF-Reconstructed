@@ -552,8 +552,7 @@ void fts_Update(FTServ *pServ, float timeDelta)
 
 // Template and ObjectBank code emitted into this object.
 // (CPacket::WriteType<uint16> at 0x004370c0 is ftclient.obj's copy.)
-// FUNCTION: LITHTECH 0x004370c0 ?WriteType@CPacket@@QAEXG@Z
-// FUNCTION: LITHTECH 0x00437a50 ?WriteType@CPacket@@QAEXK@Z
+// FUNCTION: LITHTECH 0x00437a50 ?WriteTypeImpl@CPacket@@QAEXK@Z
 // FUNCTION: LITHTECH 0x00437a20 ?AllocVoid@?$ObjectBank@UFTFile@@VNullCS@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00437bb0 ?Term@?$ObjectBank@UFTFile@@VNullCS@@@@UAEXXZ
 // FUNCTION: LITHTECH 0x00437bd0 ??_G?$ObjectBank@UFTFile@@VNullCS@@@@UAEPAXI@Z
