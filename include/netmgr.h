@@ -303,6 +303,9 @@ public:
 // Misc helpers.
 public:
 
+	// Inline (Jupiter netmgr.h); CServerMgr::TransferNetDriver calls it.
+	void			SetMainDriver(CBaseDriver *pDriver) { m_pMainDriver = pDriver; }
+
 	LTBOOL			LagOrSend(CPacket *pPacket, CBaseConn *idSendTo, uint8 oldPacketID);
 
 	void			IncRecvCounter(CBaseConn *id, uint32 packetLen);

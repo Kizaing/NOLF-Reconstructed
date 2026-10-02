@@ -1014,15 +1014,14 @@ HMESSAGEWRITE CLTServer::StartSpecialEffectMessage(LPBASECLASS pObject)
 	return pMsg;
 }
 
-// Differs: CPacket::Init: the original calls CMoArray<uint8>::SetSize2 (0x0040c3f0) out of line where we inline Term().
-// STUB: LITHTECH 0x0047d510
+// FUNCTION: LITHTECH 0x0047d510
 HMESSAGEWRITE CLTServer::StartHMessageWrite()
 {
 	CPacket *pPacket;
 
 	pPacket = m_pServerMgr->AllocPacket();
 	pPacket->Init(8192, MAX_PACKET_LEN);
-	return &pPacket->m_Message;
+	return pPacket->GetMessageImpl();
 }
 
 // FUNCTION: LITHTECH 0x0047d5a0

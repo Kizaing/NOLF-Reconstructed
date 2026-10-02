@@ -626,7 +626,7 @@ LTBOOL CServerMgr::Listen(char *pDriverInfo, char *pListenInfo)
 }
 
 // VC6 inlines CMoArray::Remove here; the original calls it (0x004322a0).
-// STUB: LITHTECH 0x00482b90
+// FUNCTION: LITHTECH 0x00482b90
 LTBOOL CServerMgr::TransferNetDriver(CBaseDriver *pDriver)
 {
 	uint32 index;
@@ -636,7 +636,7 @@ LTBOOL CServerMgr::TransferNetDriver(CBaseDriver *pDriver)
 		pDriver->m_pNetMgr->m_Drivers.Remove(index);
 
 	m_NetMgr.m_Drivers.Append(pDriver);
-	m_NetMgr.m_pMainDriver = LTNULL;
+	m_NetMgr.SetMainDriver(pDriver);
 	pDriver->m_pNetMgr = &m_NetMgr;
 	return LTTRUE;
 }

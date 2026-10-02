@@ -157,6 +157,11 @@ public:
 
 	uint8	GetPacketID()	{return m_Data[0];}
 
+	// The message interface embedded in the packet. StartHMessageWrite returns it through this
+	// inline call: a trailing inline call site halves the inline budget left for Init's nested
+	// expansions, which keeps all three CMoArray::SetSize2 calls out of line.
+	LMessageImpl*	GetMessageImpl()	{return &m_Message;}
+
 public:
 	LMessageImpl	m_Message;		// 0x08
 	uint16			m_DataLen;		// 0x34 bytes written (byte 0 is the packet ID)
