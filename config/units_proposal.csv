@@ -1,0 +1,342 @@
+unit,start,end,nfuncs,named_funcs,confidence,evidence
+model/animtracker.cpp,00401000,004017c0,14,11,medium,"8 strong names; 2 contra (ModelInstance::ServerUpdate, ModelInstance::GetTracker); start ambiguous by 2 unnamed funcs; end ambiguous by 2 unnamed funcs; 2 funcs merged in (leading compiler-helper COMDATs)"
+kernel/sys/win/bindmgr.cpp,004017c0,00401900,5,1,medium,1 strong names; 1 call/data xrefs; start ambiguous by 2 unnamed funcs; end ambiguous by 3 unnamed funcs
+kernel/sys/win/binkvideomgrimpl.cpp,00401900,00402680,21,8,medium,3 strong names; 3 weak (class/iface/prefix); 6 call/data xrefs; 1 contra (LTPixelShaderImp::Term); start ambiguous by 3 unnamed funcs
+shared/classbind.cpp,00402680,00402890,8,7,medium,5 strong names; 1 contra (bm_UnbindModule); end ambiguous by 1 unnamed funcs
+server/classmgr.cpp,00402890,00402ef0,10,7,high,7 strong names; 1 call/data xrefs; start ambiguous by 1 unnamed funcs; end ambiguous by 1 unnamed funcs
+kernel/sys/win/client.cpp,00402ef0,00404060,10,6,low,"4 strong names; 3 call/data xrefs; 2 contra (CHelpers::FormatFilename, CClientMgr::CClientMgr); start ambiguous by 1 unnamed funcs; end ambiguous by 2 unnamed funcs"
+client/client_filemgr.cpp,00404060,00404540,10,5,medium,4 strong names; 3 call/data xrefs; 1 contra (sb_AllocateNewStructPage); start ambiguous by 2 unnamed funcs; followed by unknown block
+unknown_00404540,00404540,00404cc0,16,7,low,no name evidence; between client/client_filemgr.cpp and client/client_iltphysics.cpp; unassigned Jupiter files in alpha slot: client_formatmgr client_graphmgr client_iltcommon client_iltmodel; names: ILTClient(2) CClientShell(1) CPacket_Data(1) ClientLightAnimLT(1) CPhysicsLT(1); data position: between=8 elsewhere=2
+client/client_iltphysics.cpp,00404cc0,004058b0,16,16,low,0 strong names; 8 weak (class/iface/prefix); end ambiguous by 6 unnamed funcs; preceded by unknown block
+client/clientde_impl.cpp,004058b0,0040c480,244,229,medium,11 strong names; 201 weak (class/iface/prefix); 20 call/data xrefs; 1 contra (CLightTable::GetLightVal); start ambiguous by 6 unnamed funcs; end ambiguous by 4 unnamed funcs
+client/sys/win/winclientde_impl.cpp,0040c480,0040f4c0,65,50,medium,16 strong names; 38 call/data xrefs; start ambiguous by 4 unnamed funcs; followed by unknown block
+unknown_0040f4c0,0040f4c0,0040fa70,11,3,low,no name evidence; between client/sys/win/winclientde_impl.cpp and client/clientmgr.cpp; names: CMoArray(2) CGLinkedList(1)
+client/clientmgr.cpp,0040fa70,004142b0,124,29,low,"19 strong names; 23 call/data xrefs; 6 contra (GetClientILTSoundMgrImpl, CNetMgr::SendPacket); preceded by unknown block; followed by unknown block"
+unknown_004142b0,004142b0,004148f0,23,5,low,no name evidence; between client/clientmgr.cpp and client/clientshell.cpp; names: CLithChunkAllocator(2) CMoArray(1) DeleteAndDestroyArray(1)
+client/clientshell.cpp,004148f0,00416f10,62,23,low,"10 strong names; 1 weak (class/iface/prefix); 17 call/data xrefs; 5 contra (WorldTree::InsertObject, CClientMgr::OnExitWorld); end ambiguous by 5 unnamed funcs; preceded by unknown block"
+shared/collision.cpp,00416f10,0041f870,92,29,low,"11 strong names; 19 call/data xrefs; 6 contra (CMoveAbstract::GetObjectClassName, CClientMgr::UpdateAnimations); start ambiguous by 5 unnamed funcs; end ambiguous by 6 unnamed funcs"
+shared/concommand.cpp,0041f870,004201f0,17,13,medium,13 strong names; 4 call/data xrefs; start ambiguous by 6 unnamed funcs
+shared/conparse.cpp,004201f0,004205c0,7,2,medium,2 strong names; 1 call/data xrefs; end ambiguous by 4 unnamed funcs
+client/console.cpp,004205c0,004206e0,14,9,medium,9 strong names; start ambiguous by 4 unnamed funcs; end ambiguous by 5 unnamed funcs
+client/sys/win/winconsole_impl.cpp,004206e0,00423560,95,33,medium,31 strong names; 14 call/data xrefs; start ambiguous by 5 unnamed funcs; end ambiguous by 1 unnamed funcs
+client/consolecommands.cpp,00423560,00423880,13,7,medium,4 strong names; 4 call/data xrefs; 1 contra (r_RunConsoleString); start ambiguous by 1 unnamed funcs; followed by unknown block
+unknown_00423880,00423880,00425d30,62,47,low,no name evidence; between client/consolecommands.cpp and client/cutil.cpp; unassigned Jupiter files in alpha slot: controlfilemgr converge coordinate_frame counter cuibase cuibase_impl; names: ILTCSBase(44) LTSNPrintF(1); data position: between=48 elsewhere=2
+client/cutil.cpp,00425d30,00426b00,32,16,medium,15 strong names; 7 call/data xrefs; 1 contra (so_ExtraTerm); end ambiguous by 2 unnamed funcs; preceded by unknown block
+kernel/io/sys/win/de_file.cpp,00426b00,00427ed0,39,13,medium,"10 strong names; 1 weak (class/iface/prefix); 12 call/data xrefs; 2 contra (CRezMgr::GetRezFromDosPath, IWorldSharedBSP::ReadWorldHeader); start ambiguous by 2 unnamed funcs; end ambiguous by 4 unnamed funcs"
+world/de_mainworld.cpp,00427ed0,004285c0,13,5,medium,3 strong names; 1 weak (class/iface/prefix); 2 call/data xrefs; start ambiguous by 4 unnamed funcs; end ambiguous by 2 unnamed funcs
+world/world_shared_bsp.cpp,004285c0,0042eb90,86,6,low,"2 strong names; 7 call/data xrefs; 3 contra (sm_RemoveAllObjectsFromWorld, LTObjRef::Unlink); start ambiguous by 2 unnamed funcs; followed by unknown block"
+unknown_0042eb90,0042eb90,0042fdf0,25,0,low,no name evidence; between world/world_shared_bsp.cpp and kernel/mem/sys/win/de_memory.cpp; data position: between=3 elsewhere=2
+kernel/mem/sys/win/de_memory.cpp,0042fdf0,00430010,8,2,medium,2 strong names; 6 call/data xrefs; preceded by unknown block; followed by unknown block
+unknown_00430010,00430010,004306c0,12,3,low,no name evidence; between kernel/mem/sys/win/de_memory.cpp and world/de_objects.cpp; unassigned Jupiter files in alpha slot: de_nodes; names: DetachObjectsStandingOn(1); data position: elsewhere=23
+world/de_objects.cpp,004306c0,00430760,3,3,medium,1 strong names; end ambiguous by 2 unnamed funcs; preceded by unknown block
+client/debuggraphmgr.cpp,00430760,004328c0,45,14,medium,7 strong names; 5 weak (class/iface/prefix); 8 call/data xrefs; start ambiguous by 2 unnamed funcs; followed by unknown block
+unknown_004328c0,004328c0,004335f0,15,2,low,no name evidence; between client/debuggraphmgr.cpp and shared/dhashtable.cpp; unassigned Jupiter files in alpha slot: devicelightlist; data position: between=1 elsewhere=107
+shared/dhashtable.cpp,004335f0,00433d50,33,10,medium,10 strong names; 10 call/data xrefs; end ambiguous by 12 unnamed funcs; preceded by unknown block
+shared/sys/win/dstreamopenqueuemgr.cpp,00433d50,00434290,13,11,medium,11 strong names; 2 call/data xrefs; start ambiguous by 12 unnamed funcs
+kernel/sys/win/dsys_interface.cpp,00434290,004352f0,38,26,medium,20 strong names; 3 call/data xrefs; 1 contra (dm_Term); end ambiguous by 1 unnamed funcs
+shared/dtxmgr.cpp,004352f0,004358c0,5,1,medium,1 strong names; 3 call/data xrefs; start ambiguous by 1 unnamed funcs; followed by unknown block
+unknown_004358c0,004358c0,00436190,26,9,low,no name evidence; between shared/dtxmgr.cpp and shared/engine_vars.cpp; unassigned Jupiter files in alpha slot: dutil; names: CClientMgr(1) ILTClient(1) CBaseList(1); data position: elsewhere=4
+shared/engine_vars.cpp,00436190,004361b0,2,2,medium,2 strong names; preceded by unknown block
+client/errorlog.cpp,004361b0,00436270,3,1,medium,1 strong names; 2 call/data xrefs; followed by unknown block
+unknown_00436270,00436270,00436f90,13,0,low,no name evidence; between client/errorlog.cpp and shared/ftserv.cpp; unassigned Jupiter files in alpha slot: findobj ftbase ftbbox ftcache ftcalc ftcchunk; data position: between=56 elsewhere=13
+shared/ftserv.cpp,00436f90,00437c3d,30,7,medium,6 strong names; 8 call/data xrefs; end ambiguous by 6 unnamed funcs; preceded by unknown block
+world/fullintersectline.cpp,00437c3d,00438fb0,14,4,medium,3 strong names; 6 call/data xrefs; start ambiguous by 6 unnamed funcs
+server/game_serialize.cpp,00438fb0,0043b0d0,24,10,medium,9 strong names; end ambiguous by 11 unnamed funcs
+shared/genltstream.cpp,0043b0d0,0043b2b0,3,2,medium,2 strong names; start ambiguous by 11 unnamed funcs; followed by unknown block
+unknown_0043b2b0,0043b2b0,0043b970,11,2,low,no name evidence; between shared/genltstream.cpp and shared/geomroutines.cpp; unassigned Jupiter files in alpha slot: geometry; names: quat_(2); data position: elsewhere=1
+shared/geomroutines.cpp,0043b970,0043bde0,3,2,medium,2 strong names; preceded by unknown block
+shared/shared_iltcommon.cpp,0043bde0,0043d110,16,13,low,0 strong names; 13 weak (class/iface/prefix)
+shared/shared_iltphysics.cpp,0043d110,0043d8d0,16,11,medium,7 strong names; 2 weak (class/iface/prefix); 4 call/data xrefs; end ambiguous by 5 unnamed funcs
+shared/impl_common.cpp,0043d8d0,0043eb80,28,13,medium,4 strong names; 2 call/data xrefs; start ambiguous by 5 unnamed funcs; end ambiguous by 4 unnamed funcs
+kernel/sys/win/input.cpp,0043eb80,00442130,46,16,medium,16 strong names; 24 call/data xrefs; start ambiguous by 4 unnamed funcs
+kernel/sys/win/interface_helpers.cpp,00442130,00443080,11,6,medium,4 strong names; 2 weak (class/iface/prefix); followed by unknown block
+unknown_00443080,00443080,00443e60,10,0,low,no name evidence; between kernel/sys/win/interface_helpers.cpp and server/interlink.cpp; unassigned Jupiter files in alpha slot: interface_linkage
+server/interlink.cpp,00443e60,00444280,5,3,medium,3 strong names; 2 call/data xrefs; preceded by unknown block; followed by unknown block
+unknown_00444280,00444280,00446170,68,40,low,no name evidence; between server/interlink.cpp and kernel/sys/win/load_pcx.cpp; unassigned Jupiter files in alpha slot: intersect_line intersectsweptsphere leech light_table lightmap_compress lightmap_planes; names: ILTMessage(30) ILTClient(5) LMessageImpl(2) ObjectBank(1); data position: elsewhere=18
+kernel/sys/win/load_pcx.cpp,00446170,004465d0,3,2,medium,2 strong names; 1 call/data xrefs; preceded by unknown block; followed by unknown block
+unknown_004465d0,004465d0,004469a0,9,0,low,no name evidence; between kernel/sys/win/load_pcx.cpp and kernel/net/localdriver.cpp; data position: elsewhere=1
+kernel/net/localdriver.cpp,004469a0,00446e80,10,3,medium,3 strong names; end ambiguous by 2 unnamed funcs; preceded by unknown block
+kernel/sys/win/lt_cursor_impl.cpp,00446e80,00447050,10,3,high,3 strong names; 1 call/data xrefs; start ambiguous by 2 unnamed funcs
+kernel/sys/win/ltdirectmusic_impl.cpp,00447050,0044b260,98,51,medium,"30 strong names; 11 weak (class/iface/prefix); 37 call/data xrefs; 6 contra (VertexBufferController::Reset, CSoundMgr::GetDirectSound); end ambiguous by 4 unnamed funcs"
+kernel/sys/win/ltdirectmusiccontrolfile.cpp,0044b260,0044b300,5,1,medium,1 strong names; start ambiguous by 4 unnamed funcs; end ambiguous by 4 unnamed funcs
+kernel/sys/win/ltdirectmusicloader.cpp,0044b300,0044c480,52,21,medium,19 strong names; 11 call/data xrefs; 1 contra (CUnknown::NonDelegatingQueryInterface); start ambiguous by 4 unnamed funcs; end ambiguous by 2 unnamed funcs
+kernel/sys/win/lthread.cpp,0044c480,0044cc80,32,8,medium,6 strong names; 15 call/data xrefs; start ambiguous by 2 unnamed funcs; end ambiguous by 4 unnamed funcs
+sdk/ltquatbase.cpp,0044cc80,0044d0c0,4,4,medium,4 strong names; start ambiguous by 4 unnamed funcs; followed by unknown block
+unknown_0044d0c0,0044d0c0,0044db60,22,0,low,no name evidence; between sdk/ltquatbase.cpp and client/memorywatch.cpp; unassigned Jupiter files in alpha slot: ltraudiodevice ltraudiohook ltraudioinforesponse ltraudioqueue ltrclientadvicesink ltrclientcontext
+client/memorywatch.cpp,0044db60,0044db80,2,1,medium,1 strong names; end ambiguous by 1 unnamed funcs; preceded by unknown block
+model/model.cpp,0044db80,00450140,90,22,medium,20 strong names; 12 call/data xrefs; start ambiguous by 1 unnamed funcs; followed by unknown block
+unknown_00450140,00450140,00454100,76,6,low,no name evidence; between model/model.cpp and model/model_load.cpp; names: GenFindElement(4) CMoArray(2); data position: between=2
+model/model_load.cpp,00454100,00457090,52,5,medium,3 strong names; 5 call/data xrefs; preceded by unknown block
+model/modelallocations.cpp,00457090,004593e0,46,12,medium,1 strong names; 1 call/data xrefs; end ambiguous by 1 unnamed funcs
+shared/modellt_impl.cpp,004593e0,0045add0,38,37,medium,24 strong names; 1 weak (class/iface/prefix); 14 call/data xrefs; start ambiguous by 1 unnamed funcs; followed by unknown block
+unknown_0045add0,0045add0,0045c600,33,2,low,no name evidence; between shared/modellt_impl.cpp and shared/motion.cpp; unassigned Jupiter files in alpha slot: modelshadowshader; names: GenFindElement(2); data position: between=3 elsewhere=11
+shared/motion.cpp,0045c600,0045d0d0,3,2,medium,1 strong names; end ambiguous by 2 unnamed funcs; preceded by unknown block
+shared/moveobject.cpp,0045d0d0,00462690,35,19,medium,"17 strong names; 8 call/data xrefs; 2 contra (CPlayerMover::FindIntersectingObjects, quat_ConvertToMatrix); start ambiguous by 2 unnamed funcs; end ambiguous by 1 unnamed funcs"
+kernel/sys/win/musicdriver.cpp,00462690,004627d0,4,3,high,2 strong names; 1 call/data xrefs; start ambiguous by 1 unnamed funcs; end ambiguous by 1 unnamed funcs
+kernel/net/netmgr.cpp,004627d0,004665e0,95,31,medium,"21 strong names; 26 call/data xrefs; 3 contra (CServerMgr::CServerMgr, CPacket_Read::ReadBits); start ambiguous by 1 unnamed funcs; end ambiguous by 5 unnamed funcs"
+shared/nexus.cpp,004665e0,00466640,3,3,medium,1 strong names; 1 contra (CTextureScriptVarMgr::GetVars); start ambiguous by 5 unnamed funcs; end ambiguous by 2 unnamed funcs
+shared/objectmgr.cpp,00466640,00468a70,88,23,medium,"15 strong names; 1 weak (class/iface/prefix); 25 call/data xrefs; 3 contra (CClassMgr::FindClassData, CWorldServerBSP::GetWorldBox); start ambiguous by 2 unnamed funcs; followed by unknown block"
+unknown_00468a70,00468a70,00469080,10,4,low,no name evidence; between shared/objectmgr.cpp and kernel/net/packet.cpp; unassigned Jupiter files in alpha slot: outputredir outputredir_win32; names: CMoArray(4)
+kernel/net/packet.cpp,00469080,00469590,12,4,medium,3 strong names; 7 call/data xrefs; 1 contra (pd_InitialServerUpdate); preceded by unknown block
+shared/parse_world_info.cpp,00469590,00469710,2,1,medium,1 strong names; end ambiguous by 1 unnamed funcs
+client/particlesystem.cpp,00469710,0046a2a0,9,8,medium,6 strong names; 1 contra (linesystem_CalcExtents); start ambiguous by 1 unnamed funcs; end ambiguous by 2 unnamed funcs
+shared/pixelformat.cpp,0046a2a0,0046dc60,54,14,high,11 strong names; 17 call/data xrefs; start ambiguous by 2 unnamed funcs
+client/polygrid.cpp,0046dc60,0046de20,3,1,medium,1 strong names; 1 call/data xrefs; end ambiguous by 1 unnamed funcs
+client/predict.cpp,0046de20,0046ead0,6,3,medium,2 strong names; 2 call/data xrefs; 1 contra (CStringHolder::CStringHolder); start ambiguous by 1 unnamed funcs; end ambiguous by 2 unnamed funcs
+shared/ratetracker.cpp,0046ead0,0046eb40,3,2,medium,1 strong names; 1 call/data xrefs; start ambiguous by 2 unnamed funcs; end ambiguous by 1 unnamed funcs
+kernel/sys/win/render.cpp,0046eb40,0046fc40,28,9,medium,4 strong names; 17 call/data xrefs; 1 contra (rdll_RenderDLLSetup); start ambiguous by 1 unnamed funcs; end ambiguous by 4 unnamed funcs
+server/s_client.cpp,0046fc40,00473510,41,15,medium,14 strong names; 13 call/data xrefs; 1 contra (CSoundTrack::Release); start ambiguous by 4 unnamed funcs; followed by unknown block
+unknown_00473510,00473510,00473d40,13,2,low,no name evidence; between server/s_client.cpp and server/s_concommand.cpp; names: CTextureStringImage(1) ILTClient(1); data position: elsewhere=9
+server/s_concommand.cpp,00473d40,00473f10,7,4,medium,1 strong names; 2 call/data xrefs; 1 contra (cc_TermState); end ambiguous by 4 unnamed funcs; preceded by unknown block
+server/s_net.cpp,00473f10,00476e80,24,6,medium,6 strong names; 11 call/data xrefs; start ambiguous by 4 unnamed funcs
+server/s_object.cpp,00476e80,004781d0,18,11,high,11 strong names; 2 call/data xrefs; end ambiguous by 1 unnamed funcs
+server/server_extradata.cpp,004781d0,004790c0,15,4,medium,2 strong names; 6 call/data xrefs; 1 contra (ILTModel::GetBindPoseNodeTransform); start ambiguous by 1 unnamed funcs; end ambiguous by 2 unnamed funcs
+server/server_filemgr.cpp,004790c0,004795f0,12,9,medium,9 strong names; 1 call/data xrefs; start ambiguous by 2 unnamed funcs; followed by unknown block
+unknown_004795f0,004795f0,00479ec0,9,8,low,no name evidence; between server/server_filemgr.cpp and server/server_iltcommon.cpp; names: ILTPhysics(6) ILTServer(2); data position: between=5 elsewhere=5
+server/server_iltcommon.cpp,00479ec0,0047aa70,12,12,low,"0 strong names; 9 weak (class/iface/prefix); 2 contra (ILTModel::AddTracker, ILTModel::RemoveTracker); end ambiguous by 3 unnamed funcs; preceded by unknown block"
+server/server_iltmodel.cpp,0047aa70,0047b160,5,5,low,0 strong names; 4 weak (class/iface/prefix); start ambiguous by 3 unnamed funcs; followed by unknown block
+unknown_0047b160,0047b160,0047b710,7,7,low,no name evidence; between server/server_iltmodel.cpp and server/serverde_impl.cpp; unassigned Jupiter files in alpha slot: server_iltphysics server_iltsoundmgr server_interface server_loaderthread; names: ServerLightAnimLT(3) ServerModelLT(2) ILTModel(1) ILTLightAnim(1); data position: between=5
+server/serverde_impl.cpp,0047b710,00481b70,207,200,medium,8 strong names; 154 weak (class/iface/prefix); 92 call/data xrefs; preceded by unknown block; followed by unknown block
+unknown_00481b70,00481b70,00482140,7,0,low,no name evidence; between server/serverde_impl.cpp and server/serverevent.cpp
+server/serverevent.cpp,00482140,004821d0,2,1,medium,1 strong names; end ambiguous by 1 unnamed funcs; preceded by unknown block
+server/servermgr.cpp,004821d0,004872f0,95,43,medium,"29 strong names; 5 weak (class/iface/prefix); 23 call/data xrefs; 6 contra (CSoundTrack::Term, time_GetTime); start ambiguous by 1 unnamed funcs; followed by unknown block"
+unknown_004872f0,004872f0,00489710,39,1,low,no name evidence; between server/servermgr.cpp and client/setupobject.cpp; unassigned Jupiter files in alpha slot: setupmodel; names: WONAPI(1)
+client/setupobject.cpp,00489710,0048a7e0,21,5,low,"2 strong names; 2 call/data xrefs; 3 contra (CClientMgr::LoadModelData, CClientMgr::ClearObjectMapEntry); end ambiguous by 6 unnamed funcs; preceded by unknown block"
+client/shellnet.cpp,0048a7e0,0048e980,42,10,medium,9 strong names; 24 call/data xrefs; 1 contra (CSection_Lightmap::operator=); start ambiguous by 6 unnamed funcs; followed by unknown block
+unknown_0048e980,0048e980,0048f030,17,3,low,no name evidence; between client/shellnet.cpp and server/smoveabstract.cpp; unassigned Jupiter files in alpha slot: shelltransfer shellutil simd_transforms simd_utilities simple_dalloc sloaderthread; names: CClientMgr(1) CreateLTServerDE(1) time_(1); data position: elsewhere=2
+server/smoveabstract.cpp,0048f030,0048f2d0,7,1,medium,1 strong names; end ambiguous by 6 unnamed funcs; preceded by unknown block
+sound/soundbuffer.cpp,0048f2d0,00490040,21,10,medium,9 strong names; 2 call/data xrefs; 1 contra (CSoundData::Init); start ambiguous by 6 unnamed funcs; end ambiguous by 7 unnamed funcs
+sound/soundinstance.cpp,00490040,00492540,36,15,medium,14 strong names; 1 weak (class/iface/prefix); 14 call/data xrefs; start ambiguous by 7 unnamed funcs; end ambiguous by 2 unnamed funcs
+sound/soundmgr.cpp,00492540,00496460,80,55,medium,32 strong names; 20 weak (class/iface/prefix); 30 call/data xrefs; 1 contra (ic_FreeFileList); start ambiguous by 2 unnamed funcs
+server/soundtrack.cpp,00496460,004967e0,2,2,high,2 strong names
+client/sprite.cpp,004967e0,00496b00,4,4,high,4 strong names
+shared/spritecontrolimpl.cpp,00496b00,00496de0,10,7,low,0 strong names; 6 weak (class/iface/prefix); end ambiguous by 4 unnamed funcs
+kernel/sys/win/streamsim.cpp,00496de0,00497480,21,4,medium,3 strong names; 1 weak (class/iface/prefix); start ambiguous by 4 unnamed funcs; end ambiguous by 6 unnamed funcs
+kernel/sys/win/stringmgr.cpp,00497480,00497770,11,1,medium,1 strong names; start ambiguous by 6 unnamed funcs; end ambiguous by 10 unnamed funcs
+kernel/net/sys/win/udpdriver.cpp,00497770,0049ac10,52,17,medium,9 strong names; 6 weak (class/iface/prefix); 13 call/data xrefs; start ambiguous by 10 unnamed funcs; followed by unknown block
+unknown_0049ac10,0049ac10,0049b470,14,7,low,no name evidence; between kernel/net/sys/win/udpdriver.cpp and kernel/sys/win/text_mgr.cpp; names: LTTexMod(6) BaseDelete(1); data position: between=1 elsewhere=6
+kernel/sys/win/text_mgr.cpp,0049b470,0049c160,20,12,medium,10 strong names; 6 call/data xrefs; 1 contra (clock); end ambiguous by 3 unnamed funcs; preceded by unknown block
+shared/transformlt_impl.cpp,0049c160,0049c1e0,2,2,medium,2 strong names; start ambiguous by 3 unnamed funcs; followed by unknown block
+unknown_0049c1e0,0049c1e0,0049c590,7,0,low,no name evidence; between shared/transformlt_impl.cpp and model/transformmaker.cpp
+model/transformmaker.cpp,0049c590,0049cf50,7,3,medium,3 strong names; 3 call/data xrefs; preceded by unknown block
+shared/version_info.cpp,0049cf50,0049cfb0,1,1,medium,1 strong names
+kernel/sys/win/version_resource.cpp,0049cfb0,0049d150,7,1,medium,1 strong names; end ambiguous by 6 unnamed funcs
+kernel/sys/win/videomgr.cpp,0049d150,0049d1b0,1,1,medium,1 strong names; start ambiguous by 6 unnamed funcs; followed by unknown block
+unknown_0049d1b0,0049d1b0,0049dcf0,21,4,low,no name evidence; between kernel/sys/win/videomgr.cpp and kernel/sys/win/dshowvideomgrimpl.cpp; names: SmackVideoInst(3) SmackVideoMgr(1); data position: between=17 elsewhere=2
+kernel/sys/win/dshowvideomgrimpl.cpp,0049dcf0,0049e270,6,4,medium,2 strong names; 1 weak (class/iface/prefix); 1 call/data xrefs; preceded by unknown block; followed by unknown block
+unknown_0049e270,0049e270,0049ed10,8,2,low,no name evidence; between kernel/sys/win/dshowvideomgrimpl.cpp and sound/wave.cpp; unassigned Jupiter files in alpha slot: dutil findobj ftbase ftbbox ftcache ftcalc; names: SmackVideoInst(1) SoundSys(1); data position: between=1 elsewhere=7
+sound/wave.cpp,0049ed10,0049f1c0,3,1,medium,1 strong names; end ambiguous by 2 unnamed funcs; preceded by unknown block
+world/world_tree.cpp,0049f1c0,004a0500,36,11,low,"7 strong names; 6 call/data xrefs; 4 contra (TermErrorLog, CWorldServerBSP::GetWorldBox); start ambiguous by 2 unnamed funcs; end ambiguous by 2 unnamed funcs"
+lib:wonapi/auth,004a0500,004a78a0,165,136,high,158 funcs byte-matched to the library object (libraries.json); 38 strong names; 53 call/data xrefs; start ambiguous by 2 unnamed funcs
+lib:wonapi/common,004a78a0,004a82b0,35,33,high,35 funcs byte-matched to the library object (libraries.json); 30 strong names; 3 call/data xrefs
+lib:wonapi/crypt,004a82b0,004ae880,124,110,high,121 funcs byte-matched to the library object (libraries.json); 103 strong names; 10 call/data xrefs
+lib:wonapi/socket,004ae880,004ae8d0,4,0,high,4 funcs byte-matched to the library object (libraries.json); 0 strong names
+lib:wonapi/wonstatus,004ae8d0,004afc30,2,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names; end ambiguous by 1 unnamed funcs
+lib:lith/baselist,004afc50,004afce0,3,3,high,3 strong names; start ambiguous by 1 unnamed funcs
+lib:rezmgr/rezmgr,004afce0,004b1c00,45,26,medium,18 strong names; 10 call/data xrefs; 1 contra (CBaseHash::~CBaseHash); end ambiguous by 1 unnamed funcs
+lib:rezmgr/rezhash,004b1c00,004b1d50,6,2,high,2 strong names; 2 call/data xrefs; start ambiguous by 1 unnamed funcs
+lib:rezmgr/rezfile,004b1d50,004b26b0,31,20,high,5 strong names; 7 call/data xrefs; end ambiguous by 1 unnamed funcs
+lib:stdlith/struct_bank,004b26b0,004b27f0,6,6,high,5 strong names; start ambiguous by 1 unnamed funcs; end ambiguous by 1 unnamed funcs
+lib:stdlith/helpers,004b27f0,004b2a80,6,5,high,5 strong names; 1 call/data xrefs; start ambiguous by 1 unnamed funcs
+lib:stdlith/stringholder,004b2a80,004b3210,14,6,high,5 strong names; 4 call/data xrefs; end ambiguous by 1 unnamed funcs
+lib:stdlith/l_allocator,004b3210,004b3410,14,6,high,5 strong names; 5 call/data xrefs; start ambiguous by 1 unnamed funcs
+lib:stdlith/dynarray,004b3410,004b3450,1,1,medium,1 strong names
+lib:stdlith/goodlinklist,004b3450,004b3490,1,1,medium,1 strong names
+lib:controlfilemgr/controlfilemgr,004b3490,004b42e0,26,20,medium,12 strong names; 3 weak (class/iface/prefix); 9 call/data xrefs; 1 contra (CWorldClientBSP::NumWorldModels); end ambiguous by 2 unnamed funcs; Jupiter has it as controlfilemgr/controlfilemgr.cpp; here it is linked from the prebuilt library
+crt:fpinit,004b42e0,004b4330,3,1,high,2 funcs byte-matched to the library object (libraries.json); 1 strong names; 1 call/data xrefs; start ambiguous by 2 unnamed funcs
+crt:ftol,004b4330,004b4357,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:purevirt,004b4357,004b4360,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:free,004b4360,004b4449,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:malloc,004b4449,004b4583,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:sprintf,004b4583,004b45d5,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:crt0dat,004b45d5,004b46f8,7,7,high,7 funcs byte-matched to the library object (libraries.json); 7 strong names
+crt:setjmp3,004b46f8,004b4773,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:fclose,004b4773,004b47f0,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:fopen,004b47f0,004b4840,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:strncat,004b4840,004b4970,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strncpy,004b4970,004b4a6e,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strtok,004b4a6e,004b4b12,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:fgets,004b4b12,004b4b74,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:rewind,004b4b74,004b4bd8,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:ftell,004b4bd8,004b4d5b,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:fseek,004b4d5b,004b4e20,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:chkstk,004b4e20,004b4e50,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:exsup,004b4e50,004b4f48,6,4,high,6 funcs byte-matched to the library object (libraries.json); 4 strong names; 2 call/data xrefs
+crt:exsup3,004b4f48,004b5020,2,1,high,2 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:onexit,004b5020,004b50df,3,2,high,3 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:floor,004b50df,004b51ae,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:vsnprint,004b51ae,004b5200,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:memmove,004b5200,004b5540,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strstr,004b5540,004b55c0,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:atof,004b55c0,004b5617,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:_ctype,004b5617,004b56bd,4,4,high,4 funcs byte-matched to the library object (libraries.json); 4 strong names
+crt:fprintf,004b56bd,004b5710,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strchr,004b5710,004b57cc,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:atox,004b57cc,004b5862,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:fputc,004b5862,004b589d,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:fputs,004b589d,004b58eb,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:feoferr,004b58eb,004b5900,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:ulldiv,004b5900,004b5970,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:lldiv,004b5970,004b5a20,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:llmul,004b5a20,004b5a54,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:ieeemisc,004b5a54,004b5a90,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:acos,004b5a90,004b5b5b,3,0,high,3 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:findfile,004b5b5b,004b5d74,4,3,high,4 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:fread,004b5d74,004b5e8b,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:fwrite,004b5e8b,004b5fd0,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:strncmp,004b5fd0,004b6008,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:sscanf,004b6008,004b603c,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:abort,004b603c,004b6053,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:handler,004b6053,004b6092,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:rand,004b6092,004b60c4,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:longjmp,004b60c4,004b613d,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:vsprintf,004b613d,004b618e,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:toupper,004b618e,004b62c9,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:fflush,004b62c9,004b6430,5,4,high,5 funcs byte-matched to the library object (libraries.json); 4 strong names; 1 call/data xrefs
+crt:strrchr,004b6430,004b6460,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:sqrt,004b6460,004b651a,3,0,high,3 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:snprintf,004b651a,004b656b,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:thread,004b656b,004b66b4,3,2,high,3 funcs byte-matched to the library object (libraries.json); 2 strong names; 1 call/data xrefs
+crt:wcscmp,004b66b4,004b66e9,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:wcscat,004b66e9,004b6738,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:wcsncpy,004b6738,004b6775,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:wcstombs,004b6775,004b69b0,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:wcslen,004b69b0,004b69d0,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:87fmod,004b69d0,004b6a02,2,0,high,2 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:qsort,004b6a02,004b6bd0,3,3,high,3 funcs byte-matched to the library object (libraries.json); 2 strong names; 1 weak (class/iface/prefix); 1 call/data xrefs
+crt:mbsinc,004b6bd0,004b6be7,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:mbscmp,004b6be7,004b6c96,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:mbsicmp,004b6c96,004b6e2b,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:wincrt0,004b6e2b,004b6f7c,3,3,high,3 funcs byte-matched to the library object (libraries.json); 1 strong names; 1 call/data xrefs
+crt:typinfo,004b6f7c,004b6fc1,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:trnsctrl,004b6fc1,004b72a7,10,9,high,10 funcs byte-matched to the library object (libraries.json); 9 strong names; 1 call/data xrefs
+crt:time,004b72a7,004b7383,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:stdexcpt,004b7383,004b741d,5,4,high,4 funcs byte-matched to the library object (libraries.json); 2 strong names; 2 call/data xrefs
+crt:throw,004b741d,004b7457,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:fgetc,004b7457,004b7488,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:tolower,004b7488,004b75c2,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:_file,004b75c2,004b7722,6,4,high,6 funcs byte-matched to the library object (libraries.json); 4 strong names; 1 call/data xrefs
+crt:ehvecdtr,004b7722,004b7800,2,2,high,2 funcs byte-matched to the library object (libraries.json); 1 strong names; 1 call/data xrefs
+crt:ehvecctr,004b7800,004b7890,1,1,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:llshr,004b7890,004b78b1,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:splitpat,004b78b1,004b79f8,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:stat,004b79f8,004b7ddb,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:fp8,004b7ddb,004b7ded,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:testfdiv,004b7ded,004b7e54,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:cvt,004b7e54,004b827a,11,8,high,11 funcs byte-matched to the library object (libraries.json); 8 strong names
+crt:heapinit,004b827a,004b844c,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:sbheap,004b844c,004b9660,15,14,high,15 funcs byte-matched to the library object (libraries.json); 14 strong names
+crt:mlock,004b9660,004b96ff,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:_flsbuf,004b96ff,004b9817,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:output,004b9817,004b9ff6,4,4,high,4 funcs byte-matched to the library object (libraries.json); 4 strong names
+crt:cprintf,004b9ff6,004ba021,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:close,004ba021,004ba101,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:_freebuf,004ba101,004ba12c,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:_open,004ba12c,004ba29c,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:stream,004ba29c,004ba364,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:tidtable,004ba364,004ba4d2,4,4,high,4 funcs byte-matched to the library object (libraries.json); 4 strong names
+crt:_filbuf,004ba4d2,004ba5ae,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:lseek,004ba5ae,004ba686,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:ioinit,004ba686,004ba842,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:dosmap,004ba842,004ba8c7,3,1,high,3 funcs byte-matched to the library object (libraries.json); 1 strong names; 2 call/data xrefs
+crt:realloc,004ba8c7,004babf6,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:msize,004babf6,004bace4,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:fpexcept,004bace4,004bb39c,8,8,high,8 funcs byte-matched to the library object (libraries.json); 8 strong names
+crt:frnd,004bb39c,004bb3ae,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:util,004bb3ae,004bb4f2,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:fpctrl,004bb4f2,004bb588,4,4,high,4 funcs byte-matched to the library object (libraries.json); 4 strong names
+crt:cfin,004bb588,004bb610,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strlen,004bb610,004bb68b,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:isctype,004bb68b,004bb700,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:_sftbuf,004bb700,004bb7c0,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:87disp,004bb7c0,004bb990,3,2,high,3 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:genexcep,004bb990,004bb9f0,2,1,high,2 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:common,004bb9f0,004bbb80,8,1,high,8 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strcat,004bbb80,004bbc70,2,1,high,2 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:dtoxtime,004bbc70,004bbd32,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:read,004bbd32,004bbf70,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:memcpy,004bbf70,004bc2a5,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:write,004bc2a5,004bc495,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:input,004bc495,004bcf46,5,5,high,4 funcs byte-matched to the library object (libraries.json); 5 strong names
+crt:winsig,004bcf46,004bd105,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:crt0msg,004bd105,004bd291,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:sehsupp,004bd291,004bd2f6,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:a_map,004bd2f6,004bd51a,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:a_cmp,004bd51a,004bd545,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:commit,004bd545,004bd5d8,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:calloc,004bd5d8,004bd715,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:winxfltr,004bd715,004bd890,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:87cdisp,004bd890,004bdb00,7,7,high,7 funcs byte-matched to the library object (libraries.json); 5 strong names; 2 call/data xrefs
+crt:adj_fdiv,004bdb00,004be88b,22,0,high,22 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:mbctype,004be88b,004bec80,6,6,high,6 funcs byte-matched to the library object (libraries.json); 6 strong names
+crt:strcmp,004bec80,004bed10,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:stricmp,004bed10,004bede0,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:wincmdln,004bede0,004bee38,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:stdenvp,004bee38,004beef1,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:stdargv,004beef1,004bf13e,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:a_env,004bf13e,004bf270,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:frame,004bf270,004bfa90,12,10,high,12 funcs byte-matched to the library object (libraries.json); 10 strong names; 2 call/data xrefs
+crt:lowhelpr,004bfa90,004bfadc,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:hooks,004bfadc,004bfb93,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:unhandld,004bfb93,004bfbf7,3,0,high,3 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:closeall,004bfbf7,004bfc78,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:mbsnbcpy,004bfc78,004bfd12,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:mbsrchr,004bfd12,004bfd84,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:fullpath,004bfd84,004bfe29,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:drive,004bfe29,004bfe6c,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:mbtolwr,004bfe6c,004bfee7,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:mbspbrk,004bfee7,004bff7c,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:ieee87,004bff7c,004c00e2,4,4,high,4 funcs byte-matched to the library object (libraries.json); 4 strong names
+crt:intrncvt,004c00e2,004c04ce,12,12,high,12 funcs byte-matched to the library object (libraries.json); 12 strong names
+crt:_fptostr,004c04ce,004c0545,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:cfout,004c0545,004c0660,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:memset,004c0660,004c06b8,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:crt0fp,004c06b8,004c06c1,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:strtol,004c06c1,004c08dd,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:_getbuf,004c08dd,004c0921,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:isatty,004c0921,004c094a,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:wctomb,004c094a,004c0a10,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:ullrem,004c0a10,004c0a85,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:osfinfo,004c0a85,004c0d66,6,6,high,6 funcs byte-matched to the library object (libraries.json); 6 strong names
+crt:open,004c0d66,004c1035,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:matherr,004c1035,004c1038,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+crt:strgtold,004c1038,004c1509,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:a_str,004c1509,004c1652,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:87except,004c1652,004c1722,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:tzset,004c1722,004c1ce4,5,5,high,5 funcs byte-matched to the library object (libraries.json); 5 strong names
+crt:mbtowc,004c1ce4,004c1e10,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:llshl,004c1e10,004c1e2f,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:ungetc,004c1e2f,004c1e9d,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:crtmbox,004c1e9d,004c1f30,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strcspn,004c1f30,004c1f70,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strpbrk,004c1f70,004c1faa,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:ismbbyte,004c1faa,004c1fec,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:validate,004c1fec,004c203c,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:getcwd,004c203c,004c216f,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names
+crt:mantold,004c216f,004c2310,5,5,high,5 funcs byte-matched to the library object (libraries.json); 5 strong names
+crt:x10fout,004c2310,004c25a3,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:chsize,004c25a3,004c26c8,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:tenpow,004c26c8,004c2964,2,2,high,2 funcs byte-matched to the library object (libraries.json); 2 strong names
+crt:getenv,004c2964,004c29f0,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strnicmp,004c29f0,004c2af1,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:setmode,004c2af1,004c2b52,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:mbsnbico,004c2b52,004c2b91,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:wtombenv,004c2b91,004c2e7c,2,2,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names; 1 contra (___crtCompareStringA); end ambiguous by 1 unnamed funcs
+crt:setenv,004c2e7c,004c30c2,3,3,high,3 funcs byte-matched to the library object (libraries.json); 3 strong names; start ambiguous by 1 unnamed funcs
+crt:mbschr,004c30c2,004c3159,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strdup,004c3159,004c3190,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+lib:lith/basehash,004c31a0,004c3370,9,7,medium,6 strong names; 1 call/data xrefs; 1 contra (ChildInfo::ChildInfo)
+lib:lith/virtlist,004c3370,004c33e0,2,2,high,2 strong names
+crt:strupr,004c33e0,004c3514,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:strlwr,004c3514,004c3648,1,1,high,1 funcs byte-matched to the library object (libraries.json); 1 strong names
+crt:initcon,004c3648,004c3680,1,0,high,1 funcs byte-matched to the library object (libraries.json); 0 strong names
+unknown_004c3680,004c3680,004c36e0,7,0,low,no name evidence; between crt:initcon and None; data position: elsewhere=3
+lib:wonapi/auth,004c36e0,004c4360,263,0,high,EH funclets (.text$x) owned by 57 function(s) of this unit
+lib:wonapi/common,004c4360,004c4470,22,0,high,EH funclets (.text$x) owned by 6 function(s) of this unit
+lib:wonapi/crypt,004c4470,004c51d0,294,0,high,EH funclets (.text$x) owned by 46 function(s) of this unit
+lib:rezmgr/rezmgr,004c51d0,004c5390,33,0,high,EH funclets (.text$x) owned by 12 function(s) of this unit
+lib:rezmgr/rezfile,004c5390,004c5420,10,0,high,EH funclets (.text$x) owned by 4 function(s) of this unit
+lib:stdlith/stringholder,004c5420,004c5440,2,0,high,EH funclets (.text$x) owned by 1 function(s) of this unit
+lib:stdlith/l_allocator,004c5440,004c5480,4,0,high,EH funclets (.text$x) owned by 2 function(s) of this unit
+lib:controlfilemgr/controlfilemgr,004c5480,004c54a0,3,0,high,EH funclets (.text$x) owned by 1 function(s) of this unit
+lib:lith/basehash,004c54a0,004c54b5,2,0,high,EH funclets (.text$x) owned by 1 function(s) of this unit

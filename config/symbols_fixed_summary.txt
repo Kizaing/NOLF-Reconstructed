@@ -1,0 +1,88 @@
+source: /named/lithtech.exe
+.text 00401000-004c54b5 (Ghidra block, end clamped to PE VirtualSize)
+rows: 12719
+  data: 6745
+  func: 5096
+  gap: 34
+  import: 277
+  jumptable: 52
+  label: 515
+func bytes (sum of extents): 803253 (0xc41b5)
+noncontig funcs: 18
+funcs whose Ghidra body leaves [entry,end): 12
+thunks to external (emitted as label): 4
+jumptables: 52  gaps: 34  imports: 277  data: 6744  labels: 511
+gap classes: {align=34}
+bytes in .text before first function entry: 0
+
+first 30 gaps:
+  00420d19-00420d1c in 00420c00 CConCommandBox::OnKeyPress bytes=8d4900
+  004221de-004221e0 in 004220b0 CConsole::OnKeyPress bytes=8bff
+  00441ba6-00441ba8 in 00441750 FUN_00441750 bytes=8bff
+  0044a6c6-0044a6c8 in 0044a690 CLTDirectMusicMgr::EnactTypeToFlags bytes=8bff
+  0044feb9-0044febc in 0044fa10 FUN_0044fa10 bytes=8d4900
+  0047f252-0047f254 in 0047f1b0 ILTServer::GetPropGeneric bytes=8bff
+  00486e3e-00486e40 in 00486c50 ILTServer::CacheFile bytes=8bff
+  0048df46-0048df48 in 0048dbb0 FUN_0048dbb0 bytes=8bff
+  004af2e5-004af2e8 in 004ae8d0 WONAPI::WONStatusToString bytes=8d4900
+  004af3d5-004af3d8 in 004ae8d0 WONAPI::WONStatusToString bytes=8d4900
+  004af4ba-004af4bc in 004ae8d0 WONAPI::WONStatusToString bytes=8bff
+  004b5299-004b529c in 004b5200 _memmove bytes=8d4900
+  004b52d9-004b52dc in 004b5200 _memmove bytes=8d4900
+  004b5346-004b5348 in 004b5200 _memmove bytes=8bff
+  004b537d-004b5380 in 004b5200 _memmove bytes=8d4900
+  004b53be-004b53c0 in 004b5200 _memmove bytes=8bff
+  004b53c9-004b53cc in 004b5200 _memmove bytes=8d4900
+  004b5415-004b5418 in 004b5200 _memmove bytes=8d4900
+  004b5471-004b5474 in 004b5200 _memmove bytes=8d4900
+  004b54de-004b54e0 in 004b5200 _memmove bytes=8bff
+  004b5505-004b5508 in 004b5200 _memmove bytes=8d4900
+  004b5705-004b5710 in 004b56bd _fprintf bytes=8da424000000008d642400
+  004bbb87-004bbb90 in 004bbb80 FUN_004bbb80 bytes=8da424000000008bff
+  004bc009-004bc00c in 004bbf70 _memcpy bytes=8d4900
+  004bc049-004bc04c in 004bbf70 _memcpy bytes=8d4900
+  004bc0b6-004bc0b8 in 004bbf70 _memcpy bytes=8bff
+  004bc0ed-004bc0f0 in 004bbf70 _memcpy bytes=8d4900
+  004bc12e-004bc130 in 004bbf70 _memcpy bytes=8bff
+  004bc139-004bc13c in 004bbf70 _memcpy bytes=8d4900
+  004bc185-004bc188 in 004bbf70 _memcpy bytes=8d4900
+
+first 30 noncontig funcs:
+  0040f160 FUN_0040f160 end=0040f1f0 body: 0040f160-0040f19d 0040f1a0-0040f1e5
+  004174d0 FUN_004174d0 end=00417580 body: 004174d0-004174f8 00417500-0041757e
+  0041b930 FUN_0041b930 end=0041bdd0 body: 0041b930-0041bb8e 0041bb90-0041bdc2
+  004a0690 FUN_004a0690 end=004a0700 body: 004a0690-004a0700 004a0706-004a0720
+  004a2aa0 WONAPI::PeerAuthClient::HandleRecvMsg end=004a2bb5 body: 004a2aa0-004a2bb5 004a2bbb-004a2bd3
+  004a36f0 FUN_004a36f0 end=004a3838 body: 004a36f0-004a3838 004a3845-004a3877
+  004a6f60 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a7063 body: 004a6f60-004a7063 004a7080-004a70c5
+  004a70d0 _STL::basic_string<char,class__STL::char_traits<char>,class__STL::allocator<char>_>::append end=004a71d3 body: 004a70d0-004a71d3 004a71f0-004a7235
+  004a7240 FUN_004a7240 end=004a733b body: 004a7240-004a733b 004a7358-004a739d
+  004a73a0 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a749b body: 004a73a0-004a749b 004a74b8-004a74fd
+  004a7500 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a760e body: 004a7500-004a760e 004a762e-004a7685
+  004a7690 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a779a body: 004a7690-004a779a 004a77ba-004a780b
+  004ac830 WONAPI::ElGamal::encrypt end=004ac9db body: 004ac830-004ac9db 004ac9e1-004ac9f6
+  004aca00 WONAPI::ElGamal::decrypt end=004acab8 body: 004aca00-004acab8 004acabe-004acad3
+  004b5200 _memmove end=004b5540 body: 004b5200-004b525b 004b525c-004b5263 004b5270-004b5299 004b529c-004b52bf 004b52c0-004b52d9 004b52fc-004b5346 004b5358-004b535f 004b5360-004b536b 004b536c-004b537d 004b5380-004b5397 004b5398-004b53be 004b53c0-004b53c9 004b53cc-004b53eb 004b53f8-004b5415 004b5418-004b543f 004b5440-004b5471 004b5494-004b54de 004b54f0-004b54f7 004b54f8-004b5505 004b5508-004b551b 004b551c-004b5535
+  004b5710 FUN_004b5710 end=004b57cc body: 004b5700-004b5705 004b5710-004b57cc
+  004bbf70 _memcpy end=004bc2a5 body: 004bbf70-004bbfcb 004bbfcc-004bbfd3 004bbfe0-004bc009 004bc00c-004bc02f 004bc030-004bc049 004bc06c-004bc0b6 004bc0c8-004bc0cf 004bc0d0-004bc0db 004bc0dc-004bc0ed 004bc0f0-004bc107 004bc108-004bc12e 004bc130-004bc139 004bc13c-004bc15b 004bc168-004bc185 004bc188-004bc1af 004bc1b0-004bc1e1 004bc204-004bc24e 004bc260-004bc267 004bc268-004bc275 004bc278-004bc28b 004bc28c-004bc2a5
+  004bec80 _strcmp end=004bed10 body: 004bec80-004becc3 004becc4-004becca 004beccc-004bed04
+
+first 30 funcs with body outside extent:
+  004a0690 FUN_004a0690 end=004a0700 body=004a0690-004a0720
+  004a2aa0 WONAPI::PeerAuthClient::HandleRecvMsg end=004a2bb5 body=004a2aa0-004a2bd3
+  004a36f0 FUN_004a36f0 end=004a3838 body=004a36f0-004a3877
+  004a6f60 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a7063 body=004a6f60-004a70c5
+  004a70d0 _STL::basic_string<char,class__STL::char_traits<char>,class__STL::allocator<char>_>::append end=004a71d3 body=004a70d0-004a7235
+  004a7240 FUN_004a7240 end=004a733b body=004a7240-004a739d
+  004a73a0 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a749b body=004a73a0-004a74fd
+  004a7500 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a760e body=004a7500-004a7685
+  004a7690 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a779a body=004a7690-004a780b
+  004ac830 WONAPI::ElGamal::encrypt end=004ac9db body=004ac830-004ac9f6
+  004aca00 WONAPI::ElGamal::decrypt end=004acab8 body=004aca00-004acad3
+  004b5710 FUN_004b5710 end=004b57cc body=004b5700-004b57cc
+
+thunks to external:
+  004af950 DINPUT.DLL::DirectInputCreateA -> DINPUT.DLL::DirectInputCreateA
+  004afc30 MSS32.DLL::_AIL_shutdown@0 -> MSS32.DLL::_AIL_shutdown@0
+  004afc40 MSS32.DLL::_AIL_shutdown@0 -> MSS32.DLL::_AIL_shutdown@0
+  004c3190 KERNEL32.DLL::RtlUnwind -> KERNEL32.DLL::RtlUnwind

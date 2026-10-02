@@ -1,0 +1,101 @@
+// Jupiter runtime/shared/src/genltstream.cpp
+// FLAGS: /O2 /GX-
+#include <string.h>
+#include "genltstream.h"
+
+
+#define WRITESTREAM_BLOCKSIZE	512
+
+
+// FUNCTION: LITHTECH 0x0043b0d0
+LTRESULT CGenLTStream::ReadString(char *pStr, uint32 maxBytes)
+{
+	LTRESULT result;
+	uint32 i, maxChars;
+	uint16 len;
+	char dummy;
+
+	*this >> len;
+	if(len == 0)
+	{
+		pStr[0] = 0;
+		return LT_OK;
+	}
+
+	if(maxBytes == 0)
+	{
+		for(i=0; i < len; i++)
+			*this >> dummy;
+
+		return LT_OK;
+	}
+	else
+	{
+		maxChars = maxBytes - 1;
+
+		if(len > maxChars)
+		{
+			result = Read(pStr, maxChars);
+			pStr[maxChars] = 0;
+			len -= (uint16)maxChars;
+			while(len--)
+			{
+				*this >> dummy;
+			}
+		}
+		else
+		{
+			result = Read(pStr, len);
+			pStr[len] = 0;
+		}
+
+		return result;
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x0043b1b0
+LTRESULT CGenLTStream::WriteString(char *pStr)
+{
+	uint16 len;
+
+	len = (uint16)strlen(pStr);
+	*this << len;
+	return Write(pStr, len);
+}
+
+
+// FUNCTION: LITHTECH 0x0043b1f0
+LTRESULT CGenLTStream::WriteStream(ILTStream &dsSource, uint32 dwMin, uint32 dwMax)
+{
+	uint32 blockSize, nLength;
+	char tempBlock[WRITESTREAM_BLOCKSIZE];
+
+	if(dwMin == WRITESTREAM_DEFAULT)
+		dwMin = 0;
+
+	if(dwMax == WRITESTREAM_DEFAULT)
+		dwMax = dsSource.GetLen();
+
+	if(dwMax < dwMin)
+		return LT_ERROR;
+
+	nLength = dwMax - dwMin;
+	while(nLength > 0)
+	{
+		blockSize = (nLength >= WRITESTREAM_BLOCKSIZE) ? WRITESTREAM_BLOCKSIZE : nLength;
+
+		if(dsSource.Read(tempBlock, blockSize) != LT_OK)
+			return LT_ERROR;
+
+		if(Write(tempBlock, blockSize) != LT_OK)
+			return LT_ERROR;
+
+		nLength -= blockSize;
+	}
+
+	if(dsSource.ErrorStatus() != LT_OK || ErrorStatus() != LT_OK)
+		return LT_ERROR;
+
+	return LT_OK;
+}

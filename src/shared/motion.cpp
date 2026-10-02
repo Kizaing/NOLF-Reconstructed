@@ -1,0 +1,206 @@
+// Jupiter runtime/shared/src/motion.cpp (Talon version: one MotionState in/out structure,
+// FLAG2_ORIENTMOVEMENT objects skip gravity and friction).
+#include <math.h>
+#include "motion.h"
+
+
+// ----------------------------------------------------------------------- //
+// Returns the vector that the physics would have the object move by.
+// ----------------------------------------------------------------------- //
+// Remaining diff: only the FLAG2_ORIENTMOVEMENT block (orig calls the _CVector ctor out of line for
+// a * (timeIntegral * 0.5f), we inline it: VC6 inline budget), which shifts the rest; plus pObj/n
+// register choice (edi/ebx swap) since the friction path stores m_Velocity without updating v.
+// STUB: LITHTECH 0x0045c600
+LTBOOL CalcMotion(MotionState *pState)
+{
+	LTVector velocityDelta, accelDelta;
+	LTVector q, slopeVel, slopeAccel, vel;
+	const LTVector *n;
+	LTVector objectNormal, vTemp, vTemp2;
+	float fExp;
+	float timeIntegral;
+	float velocityMagSqr, accelMagSqr;
+	LTBOOL bFriction;
+
+	LTObject *pObj = pState->m_pObj;
+
+	// Talon keeps everything in the state structure.
+	#define v	(*pState->m_pVelocity)
+	#define a	(*pState->m_pAcceleration)
+	#define dr	(pState->m_Offset)
+	#define dt	(pState->m_dt)
+
+	timeIntegral = dt * dt * 0.5f;
+	velocityMagSqr = v.MagSqr();
+	accelMagSqr = a.MagSqr();
+
+	if(pObj->m_Flags2 & FLAG2_ORIENTMOVEMENT)
+	{
+		velocityDelta = a * dt;
+		dr = v * dt;
+		vTemp = a * (timeIntegral * 0.5f);
+		dr += vTemp;
+
+		pObj->m_Velocity += velocityDelta;
+		v = pObj->m_Velocity;
+		return LTTRUE;
+	}
+
+	LTVector vForce = pState->m_Info.m_Force;
+	LTVector vUnitForce = pState->m_Info.m_UnitForce;
+
+	bFriction = LTFALSE;
+	n = LTNULL;
+
+	// Stop objects that are moving very slowly...
+	if(velocityMagSqr < 0.1f)
+	{
+		v.Init();
+		velocityMagSqr = 0;
+	}
+
+	if(accelMagSqr < 0.1f)
+	{
+		a.Init();
+		accelMagSqr = 0;
+	}
+
+	// Zero out the displacement to start with.
+	dr.Init();
+
+	// Update objects affected by gravity...
+	if(pState->m_Flags & FLAG_GRAVITY)
+	{
+		// Add friction to objects standing on something...
+		if(pObj->m_pStandingOn)
+		{
+			// Try to disable their physics.
+			if(velocityMagSqr < 0.1f && accelMagSqr < 0.1f)
+			{
+				goto DisablePhysics;
+			}
+			else
+			{
+				// Check if object on world geometry...
+				if(pObj->m_pNodeStandingOn)
+				{
+					// Calculate vector parallel to plane...
+					WorldPoly *pPoly = pObj->m_pNodeStandingOn->m_pPoly;
+					if(pPoly && pPoly->m_pSurface)
+						n = &pPoly->m_pPlane->m_Normal;
+				}
+				else
+				{
+					// Object standing on another object, so assume opposite to gravity...
+					n = &objectNormal;
+					objectNormal = -vUnitForce;
+				}
+
+				// Calculate the acceleration including the force
+				LTVector vAccelWithForce = vForce + a;
+
+				// If we're on a slope that's at enough of an angle, allow it to slide
+				LTVector vForceDir = vForce;
+				vForceDir.Norm();
+				if(vForceDir.Dot(*n) > pState->m_Info.m_SlideRatio)
+				{
+					float fAccelMag = vAccelWithForce.Mag();
+					a = vAccelWithForce - *n * n->Dot(vAccelWithForce);
+
+					// Don't allow it to accelerate up the slope..
+					float fAccelDotForce = a.Dot(vForceDir);
+					if(fAccelDotForce < 0.0f)
+					{
+						a -= vForceDir * fAccelDotForce;
+					}
+
+					a.Norm(fAccelMag);
+				}
+				else
+				{
+					// Figure out what our new velocity would be if only the force was used (i.e. are they jumping?)
+					LTVector vNewVel = v + vForce * dt;
+					// If we're going to be moving away from the plane, use the full force
+					if(vNewVel.Dot(*n) > 0.01f)
+					{
+						a = vAccelWithForce;
+					}
+					// If the acceleration without the force isn't moving into the surface, project it there
+					else if(a.Dot(*n) > 0.01f)
+					{
+						float fAccelMag = a.Mag();
+						a -= *n * (n->Dot(a) + 1.0f);
+						a.Norm(fAccelMag);
+
+						bFriction = LTTRUE;
+					}
+					else
+					{
+						bFriction = LTTRUE;
+					}
+				}
+			}
+		}
+		// Otherwise just apply gravity
+		else
+		{
+			a += vForce;
+		}
+	}
+	// If there's no gravity and they aren't moving, then disable their physics
+	else if(velocityMagSqr < 0.1f && accelMagSqr < 0.1f)
+	{
+DisablePhysics:
+		pObj->m_Velocity.Init();
+		pObj->m_Acceleration.Init();
+		pObj->m_InternalFlags &= ~IFLAG_APPLYPHYSICS;
+		return LTFALSE;
+	}
+
+	// If friction
+	// new velocity is given by:		v = ( a / k ) + ( v_0 - a / k ) * exp( -k * t )
+	// new position is given by:		x = x_0 + ( a / k ) * t + ( k * v_0 - a ) * ( 1 - exp( -k * t )) / k^2
+	if(bFriction && pObj->m_FrictionCoefficient > 0.0f)
+	{
+		// Velocity...
+		fExp = (float)exp(-pObj->m_FrictionCoefficient * dt);
+		vTemp = a / pObj->m_FrictionCoefficient;
+		vTemp2 = v - vTemp;
+		vTemp2 *= fExp;
+		vel = vTemp2 + vTemp;
+
+		// Position delta...
+		dr = vTemp * dt;
+		vTemp = v * pObj->m_FrictionCoefficient;
+		vTemp -= a;
+		vTemp *= ((1.0f - fExp) / pObj->m_FrictionCoefficient / pObj->m_FrictionCoefficient);
+		dr += vTemp;
+		pObj->m_Velocity = vel;
+		return LTTRUE;
+	}
+	// If no friction
+	// new velocity is given by:	v = v_0 + a * t
+	// new position is given by:	x = x_0 + v_0 * t + .5 * a * t^2
+	else
+	{
+		// Find the change in velocity...
+		velocityDelta = a * dt;
+
+		// Position delta...
+		dr = v * dt;
+
+		vTemp = a * (timeIntegral * 0.5f);
+		dr += vTemp;
+
+		// Add the final velocity to the new velocity.
+		pObj->m_Velocity += velocityDelta;
+		v = pObj->m_Velocity;
+	}
+
+	return LTTRUE;
+
+	#undef v
+	#undef a
+	#undef dr
+	#undef dt
+}

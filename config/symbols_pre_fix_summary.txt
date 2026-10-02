@@ -1,0 +1,98 @@
+source: /named/lithtech.exe
+.text 00401000-004c54b5 (Ghidra block, end clamped to PE VirtualSize)
+rows: 12381
+  data: 6761
+  func: 4689
+  gap: 102
+  import: 277
+  jumptable: 51
+  label: 501
+func bytes (sum of extents): 803285 (0xc41d5)
+noncontig funcs: 31
+funcs whose Ghidra body leaves [entry,end): 12
+thunks to external (emitted as label): 2
+jumptables: 51  gaps: 102  imports: 277  data: 6761  labels: 499
+gap classes: {align=34, undisasm=66, undisasm_ref=2}
+bytes in .text before first function entry: 0
+
+first 30 gaps:
+  00403ed0-00403eec in 00403e80 FUN_00403e80 bytes=689cf74c008b4dec51e89223030083c4..
+  00411b7c-00411ba0 in 00411720 CClientMgr::Term bytes=909090908b442404c74424046c054d00..
+  0041222c-00412260 in 00412210 FUN_00412210 bytes=9090909081ec140200008d44240050e8..
+  004156ed-00415770 in 004154f0 FUN_004154f0 bytes=909090515657684c0400008d44240c68..
+  004172b1-004172d0 in 00416f10 SetupBox bytes=909090909090909090909090909090c3..
+  00420d19-00420d1c in 00420c00 CConCommandBox::OnKeyPress bytes=8d4900
+  004221de-004221e0 in 004220b0 CConsole::OnKeyPress bytes=8bff
+  0042227a-004235e0 in 00422270 FUN_00422270 bytes=909090909090837c2404030f8cee0000..
+  0042fdce-0042fdf0 in 0042fdb0 FUN_0042fdb0 bytes=9090ff1570604c0085c074096a0050ff..
+  00436597-004365ca in 00436270 FUN_00436270 bytes=b801000000c38b65e868ac2f4d008b9d..
+  0043673f-0043675c in 00436270 FUN_00436270 bytes=b801000000c38b65e868602f4d008b9d..
+  004369df-004369e8 in 00436880 FUN_00436880 bytes=b801000000c38b65e8
+  00441ba6-00441ba8 in 00441210 input_FreeDeviceBindings bytes=8bff
+  0044489a-004448f0 in 00444890 FUN_00444890 bytes=9090909090908b44240c5685c075408b..
+  0044a6c6-0044a6c8 in 0044a690 CLTDirectMusicMgr::EnactTypeToFlags bytes=8bff
+  0044feb9-0044febc in 0044fa10 FUN_0044fa10 bytes=8d4900
+  0046baa7-0046bdd0 in 0046b500 CPV_32toBF bytes=90909090909090909083ec288b54242c..
+  0047375c-00473ac0 in 00473600 FUN_00473600 bytes=90909090837c2404027c22568b74240c..
+  00473ac1-00473d40 in 00473ac0 ILTClient::StartCounter bytes=90909090909090909090909090909081..
+  00478d18-00478de0 in 00478ae0 se_ChangeModelTexture bytes=90909090909090908b44240c8b4c2404..
+  00478f6c-00478f80 in 00478ae0 se_ChangeModelTexture bytes=90909090e96bfeffff90909090909090..
+  0047f252-0047f254 in 0047f1b0 ILTServer::GetPropGeneric bytes=8bff
+  00486e3e-00486e40 in 00486c50 ILTServer::CacheFile bytes=8bff
+  0048a577-0048a600 in 0048a2b0 FUN_0048a2b0 bytes=9090909090909090908b4c240c8b5424..
+  0048df46-0048df48 in 0048dbb0 FUN_0048dbb0 bytes=8bff
+  004a16b0-004a16c0 in 004a15e0 _STL::__stl_throw_length_error bytes=5f5e5d5b909090909090909090909090
+  004a172e-004a17c0 in 004a1710 FUN_004a1710 bytes=909053568b74240c578bd956e8715c01..
+  004a7ab6-004a7ab7 in 004a79d0 WONAPI::ReadBuffer::ReadBytes bytes=5f
+  004af2e5-004af2e8 in 004ae8d0 WONAPI::WONStatusToString bytes=8d4900
+  004af3d5-004af3d8 in 004ae8d0 WONAPI::WONStatusToString bytes=8d4900
+
+first 30 noncontig funcs:
+  00403e80 FUN_00403e80 end=00403f10 body: 00403e80-00403ed0 00403eec-00403f02
+  0040f160 FUN_0040f160 end=0040f1f0 body: 0040f160-0040f19d 0040f1a0-0040f1e5
+  004174d0 FUN_004174d0 end=00417580 body: 004174d0-004174f8 00417500-0041757e
+  0041b930 FUN_0041b930 end=0041bdd0 body: 0041b930-0041bb8e 0041bb90-0041bdc2
+  00436270 FUN_00436270 end=00436790 body: 00436270-00436597 004365ca-0043673f 0043675c-00436786
+  00436880 FUN_00436880 end=00436a00 body: 00436880-004369df 004369e8-00436a00
+  004a6f60 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a7063 body: 004a6f60-004a7063 004a7080-004a70c5
+  004a70d0 _STL::basic_string<char,class__STL::char_traits<char>,class__STL::allocator<char>_>::append end=004a71d3 body: 004a70d0-004a71d3 004a71f0-004a7235
+  004a73a0 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a749b body: 004a73a0-004a749b 004a74b8-004a74fd
+  004a7500 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a760e body: 004a7500-004a760e 004a762e-004a7685
+  004a7690 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a779a body: 004a7690-004a779a 004a77ba-004a780b
+  004a79d0 WONAPI::ReadBuffer::ReadBytes end=004a7ae0 body: 004a79d0-004a7ab6 004a7ab7-004a7ad2
+  004b4360 _free end=004b43ca body: 004b4360-004b43ca 004b43d3-004b4422 004b442b-004b4449
+  004b4487 __heap_alloc end=004b44ee body: 004b4487-004b44ee 004b44f7-004b454a 004b4556-004b4583
+  004b5200 _memmove end=004b5540 body: 004b5200-004b525b 004b525c-004b5263 004b5270-004b5299 004b529c-004b52bf 004b52c0-004b52d9 004b52fc-004b5346 004b5358-004b535f 004b5360-004b536b 004b536c-004b537d 004b5380-004b5397 004b5398-004b53be 004b53c0-004b53c9 004b53cc-004b53eb 004b53f8-004b5415 004b5418-004b543f 004b5440-004b5471 004b5494-004b54de 004b54f0-004b54f7 004b54f8-004b5505 004b5508-004b551b 004b551c-004b5535
+  004b5540 FUN_004b5540 end=004b55c0 body: 004b5540-004b55c0 004b5700-004b5705
+  004b647d FUN_004b647d end=004b651a body: 004b647d-004b651a 004bba8e-004bba9b
+  004b71b7 TranslatorGuardHandler end=004b722c body: 004b71b7-004b7224 004b7227-004b722c
+  004b77a2 __ArrayUnwind end=004b7800 body: 004b77a2-004b77de 004b77eb-004b7800
+  004ba8c7 FUN_004ba8c7 end=004baa52 body: 004ba8c7-004baa4a 004baa5b-004bab9a 004babab-004babf6
+  004babf6 __msize end=004bac60 body: 004babf6-004bac5d 004bac69-004bacd8
+  004bbf70 _memcpy end=004bc2a5 body: 004bbf70-004bbfcb 004bbfcc-004bbfd3 004bbfe0-004bc009 004bc00c-004bc02f 004bc030-004bc049 004bc06c-004bc0b6 004bc0c8-004bc0cf 004bc0d0-004bc0db 004bc0dc-004bc0ed 004bc0f0-004bc107 004bc108-004bc12e 004bc130-004bc139 004bc13c-004bc15b 004bc168-004bc185 004bc188-004bc1af 004bc1b0-004bc1e1 004bc204-004bc24e 004bc260-004bc267 004bc268-004bc275 004bc278-004bc28b 004bc28c-004bc2a5
+  004bd291 __rt_probe_read4@4 end=004bd2f6 body: 004bd291-004bd2c8 004bd2e1-004bd2f6
+  004bd2f6 ___crtLCMapStringA end=004bd51a body: 004bd2f6-004bd406 004bd419-004bd4ba 004bd4cc-004bd51a
+  004bd5d8 _calloc end=004bd671 body: 004bd5d8-004bd66c 004bd67a-004bd6f5 004bd703-004bd715
+  004bec80 _strcmp end=004bed10 body: 004bec80-004becc3 004becc4-004becca 004beccc-004bed04
+  004bf5c5 ___FrameUnwindToState end=004bf679 body: 004bf5c5-004bf62c 004bf646-004bf663
+  004bfadc terminate end=004bfb3d body: 004bfadc-004bfb24 004bfb2f-004bfb3d
+  004bfb3d _inconsistency end=004bfb93 body: 004bfb3d-004bfb7a 004bfb81-004bfb93
+  004c1509 ___crtGetStringTypeA end=004c1652 body: 004c1509-004c1602 004c160d-004c1652
+
+first 30 funcs with body outside extent:
+  004a6f60 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a7063 body=004a6f60-004a70c5
+  004a70d0 _STL::basic_string<char,class__STL::char_traits<char>,class__STL::allocator<char>_>::append end=004a71d3 body=004a70d0-004a7235
+  004a73a0 _STL::basic_string<unsigned_char,class__STL::char_traits<unsigned_char>,class__STL::allocator<unsigned_char>_>::append end=004a749b body=004a73a0-004a74fd
+  004a7500 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a760e body=004a7500-004a7685
+  004a7690 _STL::basic_string<unsigned_short,class__STL::char_traits<unsigned_short>,class__STL::allocator<unsigned_short>_>::append end=004a779a body=004a7690-004a780b
+  004b4360 _free end=004b43ca body=004b4360-004b4449
+  004b4487 __heap_alloc end=004b44ee body=004b4487-004b4583
+  004b5540 FUN_004b5540 end=004b55c0 body=004b5540-004b5705
+  004b647d FUN_004b647d end=004b651a body=004b647d-004bba9b
+  004ba8c7 FUN_004ba8c7 end=004baa52 body=004ba8c7-004babf6
+  004babf6 __msize end=004bac60 body=004babf6-004bacd8
+  004bd5d8 _calloc end=004bd671 body=004bd5d8-004bd715
+
+thunks to external:
+  004af950 DINPUT.DLL::DirectInputCreateA -> DINPUT.DLL::DirectInputCreateA
+  004c3190 KERNEL32.DLL::RtlUnwind -> KERNEL32.DLL::RtlUnwind

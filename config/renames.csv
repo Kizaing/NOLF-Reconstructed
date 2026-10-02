@@ -1,0 +1,106 @@
+# Ghidra names that matched code has proven wrong. build.py uses these over symbols.csv.
+# Sync them back into the Ghidra project, then delete the rows.
+addr,name,ghidra_name,evidence
+004351f0,dsi_ConsolePrint,dsi_PrintToConsole,"stringmgr, classmgr, s_concommand, soundtrack call it with Jupiter's dsi_ConsolePrint args"
+004628e0,CBaseConn::~CBaseConn,CNetMgr::~CNetMgr,localdriver deletes its CBaseConn through it
+0048a770,sb_UnloadShellModule,cb_UnloadModule,CClassMgr::Term
+00486920,sm_SetPortalFlags,ILTServer::SetPortalFlags,s_concommand Portal command
+0049c130,time_GetTime,clock,s_concommand World command
+004359b0,cb_ModuleLoaded,ILTClient::DeleteColor,classbind cb_LoadModule
+00438e94,MatVMul_3x3,Mat_InverseTransformation,"geomroutines, transformlt_impl"
+0043bde0,MatMul,quat_RotVec,wave 1 geomroutines
+00402730,cb_VerifyClassDefProperties,,wave 1 classbind
+004027a0,cb_UnloadModule,,wave 1 classbind
+00496680,CSoundTrack::Update,,wave 1 soundtrack
+00466610,FindLeech,,wave 1 nexus
+004010f0,trk_Update,,wave 1 animtracker
+004239e0,cnt_StartCounter,LTSNPrintF,"de_memory dalloc/dfree CountAdder: mov ecx,[esp+4]; jmp Counter start (QueryPerformanceCounter)"
+00404820,cf_OpenFile,CPacket_Data::Free,"dstreamopenqueuemgr OpenDStream calls it with (g_pClientMgr+0x1644, &FileRef); body walks file trees by FileRef type"
+0040c880,cis_DeleteSurface,ILTClient::DeleteSurface,cdecl free function called by CConsole::FreeBackground (0x4212c0) with one HSURFACE arg; Jupiter cis_DeleteSurface
+00426750,cm_UpdateModelDims,CClientMgr::UpdateModelDims,"cdecl (pClientMgr, pInstance): ClientModelLT::SetCurAnim pushes the manager from its m_pClientMgr"
+00426860,cm_MoveObject,CClientMgr::MoveObject,"cdecl (pClientMgr, pObj, pPos, bForce): CLTClient::SetObjectPos"
+00412820,cm_RemoveObjectFromClientWorld,CClientMgr::RemoveObjectFromClientWorld,"cdecl (g_pClientMgr, pObj): CLTClient::RemoveObject"
+00414720,"CMoArray<unsigned char,DefaultCache>::_DeleteAndDestroyArray",DeleteAndDestroyArray,"thiscall (ecx=&array, pAlloc, nElements) from CMoArray<uint8>::Insert2 inlined into CLTClient::SendToServer"
+00403f50,cf_Init,CClientMgr::CClientMgr,"client_filemgr: cdecl, allocates the 0xe88-byte ClientFileMgr and returns it (matched)"
+00404380,cf_FindServerFile,sb_AllocateNewStructPage,"client_filemgr: hashes fileID % 100 into m_ServerFiles (matched)"
+00404540,cf_GetFilename,CClientShell::RemoveAllObjects,"client_filemgr: returns the ServerFile's m_ClientFilename or FileRef::m_pFilename (matched)"
+004265b0,cm_ClearObjectMapEntry,so_ExtraTerm,"cutil: clears m_ObjectMap[id] (matched)"
+00425d60,cm_ProcessError,CClientMgr::ProcessError,"cutil: cdecl with the CClientMgr as first argument (matched)"
+00428370,WorldData::~WorldData,WorldData::Term,"de_mainworld: jmp to WorldData::Term (matched)"
+00430710,DebugOut,ILTClient::DebugOut,"de_objects: cdecl varargs, _vsnprintf + OutputDebugString (matched)"
+0046ddf0,pd_InitialServerUpdate,,"predict: was inside polygrid's range (matched)"
+00462a60,CNetMgr::CNetMgr,CServerMgr::CServerMgr,"netmgr: builds the latent packet bank, connection/driver arrays and GPacket lists"
+00464870,CNetMgr::HandleReceivedPacket,CNetMgr::GetPacket,"netmgr: called by CNetMgr::GetPacket (00463a60) for each driver packet"
+00464f50,CNetMgr::RemoveConnFragments,GDeleteAndRemoveElementsOB<LatentPacket_*,ObjectBank<LatentPacket,NullCS>_>,netmgr: walks m_FragmentGroups (this+0xcc) freeing a connection's groups
+00465890,CNetMgr::FindGPacket,CPacket_Read::ReadBits,netmgr: searches a GPacket list for a frame number
+004658d0,CNetMgr::AllocGPacket,CPacket_Read::RefreshIterator,netmgr: takes a GPacket off m_FreeGPackets or news one
+00465c80,CNetMgr::NetDebugOut,CNetMgr::NetDebugOut2,"netmgr: (level, fmt, ...) without a connection; 00465cf0 is NetDebugOut2"
+00465f40,CPacket::Init,CPacket_Data::Allocate_Chunk,netmgr/packet: out-of-line CPacket::Init called by the CPacket constructor
+0046eab0,RateTracker::RateTracker,CStringHolder::CStringHolder,netmgr: CBaseConn/CNetMgr construct their RateTrackers with it
+00423990,Counter::CountMS,thunk_FUN_00423930,netmgr NetDebugOut: g_NMTimeCounter.CountMS() (jmp to EndMS 00423930)
+00498100,tcp_SetupLocalSockaddr,MDeleteAndRemoveElements<CUDPConn_*>,"udpdriver: (sockaddr_in*, port) fills in a local address from BindIP"
+00498150,tcp_BindToPort,udp_BindToPort,udpdriver: Talon's helpers are tcp_ (tcp_BuildSockaddrFromString error string)
+00498220,tcp_GetLastError,udp_GetLastError,udpdriver: Talon's helpers are tcp_ (tcp_BuildSockaddrFromString error string)
+00497d20,CUDPDriver::StartQuery,TCPDriver::StartQuery,udpdriver: vtable 004c8a20 slot; Talon's error strings still say TCPDriver
+00498b60,CUDPDriver::HostSession,TCPDriver::HostSession,udpdriver: vtable 004c8a20 slot; Talon's error strings still say TCPDriver
+004995f0,CUDPDriver::JoinSession,TCPDriver::JoinSession,udpdriver: JoinSession(sockaddr_in*) overload called by the virtual JoinSession and ConnectTCP
+00467b70,ModelInstance::UpdateTransforms,LTMatrix::Inverse,"objectmgr GetTransforms/GetNodeTransform call it on a ModelInstance when IsTransformCacheValid fails; it fills m_Transforms (0x234) through a TransformMaker"
+00435920,dtx_Destroy,CClientMgr::FreeSharedTexture,"dtxmgr: dtx_Create calls it on ErrorStatus failure; deletes a TextureData (~TextureData + operator delete)"
+00482380,sm_FreeID,CSoundTrack::Term,"servermgr: cdecl (pServerMgr, pIDLink); unlinks the ID and inserts it into m_FreeIDs (Jupiter sm_FreeID)"
+0048e9a0,CServerSerializeHelper::CServerSerializeHelper,CreateLTServerDE,"thiscall ctor of the 8-byte object CServerMgr::Init news into 0xc14 (vtable 004c8694, stores pServerMgr at +4)"
+0048eb80,CServerLoaderThread::Init,time_GetMSTime,"CServerMgr::Init calls it on m_LoaderThread (this+0xed4) with this; stores it at +0x60"
+0049f7c0,WorldTree::InitWorldTree,CreateLTClient,"CServerMgr::Init calls it on m_WorldTree (0x210) with &m_ObjectMgr (Jupiter InitWorldTree)"
+0042b1c0,MainWorld::Term,sm_RemoveAllObjectsFromWorld,"thiscall on CServerMgr+0x1a4 from CServerMgr::Term/LoadWorld; the real sm_RemoveAllObjectsFromWorld is 0x00482ab0"
+004834d0,CServerMgr::ProcessLoaderMessages,time_GetTime,"servermgr Term/Update: drains m_LoaderThread.m_Outgoing into OnLoaderMessage"
+00486c50,sm_CacheFile,ILTServer::CacheFile,"cdecl (pServerMgr, fileType, pFilename) called by sm_CacheEasyStuff and serverde_impl"
+00486500,sm_CheckObjectIntegrity,CLTCommonServer::GetPolyPlane,"error string sm_CheckObjectIntegrity; walks m_Objects checking m_ObjectMap"
+004859f0,CServerMgr::GetLocalDriver,CLocalDriver::Init,"thiscall on CServerMgr: finds the 'local' driver in m_NetMgr.m_Drivers (Jupiter GetLocalDriver)"
+0045d110,DetachObjectStanding,,"sm_RemoveObjectFromWorld; clears m_pStandingOn and unlinks m_StandingOnLink"
+0045d150,DetachObjectsStandingOn,DetachObjectStanding,"sm_RemoveObjectFromWorld; walks m_ObjectsStandingOn (Jupiter order: DetachObjectStanding then DetachObjectsStandingOn)"
+00416f10,PolyTouchesBox,SetupBox,"serverde_impl FindPoliesInBsp calls it with (WorldPoly*, NULL, NULL) and keeps the poly when it returns nonzero"
+0043b000,gp_InitVector,GenericProp::GenericProp,"cdecl (GenericProp*, LTVector*): calls gp_Init then fills m_String/m_Vec/m_Color; si_GetPropGeneric uses it for PT_VECTOR/PT_COLOR"
+00486fd0,CServerMgr::SetGlobalLightObject,LTObjRef::Link,"si_SetGlobalLightObject: thiscall on g_pServerMgr with the HOBJECT; si_GetGlobalLightObject reads CServerMgr+0xda8"
+004795f0,si_GetPointShade,ILTServer::GetPointShade,si_SetupFunctionPointers installs it as ILTServer::GetPointShade (a cdecl function pointer)
+0040c3d0,ic_Parse,ILTClient::Parse,"si_SetupFunctionPointers installs it as ILTServer::Parse (cdecl function pointer, jmp to ConParse code)"
+00434440,dsi_UnloadResourceModule,dm_Term,"dsys_interface: FreeLibrary(g_hResourceModule), called from dsi_Term after dm_Term (0x0042fe50)"
+00427290,CGenLTStream::CGenLTStream,CRezMgr::GetRezFromDosPath,"de_file: stores the CGenLTStream vtable; called by the stream bank allocators"
+0046f520,sc_Init,rdll_RenderDLLSetup,"render: r_InitRender's SysCache setup (list tie-off, cur/max memory)"
+0046f0c0,r_GetParameter,ILTClient::GetConsoleVar,"render: RenderStruct::GetParameter hook (cc_FindConsoleVar)"
+00434910,dsi_GetRenderModes,ILTClient::GetRenderModes,"dsys_interface: _findfirst(*.ren) mode list"
+00434a30,dsi_RelinquishRenderModes,ILTClient::RelinquishRenderModes,dsys_interface
+00434a50,dsi_GetRenderMode,ILTClient::GetRenderMode,dsys_interface
+00434a70,dsi_SetRenderMode,ILTClient::SetRenderMode,dsys_interface
+00434bd0,dsi_ShutdownRender,ILTClient::ShutdownRender,dsys_interface
+004021c0,BinkVideoInst::OnRenderTerm,LTPixelShaderImp::Term,"binkvideomgrimpl vtable slot 3"
+0049ddf0,SmackVideoInst::Release,DShowVideoInst::Release,"smackvideomgrimpl vtable slot 1 (shared with BinkVideoInst)"
+0049dcf0,SmackVideoInst::DrawVideo,DShowVideoInst::DrawVideo,smackvideomgrimpl
+0049de90,SmackVideoInst::UpdateOnScreen,SmackVideoImpl::UpdateOnScreen,smackvideomgrimpl
+00496d80,SSFile::Write,SSFile::Read,"streamsim: SSFile vtable slot 9 (fwrite)"
+0048e980,CClientShell::GetClientObject,CClientMgr::FindObject,"thiscall on CClientShell (ci_GetClientObject tail-calls it with m_pCurShell)"
+004c62b0,WSOCK32.DLL!inet_addr,WSOCK32.DLL!Ordinal_10,WSOCK32 import by ordinal 10
+004c62b4,WSOCK32.DLL!WSAGetLastError,WSOCK32.DLL!Ordinal_111,WSOCK32 import by ordinal 111
+004c62b8,WSOCK32.DLL!ntohl,WSOCK32.DLL!Ordinal_14,WSOCK32 import by ordinal 14
+004c62bc,WSOCK32.DLL!ntohs,WSOCK32.DLL!Ordinal_15,WSOCK32 import by ordinal 15
+004c62c0,WSOCK32.DLL!socket,WSOCK32.DLL!Ordinal_23,WSOCK32 import by ordinal 23
+004c62c4,WSOCK32.DLL!gethostname,WSOCK32.DLL!Ordinal_57,WSOCK32 import by ordinal 57
+004c62c8,WSOCK32.DLL!bind,WSOCK32.DLL!Ordinal_2,WSOCK32 import by ordinal 2
+004c62cc,WSOCK32.DLL!getsockname,WSOCK32.DLL!Ordinal_6,WSOCK32 import by ordinal 6
+004c62d0,WSOCK32.DLL!ioctlsocket,WSOCK32.DLL!Ordinal_12,WSOCK32 import by ordinal 12
+004c62d4,WSOCK32.DLL!sendto,WSOCK32.DLL!Ordinal_20,WSOCK32 import by ordinal 20
+004c62d8,WSOCK32.DLL!closesocket,WSOCK32.DLL!Ordinal_3,WSOCK32 import by ordinal 3
+004c62dc,WSOCK32.DLL!setsockopt,WSOCK32.DLL!Ordinal_21,WSOCK32 import by ordinal 21
+004c62e0,WSOCK32.DLL!htons,WSOCK32.DLL!Ordinal_9,WSOCK32 import by ordinal 9
+004c62e4,WSOCK32.DLL!htonl,WSOCK32.DLL!Ordinal_8,WSOCK32 import by ordinal 8
+004c62e8,WSOCK32.DLL!gethostbyname,WSOCK32.DLL!Ordinal_52,WSOCK32 import by ordinal 52
+004c62ec,WSOCK32.DLL!WSAStartup,WSOCK32.DLL!Ordinal_115,WSOCK32 import by ordinal 115
+004c62f0,WSOCK32.DLL!recvfrom,WSOCK32.DLL!Ordinal_17,WSOCK32 import by ordinal 17
+004c62f4,WSOCK32.DLL!WSACleanup,WSOCK32.DLL!Ordinal_116,WSOCK32 import by ordinal 116
+004049c0,ci_IntersectSegment,ILTClient::IntersectSegment,clientde_impl ci_Init function table
+004450c0,linesystem_GetNextLine,ILTClient::GetNextLine,clientde_impl ci_Init function table
+00445110,linesystem_GetLineInfo,ILTClient::GetLineInfo,clientde_impl ci_Init function table
+00445170,linesystem_SetLineInfo,ILTClient::SetLineInfo,clientde_impl ci_Init function table
+00445490,linesystem_AddLine,ILTClient::AddLine,clientde_impl ci_Init function table
+004457f0,linesystem_RemoveLine,ILTClient::RemoveLine,clientde_impl ci_Init function table
+004126a0,cm_AddObjectToClientWorld,CClientMgr::AddObjectToClientWorld,"Talon free function (cdecl, manager passed explicitly)"
+0042b3b0,MainWorld::ClearWorldData,LTObjRef::Unlink,servermgr DoEndWorld
+004afde0,CRezItm::Seek,Seek,de_file RezFileStream
