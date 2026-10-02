@@ -1,14 +1,14 @@
 source: /named/lithtech.exe
 .text 00401000-004c54b5 (Ghidra block, end clamped to PE VirtualSize)
-rows: 12719
+rows: 12721
   data: 6745
-  func: 5096
+  func: 5098
   gap: 34
   import: 277
   jumptable: 52
   label: 515
 func bytes (sum of extents): 803253 (0xc41b5)
-noncontig funcs: 18
+noncontig funcs: 16
 funcs whose Ghidra body leaves [entry,end): 12
 thunks to external (emitted as label): 4
 jumptables: 52  gaps: 34  imports: 277  data: 6744  labels: 511
@@ -22,7 +22,7 @@ first 30 gaps:
   0044a6c6-0044a6c8 in 0044a690 CLTDirectMusicMgr::EnactTypeToFlags bytes=8bff
   0044feb9-0044febc in 0044fa10 FUN_0044fa10 bytes=8d4900
   0047f252-0047f254 in 0047f1b0 ILTServer::GetPropGeneric bytes=8bff
-  00486e3e-00486e40 in 00486c50 ILTServer::CacheFile bytes=8bff
+  00486e3e-00486e40 in 00486c50 sm_CacheFile bytes=8bff
   0048df46-0048df48 in 0048dbb0 FUN_0048dbb0 bytes=8bff
   004af2e5-004af2e8 in 004ae8d0 WONAPI::WONStatusToString bytes=8d4900
   004af3d5-004af3d8 in 004ae8d0 WONAPI::WONStatusToString bytes=8d4900
@@ -48,8 +48,6 @@ first 30 gaps:
   004bc185-004bc188 in 004bbf70 _memcpy bytes=8d4900
 
 first 30 noncontig funcs:
-  0040f160 FUN_0040f160 end=0040f1f0 body: 0040f160-0040f19d 0040f1a0-0040f1e5
-  004174d0 FUN_004174d0 end=00417580 body: 004174d0-004174f8 00417500-0041757e
   0041b930 FUN_0041b930 end=0041bdd0 body: 0041b930-0041bb8e 0041bb90-0041bdc2
   004a0690 FUN_004a0690 end=004a0700 body: 004a0690-004a0700 004a0706-004a0720
   004a2aa0 WONAPI::PeerAuthClient::HandleRecvMsg end=004a2bb5 body: 004a2aa0-004a2bb5 004a2bbb-004a2bd3
@@ -82,7 +80,7 @@ first 30 funcs with body outside extent:
   004b5710 FUN_004b5710 end=004b57cc body=004b5700-004b57cc
 
 thunks to external:
-  004af950 DINPUT.DLL::DirectInputCreateA -> DINPUT.DLL::DirectInputCreateA
+  004af950 _DirectInputCreateA@16 -> DINPUT.DLL::DirectInputCreateA
   004afc30 MSS32.DLL::_AIL_shutdown@0 -> MSS32.DLL::_AIL_shutdown@0
   004afc40 MSS32.DLL::_AIL_shutdown@0 -> MSS32.DLL::_AIL_shutdown@0
   004c3190 KERNEL32.DLL::RtlUnwind -> KERNEL32.DLL::RtlUnwind

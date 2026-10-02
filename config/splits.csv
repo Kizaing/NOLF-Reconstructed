@@ -1,4 +1,2 @@
 # Function starts that Ghidra merged into the preceding extent. Sync to Ghidra, then delete rows.
 addr,name,evidence
-00417500,CLoaderThread::LoadModel,cloaderthread: ProcessMessage (0x4174d0) is 48 bytes; Ghidra's non-contiguous extent swallows LoadModel
-0040f1a0,cis_RestoreSurfaces,winclientde_impl: cis_RendererIsHere (0x40f160) is 64 bytes
