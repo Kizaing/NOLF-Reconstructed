@@ -868,7 +868,9 @@ void WriteEventToPacket(CServerMgr *pServerMgr, CServerEvent *pEvent, Client *pC
 
 
 // Writes the PlaySound event: the file, the changed file info, and the sound's parameters.
-// STUB: LITHTECH 0x00476140
+// pPacket->GetMessageImpl() for ic_WriteCompPos is the pending inline site that was missing (the wave-4 note
+// "12-20 units of ballast near the top").
+// FUNCTION: LITHTECH 0x00476140
 void FillInPlaysoundMessage(CServerEvent *pEvent, Client *pClient, CPacket *pPacket)
 {
 	PlaySoundInfo *pPlaySoundInfo;
@@ -965,7 +967,7 @@ void FillInPlaysoundMessage(CServerEvent *pEvent, Client *pClient, CPacket *pPac
 		pPacket->WriteType(pPlaySoundInfo->m_fPitchShift);
 
 	if (!bLocalOverride && (wFlags & (PLAYSOUND_AMBIENT | PLAYSOUND_3D)))
-		ic_WriteCompPos(&pPacket->m_Message, &pPlaySoundInfo->m_vPosition, &g_pServerMgr->m_World);
+		ic_WriteCompPos(pPacket->GetMessageImpl(), &pPlaySoundInfo->m_vPosition, &g_pServerMgr->m_World);
 
 	if (wFlags & PLAYSOUND_CTRL_TYPE)
 		pPacket->WriteType(pPlaySoundInfo->m_nUserSoundType);
