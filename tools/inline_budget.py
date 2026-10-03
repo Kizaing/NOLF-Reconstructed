@@ -35,10 +35,14 @@ THE MODEL (measured with toy programs in wave 7; u = 1/6 of `g[3] = 1;`)
  R2 size(F) = 12u + 1u per parameter + 5u for `this` + the statements' weights (see WEIGHTS below).
  R3 B(F) = max(1000u, 2 x size(F)), from F's own pre-inlining size (all of F).
  R4 cost(site) = size(callee) (its own calls count as call expressions only). Verified exact (toys, 7 shapes).
- R5 cost <= 36u: free (always inlined, never charged, never refused). __forceinline: always inlined, never charged.
- R6 Sites are visited depth first in evaluation order: statements in order; call arguments right to left;
-    binary operators left to right; assignment right side first; if: condition, then, else; for: init,
-    increment, condition, body (the /Od code order).
+ R5 cost <= 40u: free (always inlined, never charged, never refused, even with a share <= 0); 41u is charged.
+    __forceinline: always inlined, never charged, any size (still a pending site).
+ R6 Sites are visited depth first in evaluation order: statements in order; call arguments right to left, and
+    before the call that takes them (`R(P())`: P first; `(a - b).MagSqr()`: operator- first); binary operators
+    left to right; assignment right side first; if: condition, then, else; for: init, increment, condition,
+    body; destructors of locals at each return path and at scope end (the /Od code order).
+    Compiler helpers are sites too: `vector constructor iterator' (??_H) costs 49u, `vector destructor
+    iterator' (??_I) 64u, scalar deleting destructors (??_G) their own size.
  R7 A top-level site is inlined iff cost <= remaining = B - all charges so far (top level and nested).
     A refused site charges nothing and its body's sites are not visited.
  R8 When a site S is inlined with `avail` at its level, its own sites share
@@ -47,6 +51,22 @@ THE MODEL (measured with toy programs in wave 7; u = 1/6 of `g[3] = 1;`)
     included; non-inline, virtual and function-pointer calls not). Applies recursively; every charge is
     subtracted at every enclosing level.
  R9 Depth limit 8 (#pragma inline_depth).
+ R10 A callee compiled earlier in the file costs the same (its pre-optimisation size), but VC6 can delete a call
+    of a known side-effect-free function whose result is unused (or a ctor on a dead local) - the tool's cost
+    probes therefore use every result.
+
+READING A RESULT
+ - Our build vs the model: they agree on 99% of sites (--validate); a disagreement is usually a site within a
+   few u of its limit.
+ - The exe vs the model: --sweep gives the budget range that reproduces the exe's out-of-line calls with OUR
+   costs and tree; --solve adds k extra free pending sites (accessor calls) at each top-level position.
+   dB < 0 means the original function was smaller (2u of budget per 1u of own code: look for code that belongs
+   in an inline helper, or a macro/expression that was written more cheaply) or charged more before the
+   decisive site (a bigger inline callee); extra pending sites are accessors the original called.
+ - A pending site after S only divides S's children's share: top-level decisions depend on B and on the charges
+   before them, never on pending counts.
+ - Top-level sites near the end of a big function see the remaining budget after everything before them: one
+   bigger or smaller helper early on flips them.
 
 WEIGHTS (u, toys; for reading code, the tool measures the real thing): constant 2; parameter/local read 3;
 global read 5; global store `g[3]=1` 6; local store `l=1` 4; field store via global ptr `gp->a=1` 7; call `f()` 4
@@ -328,7 +348,8 @@ def call_expr(mangled):
         cls, name = qname[:cut], qname[cut + 2:]
         base = re.sub(r'<.*>$', '', cls).split('::')[-1]
         if name == cls.split('::')[-1] or name == base or re.sub(r'<.*>$', '', name) == base:      # constructor
-            return '{ %s __ib_o(%s); }' % (cls, args) if args else '{ %s __ib_o; }' % cls
+            # the object escapes: VC6 deletes a known side-effect-free ctor call on a dead local
+            return ('{ %s __ib_o(%s); __ib_p = &__ib_o; }' % (cls, args)) if args else '{ %s __ib_o; __ib_p = &__ib_o; }' % cls
         if name.startswith('~'):
             return '((%s *)__ib_p)->%s::%s();' % (cls, cls, name)
         if name == "`scalar deleting destructor'":
@@ -350,22 +371,30 @@ def call_expr(mangled):
     return call + ';'
 
 
-def load_costs():
+def _load_all():
     try:
-        return json.load(open(COST_CACHE))
+        d = json.load(open(COST_CACHE))
+        return d if all(isinstance(v, dict) and 'cost' not in v for v in d.values()) else {}
     except (OSError, ValueError):
         return {}
 
 
-def save_costs(c):
+def load_costs(unit):
+    """Costs are cached per unit: one mangled name can have different bodies in different units (headers that
+    mirror each other, e.g. CMoArray/BaseNew in load_pcx.h vs ltdynarray.h)."""
+    return dict(_load_all().get(unit.name, {}))
+
+
+def save_costs(unit, c):
     """Merge into the cache file (several runs may share it) and replace it atomically."""
     os.makedirs(os.path.dirname(COST_CACHE), exist_ok=True)
-    cur = load_costs()
+    allc = _load_all()
+    cur = allc.setdefault(unit.name, {})
     for k, v in c.items():
-        if v.get('cost') is not None or k not in cur:
+        if v.get('cost') is not None:
             cur[k] = v
     tmp = COST_CACHE + '.%d.tmp' % os.getpid()
-    json.dump(cur, open(tmp, 'w'), indent=1, sort_keys=True)
+    json.dump(allc, open(tmp, 'w'), indent=1, sort_keys=True)
     os.replace(tmp, COST_CACHE)
 
 
@@ -375,7 +404,7 @@ BW = 2 * (12 + 6 * BW_STORES + 4)
 
 def measure_costs(unit, text, callees, log=print, jobs=6):
     """{mangled: cost} for callees, via wrappers appended to the unit (cached by mangled name + unit flags)."""
-    cache = load_costs()
+    cache = load_costs(unit)
     cache.update({k: {'cost': v, 'why': 'fixed (toy-measured)'} for k, v in FIXED_COSTS.items()})
     todo = [c for c in callees if c not in cache]
     exprs = {}
@@ -476,7 +505,7 @@ def measure_costs(unit, text, callees, log=print, jobs=6):
             if wc[c] >= BW - 42 or cost <= FREE:       # inlined with a limit <= 30u: free (or __forceinline)
                 cache[c]['cost'] = min(int(round(cost)), FREE)
                 cache[c]['free'] = True
-    save_costs(cache)
+    save_costs(unit, cache)
     return {c: cache[c] for c in callees}
 
 # ----------------------------------------------------------------------------- the model
@@ -828,7 +857,7 @@ VALIDATE = ['SweptSphereOrient', 'FillSoundTrackPacketFromInfo', '4995f0', 'Thre
             'sm_WriteLightAnimInfo', 'AddDataToGroupPacket', 'SetObjectFilenames', 'LockTexture']
 
 
-def run_variants(key, path, jobs, sweep):
+def run_variants(key, path, jobs, sweep, solve=False):
     """Score source variants in memory (vtry-style variants file: VARIANTS = [(label, old, new), ...], old/new may be
     lists): B, size, and how many of the exe's out-of-line calls the model reproduces, plus our build's calls."""
     import runpy
@@ -851,6 +880,8 @@ def run_variants(key, path, jobs, sweep):
             flush=True)
         if sweep:
             do_sweep(r, r['sites'], r['costs'], r['B'])
+        if solve:
+            do_solve(r, r['sites'], r['costs'], r['B'])
 
 
 def validate(names, jobs):
@@ -900,7 +931,7 @@ def main(argv):
         validate(argv[1:] or VALIDATE, jobs)
         return
     if argv and argv[0] == '--variants':
-        run_variants(argv[1], argv[2], jobs, '--sweep' in argv)
+        run_variants(argv[1], argv[2], jobs, '--sweep' in argv, '--solve' in argv)
         return
     if argv and argv[0] == '--at':
         measure_at(argv[1], argv[2])

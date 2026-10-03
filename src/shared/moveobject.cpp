@@ -534,6 +534,9 @@ inline LTBOOL IsWorldModel(LTObject *pObj1, LTObject *pObj2)
 }
 
 
+// Sphere-physics movement box (name invented; always inlined, so the exe has no copy). Wave 7: written in
+// DetectAndProcessCollisions this block makes its own size (and so its inline budget, 2x size) ~200u too big;
+// as a helper the budget model puts DAPC within ~60u of the original (tools/inline_budget.py).
 inline void GetSphereMoveBox(MoveState *pState, float fRadius)
 {
 	float fDiameter;
@@ -575,6 +578,20 @@ inline void GetSphereMoveBox(MoveState *pState, float fRadius)
 }
 
 
+// Wave 6 phase 2 decoded the exe's shape (rewrite in E:\AVP2Source\notes\wave6, adopted in wave 7): GetMovementBox,
+// DoSolidBBoxCollision and MaybeCollide are `inline` and defined later in the file; loop 1 inlines MaybeCollide,
+// loop 2 calls it; the first GetMovementBox is inlined, the last one isn't; the sphere block declares its
+// SphereMoveInfo inside the block (its m_GroundNormals array is built by the `vector constructor iterator').
+// Wave 7 (tools/inline_budget.py, aliases 45e960=IsWorldModel(LTObject*), 45e990=DoObjectsIntersect):
+// - IsWorldModel(LTObject*) needs the braces: 41u is charged, the brace-less 39u version is free (<= 40u) and can
+//   never be refused, but the exe calls it out of line from the inlined MaybeCollide.
+// - With the sphere box in an inline helper the model and our build agree on every site; our out-of-line calls
+//   differ from the exe's only by the `vector constructor iterator' (??_H, 49u, refused in the exe). The exe needs
+//   B = 2384-2400u (ours 2516u: own size 1254u), i.e. ~60u less own code; with Jupiter's GetDims() in loop 2's
+//   m_fMoveRadius (one more pending site; file-local accessor) 2456-2472u (ours 2520u, ~28u less own code).
+//   --solve: one extra pending site anywhere after loop 2's Mag plus 21-44u less own code also works.
+// - The exe passes two different stack locals (8 bytes apart) as MaybeCollide's unused pointer arguments, not
+//   &vTemp/&vMin.x, so the locals differ from ours too. ALIGNED 655 -> 535 this wave (MaybeCollide's if/else).
 // STUB: LITHTECH 0x0045ddf0
 void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, const LTVector &destPos)
 {
@@ -595,7 +612,6 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 	if(pState->m_pObj->m_Flags2 & FLAG2_SPHEREPHYSICS)
 	{
 		SphereMoveInfo sphereInfo;
-		float fDiameter;
 
 		sphereInfo.m_pState = pState;
 		sphereInfo.m_vStartPos = *pState->m_pStartPos;
@@ -1437,6 +1453,10 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 // DetectAndProcessCollisions carries an inline copy of this same logic (calling IsWorldModel(pTestObj) 0x45e960 and
 // DoObjectsIntersect 0x45e990 out of line, then DoSolidBBoxCollision/DoSolidWMCollision/DoNonsolidCollision/
 // CheckIntersectOnMovement out of line) and only the second loop calls MaybeCollide.
+// Wave 7: now emitted out of line by DAPC (in the exe's place); its inline decisions match the exe (budget model:
+// B 1104u, the exe needs 1076-1168u). `dims < fabs(delta)` per axis (the exe's `and eax,0x4100` tests) and
+// `if(bPushAway){...} else {DoNonsolidCollision; return}` (DoNonsolidCollision last, SetPos tail-duplicated) took it
+// from SIZE 1280 / ALIGNED 272 to DIFF 1264 (exe size) / ALIGNED 197.
 // STUB: LITHTECH 0x00460cb0
 inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2)
 {
@@ -1914,6 +1934,10 @@ void RotateWorldModel(MoveState *pState, LTRotation *pRotation, LTBOOL bDoCollis
 // before Norm (ballast at the top, before the solid test or before `dir = pos1 - pos2` all match; 3-5 units give
 // DIFF 47 aligned, 10+ worse). Ballast inside IsWorldModel matches with 4-6 units; IsWorldModel written as nested
 // ifs / explicit object types gives only the 3-5 unit result (47). The real source of the cost is still unknown.
+// Wave 7: LTObject::GetDims() added (Jupiter's accessor): SIZE 1248 / ALIGNED 110 -> DIFF 1264 (exe size) / 47; only
+// the ctor of `m_Velocity = pos2 - pos1` is still inlined. IsWorldModel's braces now charge 41u before Norm (it was
+// free). Budget model: B 1248u, the exe needs 1160-1204u (~22-44u less own code), or --solve: two more free pending
+// sites at the end with -7..+25u own size, or one more before Inherit with 11-31u less.
 // STUB: LITHTECH 0x00461ff0
 void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj)
 {
@@ -1957,8 +1981,8 @@ void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj)
 		betterNotUp = 200;
 		while(betterNotUp-- > 0)
 		{
-			min = pos1 - pTestObj->m_Dims;
-			max = pos1 + pTestObj->m_Dims;
+			min = pos1 - pTestObj->GetDims();
+			max = pos1 + pTestObj->GetDims();
 
 			if(!DoesBoxIntersectBSP(pInst->m_pValidBsp->GetRootNode(), min, max))
 				break;

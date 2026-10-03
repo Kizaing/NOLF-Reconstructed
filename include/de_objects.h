@@ -170,6 +170,7 @@ public:
 	void			SetDims(LTVector dims);							// 0x00466dc0
 
 	const LTVector&	GetPos() const	{ return m_Pos; }
+	const LTVector&	GetDims() const	{ return m_Dims; }
 	LTBOOL			HasWorldModel()	{ return m_ObjectType == OT_WORLDMODEL || m_ObjectType == OT_CONTAINER; }
 
 	ObjectMgr	*m_pObjectMgr;			// 0x5c
