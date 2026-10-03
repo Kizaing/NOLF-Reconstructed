@@ -202,9 +202,9 @@ void InitialWorldModelRotate(WorldModelInstance *pInstance)
 
 
 // Is this a WorldModel that uses full (BSP) physics?
-// The original has out-of-line copies at 0x0045e960 (IsWorldModel) and 0x0045e990
-// (DoObjectsIntersect) because DetectAndProcessCollisions ran out of inline budget; this
-// build inlines every call, so they can't be annotated yet.
+// The out-of-line copies at 0x0045e960 (IsWorldModel) and 0x0045e990 (DoObjectsIntersect) come from
+// DetectAndProcessCollisions running out of inline budget (wave 7: it does now too).
+// FUNCTION: LITHTECH 0x0045e960 ?IsWorldModel@@YAIPAVLTObject@@@Z
 inline LTBOOL IsWorldModel(LTObject *pObj)
 {
 	if(pObj->HasWorldModel() && !(pObj->m_Flags & FLAG_BOXPHYSICS))
@@ -217,6 +217,7 @@ inline LTBOOL IsWorldModel(LTObject *pObj)
 
 
 // Determines if the two objects intersect.  Sets bWorldModel to LTTRUE if one of them is a WorldModel.
+// FUNCTION: LITHTECH 0x0045e990 ?DoObjectsIntersect@@YAIPAVLTObject@@0PAV?$_CVector@M@@111MPAI@Z
 inline LTBOOL DoObjectsIntersect(LTObject *pObj1, LTObject *pObj2,
 	LTVector *pObj1MinBox, LTVector *pObj1MaxBox, LTVector *pObj2MinBox, LTVector *pObj2MaxBox,
 	float boxTolerance, LTBOOL *bWorldModel)
@@ -1457,6 +1458,9 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 // B 1104u, the exe needs 1076-1168u). `dims < fabs(delta)` per axis (the exe's `and eax,0x4100` tests) and
 // `if(bPushAway){...} else {DoNonsolidCollision; return}` (DoNonsolidCollision last, SetPos tail-duplicated) took it
 // from SIZE 1280 / ALIGNED 272 to DIFF 1264 (exe size) / ALIGNED 197.
+// Out-of-line copies requested by CheckIntersectOnMovement (it calls them out of line now):
+// FUNCTION: LITHTECH 0x00460c60 ??0MoveState@@QAE@XZ
+// FUNCTION: LITHTECH 0x00460c80 ?Inherit@MoveState@@QAEXPAV1@PAVLTObject@@@Z
 // STUB: LITHTECH 0x00460cb0
 inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2)
 {
