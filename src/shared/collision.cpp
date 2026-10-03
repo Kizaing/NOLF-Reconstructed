@@ -1819,10 +1819,10 @@ static void PushBoxOutOfPlanes();
 // Adds the movement to the position, making sure the movement doesn't get lost to
 // floating point precision.
 // This is an inline function in the original (ClipBoxIntoTree's first call and both of StairStep's
-// are expanded; this out-of-line copy sits after ClipBoxIntoTree).  Close: the original squares
-// vPos's components in a different order (z, x, y) and keeps the scaled x on the FPU stack for the
-// final add.  Not inline here because that leaves no out-of-line copy until the callers match.
-// STUB: LITHTECH 0x0041d640
+// are expanded; this out-of-line copy sits after ClipBoxIntoTree).  Not inline here because that
+// leaves no out-of-line copy until the callers match.  `*pOut == vPos` (LTVector::operator==, which
+// takes a const reference) and vPos.Mag() give the original's x87 operand order (README, wave 6).
+// FUNCTION: LITHTECH 0x0041d640
 void AddMovement(LTVector *pOut, LTVector vPos, LTVector vMove)
 {
 	float fMoveMag, fScale;
@@ -1835,9 +1835,9 @@ void AddMovement(LTVector *pOut, LTVector vPos, LTVector vMove)
 		*pOut += vMove;
 
 		// If the movement didn't change the position, make it big enough to.
-		if (pOut->x == vPos.x && pOut->y == vPos.y && pOut->z == vPos.z)
+		if (*pOut == vPos)
 		{
-			fScale = ((float)sqrt(vPos.y*vPos.y + vPos.x*vPos.x + vPos.z*vPos.z) * FLT_EPSILON) / fMoveMag;
+			fScale = (vPos.Mag() * FLT_EPSILON) / fMoveMag;
 			vMove *= fScale;
 			*pOut = vPos + vMove;
 		}
