@@ -16,7 +16,6 @@
 #include <set>
 #include <map>
 #include <string>
-#define SERVERDE_STL
 #include "serverde_impl.h"
 #include "stringmgr.h"
 #include "dhashtable.h"

@@ -23,21 +23,13 @@
 class CServerMgr;
 
 // The child model links ILTServer::LinkModelToExtraChildModel builds: child model filename -> set of
-// extra child model filenames. An STLport map, member of CLTServer; only the units that construct or
-// destroy a CLTServer (server_interface, serverde_impl: they define SERVERDE_STL and build with the
-// STLport FLAGS) see the real type.
-#ifdef SERVERDE_STL
+// extra child model filenames. An STLport map, member of CLTServer: every includer builds with the STLport
+// FLAGS (see serverde_impl.cpp).
 #include <map>
 #include <set>
 #include <string>
 typedef std::set<std::string> ExtraChildSet;
 typedef std::map<std::string, ExtraChildSet> ExtraChildMap;
-#else
-struct ExtraChildMap
-{
-	uint8		m_Pad[0xc];
-};
-#endif
 
 // Installs the si_ function pointers.
 void si_SetupFunctionPointers(ILTServer *pServer);

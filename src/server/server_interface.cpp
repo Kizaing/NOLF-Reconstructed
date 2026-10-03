@@ -7,7 +7,6 @@
 #include "bdefs.h"
 #include "servermgr.h"
 #include "s_object.h"
-#define SERVERDE_STL
 #include "serverde_impl.h"
 #include "shared_iltcommon.h"
 #include "iltmodel.h"

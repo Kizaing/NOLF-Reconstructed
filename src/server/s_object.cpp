@@ -1,3 +1,4 @@
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC
 // Jupiter runtime/server/src/s_object.cpp
 // Talon passes the server manager explicitly to most of these.
 #include <string.h>

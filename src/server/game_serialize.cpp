@@ -1,3 +1,4 @@
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC
 // Jupiter runtime/server/src/game_serialize.cpp: save/load LT objects.
 // Talon passes the server manager explicitly, and the objects serialize themselves through an
 // ILTMessage that wraps the save stream (a CRC follows each raw read and write).

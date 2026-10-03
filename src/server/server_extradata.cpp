@@ -1,3 +1,4 @@
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC
 // Jupiter runtime/server/src/server_extradata.cpp
 // Talon passes the server manager to the per-type init/term functions, loads models through
 // its own model cache (m_hModelTable) and still uses .abc files.
