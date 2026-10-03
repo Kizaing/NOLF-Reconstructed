@@ -229,7 +229,7 @@ LTRESULT SmackVideoInst::Init(const char *pFilename, uint32 flags, LTBOOL bTextu
 // CreateSurface block into the GetDisplayMode one and sends the `jl`s to the last block's epilogue. Wave 6 tried (no
 // change or worse): the NOT_INITIALIZED error as an else branch, an early `if(!m_smk || ...)` return, the
 // GetDisplayMode test nested as `== DD_OK`, the 565 test inverted, a goto past the convert path, a do{}while(0)
-// RETURN_ERROR_PARAM, and /O1 /Ox /Os /Oy- /G6 /Gr on a copy (README, wave 6).
+// RETURN_ERROR_PARAM. No compiler option changes the merge direction (README, wave 6).
 LTRESULT SmackVideoInst::InitScreen()
 {
 	LPDIRECTDRAW7 pDD;
