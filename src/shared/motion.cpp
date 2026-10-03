@@ -19,6 +19,11 @@
 // block in an inline helper are worse (the helper refuses all three ctors). Ballast before the orient block: 7+ units
 // make the orient ctor go out of line but also move the friction block's *=, /= out of line (worse); 3 free pending
 // sites at the end do the same plus inline the last +=. No single position reproduces the exe's pattern.
+// Wave 7 (tools/inline_budget.py CalcMotion --solve): the model agrees with our build on every site (B 2662u, own
+// size 1327u). The orient block's third ctor is refused in the exe only if its share drops below 47u while the
+// second's stays >= 47u: no budget alone does it; one more free pending site (an accessor) anywhere from the
+// second a.Norm() on, plus 24-34u less own code (B -48..-68u), does. `LTVector &dr`/`float dt` locals instead of the
+// macros are -35u; `LTVector &v, &a` -71u; WorldPoly::GetPlane() for m_pPlane +2u (none matched alone).
 // STUB: LITHTECH 0x0045c600
 LTBOOL CalcMotion(MotionState *pState)
 {
