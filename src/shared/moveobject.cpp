@@ -817,13 +817,10 @@ inline void DoNonsolidCollision(MoveAbstract *pAbstract, LTObject *pObj1, LTObje
 
 
 // Collides the two solid objects using WorldModel physics for the one that is a WorldModel.
-// Wave 7 phase 2: ALIGNED 204 (215 ignoring stack offsets), audit: behaviour matches, same size. The exe keeps the
-// zero of `bCollision = LTFALSE` and the MoveState ctor stores in eax (ours ebx) and &pTestObj->m_Pos in ebx, and
-// its frame slots differ from 0x60 on. hillclimb: `pos1 = vecTo + pos2` gives 100 here, but CheckIntersectOnMovement's
-// inlined copy (0x4602c7: operator+ out of line with this = pos2, vecTo copied) proves the original wrote
-// `pos2 + vecTo`, and that change costs CheckIntersectOnMovement 143 aligned: not adopted. This is the exe's
-// DoSolidWMCollision (Jupiter has it static, Talon inline: CheckIntersectOnMovement inlines it).
-// STUB: LITHTECH 0x0045eaf0
+// CheckIntersectOnMovement's inlined copy (0x4602c7: operator+ out of line with this = pos2, vecTo copied) shows the
+// original wrote `pos2 + vecTo`. Matched once MoveState::m_nRestart became a float (hand pass after wave 7).
+// This is the exe's DoSolidWMCollision (Jupiter has it static, Talon inline: CheckIntersectOnMovement inlines it).
+// FUNCTION: LITHTECH 0x0045eaf0
 inline LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision)
 {
 	LTVector pos1, pos2, vecTo, vDir;

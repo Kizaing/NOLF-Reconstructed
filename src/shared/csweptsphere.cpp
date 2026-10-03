@@ -264,19 +264,10 @@ LTBOOL SweptSphereToPoint(LTVector *pStart, LTVector *pEnd, float fRadius, LTVec
 
 // Pushes the sphere at pPos out of the solid polygons it overlaps (a plane and the point inside the polygon).
 // Each push uses up one of 10 passes; returns the passes left (0 if it could not get free).
-// Not matching. The edge test is (vEdge x N) . vTo. The loop head is `do { if(!(nPasses > 0)) break; ... goto
-// Again; ... } while(1)`. Wave 7: Cross takes pPlane->m_Normal directly (VC6 hoists its by-value copy out of the
-// vertex loop, after the zero-count test, as the original does; the named vNormal copy before the loop was the
-// difference): 108 -> 32 aligned mismatches. Remaining: the original's polygon loop is the inverted for (count tested
-// before and at the bottom) where ours tests at the top, its inner loop's failed edge test jumps straight to the next
-// polygon (ours tests j < nVerts after the loop: the audit's one jcc difference, a loop shape, not behaviour), and
-// DistTo's x87 order (z, y, x in the original). `goto NextPoly` out of the inner loop, a `while` head and
-// `if(j != nVerts)` are worse (131+).
-// Wave 7 phase 2: audit `jcc -1 +1` (ours `jb` for `j < nVerts` after the edge loop, the exe's `jle` is the
-// inverted polygon loop's entry test `nPolies <= 0`): loop shape, same behaviour. Tried: the edge loop as an inline
-// helper returning LTFALSE on a failed edge (229 aligned, much worse). Still 32.
-// PARKED: loop shapes (polygon loop not inverted, edge-loop exit test) and DistTo x87 order (32 aligned); behaviour identical
-// STUB: LITHTECH 0x00425630
+// Matched in wave 8: the polygon loop ends a pass through a bHit flag (`goto Again` out of the for loop kept VC6
+// from inverting it), the edge loop through a bInside flag (VC6 threads the failed edge straight to the next
+// polygon), and DistTo is taken through pPoly->GetPlane() before pPlane is assigned (gives DistTo's z, y, x order).
+// FUNCTION: LITHTECH 0x00425630
 uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, int nPolies)
 {
 	uint16 nPasses;
@@ -287,26 +278,30 @@ uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, in
 	LTVector *pPrev, *pCur;
 	LTVector vEdge, vTo, vCross;
 	float fDist;
+	LTBOOL bInside;
+	LTBOOL bHit;
 
 	nPasses = 10;
 	do
 	{
 		if(!(nPasses > 0))
 			break;
+		bHit = LTFALSE;
 		for(i=0; i < nPolies; i++)
 		{
 			pPoly = pPolies[i];
 			if(!(((Surface*)pPoly->m_pSurface)->m_Flags & SURF_SOLID))
 				continue;
 
-			pPlane = pPoly->GetPlane();
-			fDist = pPlane->DistTo(*pPos);
+			fDist = pPoly->GetPlane()->DistTo(*pPos);
 			if(!(fDist < fRadius + 0.1f))
 				continue;
 
 			// Is the point on the plane inside the polygon's edges?
+			pPlane = pPoly->GetPlane();
 			LTVector vProj = *pPos - pPlane->m_Normal * fDist;
 			nVerts = pPoly->m_nVertices;
+			bInside = LTTRUE;
 			for(j=0; j < nVerts; j++)
 			{
 				if(j)
@@ -319,19 +314,23 @@ uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, in
 				vTo = vProj - *pPrev;
 				vCross = vEdge.Cross(pPlane->m_Normal);
 				if(vCross.Dot(vTo) < -0.001f)
+				{
+					bInside = LTFALSE;
 					break;
+				}
 			}
 
-			if(j < nVerts)
+			if(!bInside)
 				continue;
 
 			// Push it out of the plane and start over.
 			*pPos += pPoly->GetPlane()->m_Normal * (fRadius - fDist + 0.2f);
 			nPasses--;
-			goto Again;
+			bHit = LTTRUE;
+			break;
 		}
-		break;
-Again:;
+		if(!bHit)
+			break;
 	} while(1);
 
 	return nPasses;

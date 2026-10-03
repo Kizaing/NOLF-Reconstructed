@@ -1694,25 +1694,17 @@ LTBOOL MainWorld::InitWorldModel(WorldModelInstance *pInstance, const char *pNam
 
 
 // Loads the light anims (the render data at m_RenderDataPos).
-// Ours runs out of registers and spills this; the original keeps it in ebx.
-// Wave 6 phase 2: the original keeps iCurData in [esp+0x14] and `this` in ebx; ours gives iCurData ebx and spills
-// this (246 aligned, 225 ignoring stack). A 2-round statement hill-climb, `> m_LightAnimData` (operator DWORD) and
-// the counters' declaration order change nothing.
-// Wave 7 phase 2: audit: only `imm 4` (ours strength-reduces one pointer with `add ecx, 4`): no call, string or
-// branch difference; the return codes match (1 after ErrorStatus/Error, LT_OUTOFMEMORY after the SetSize chain).
-// Budget model: B = 2552u; the five SetSize -> SetSize2 sites are refused in the model, our build and the exe (the
-// exe's names for two of them are ICF copies), every other site is free: the earlier "1 free site"/ballast results
-// were register-allocation side effects, not inlining. What remains is register allocation (`this` in ebx in the exe,
-// spilled to [esp+0x14] in ours) and the frame layout that follows from it.
-// PARKED: register allocation only (exe keeps this in ebx, ours spills it; 225 aligned ignoring stack offsets); behaviour identical
-// STUB: LITHTECH 0x0042b6e0
+// Wave 8: the frame loop works through a pointer to the anim's frame slot (ppFrames): the exe computes
+// &pAnim->m_pFrames[iFrame] once per frame and re-reads the slot, never pAnim->m_pFrames. Indexing
+// pAnim->m_pFrames[iFrame][iPoly] directly spilled `this` (246 aligned, parked as register allocation only).
+// FUNCTION: LITHTECH 0x0042b6e0
 LTRESULT MainWorld::LoadObjects(ILTStream *pStream)
 {
 	uint32 nPolyRefs, nFrames, nDataBytes, nPolyFrames, nAnims;
 	uint32 i, iFrame, iPoly, iVert;
 	uint32 iCurPolyRef, iCurFrame, iCurData, iCurPolyFrame;
 	LightAnim *pAnim;
-	LAPolyFrame *pFrame;
+	LAPolyFrame *pFrame, **ppFrames;
 
 	m_WorldFlags &= ~WORLD_HASBASELIGHT;
 	pStream->SeekTo(m_RenderDataPos);
@@ -1761,7 +1753,8 @@ LTRESULT MainWorld::LoadObjects(ILTStream *pStream)
 
 		for (iFrame=0; iFrame < pAnim->m_nFrames; iFrame++)
 		{
-			pAnim->m_pFrames[iFrame] = &m_LightAnimPolyFrames.GetArray()[iCurPolyFrame];
+			ppFrames = &pAnim->m_pFrames[iFrame];
+			*ppFrames = &m_LightAnimPolyFrames.GetArray()[iCurPolyFrame];
 			iCurPolyFrame += pAnim->m_nPolies;
 			if (iCurPolyFrame > m_LightAnimPolyFrames.GetSize())
 				goto Error;
@@ -1769,7 +1762,7 @@ LTRESULT MainWorld::LoadObjects(ILTStream *pStream)
 			// Lightmaps.
 			for (iPoly=0; iPoly < pAnim->m_nPolies; iPoly++)
 			{
-				pFrame = &pAnim->m_pFrames[iFrame][iPoly];
+				pFrame = &(*ppFrames)[iPoly];
 
 				pFrame->m_pLightmap = &m_LightAnimData.GetArray()[iCurData];
 				STREAM_READ(pFrame->m_LightmapSize);
@@ -1785,7 +1778,7 @@ LTRESULT MainWorld::LoadObjects(ILTStream *pStream)
 			{
 				for (iPoly=0; iPoly < pAnim->m_nPolies; iPoly++)
 				{
-					pFrame = &pAnim->m_pFrames[iFrame][iPoly];
+					pFrame = &(*ppFrames)[iPoly];
 
 					STREAM_READ(pFrame->m_nVerts);
 
@@ -1818,7 +1811,7 @@ LTRESULT MainWorld::LoadObjects(ILTStream *pStream)
 			{
 				for (iPoly=0; iPoly < pAnim->m_nPolies; iPoly++)
 				{
-					pFrame = &pAnim->m_pFrames[iFrame][iPoly];
+					pFrame = &(*ppFrames)[iPoly];
 					pFrame->m_pVertR = LTNULL;
 					pFrame->m_pVertG = LTNULL;
 					pFrame->m_pVertB = LTNULL;

@@ -115,10 +115,12 @@ LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 
 			if (bPrevInside != bCurInside)
 			{
+				LTVector *pCur = pIn[i];
 				t = prevDist / (prevDist - curDist);
-				pNew = &s_Buf.m_NewVerts[nNewVerts++];
-				VEC_LERP(*pNew, *pIn[iPrev], *pIn[i], t);
+				pNew = &s_Buf.m_NewVerts[nNewVerts];
+				VEC_LERP(*pNew, *pIn[iPrev], *pCur, t);
 				*pOut++ = pNew;
+				nNewVerts++;
 			}
 
 			prevDist = curDist;

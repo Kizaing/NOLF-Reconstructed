@@ -1228,8 +1228,7 @@ void OrientMovement(SphereMoveInfo *pInfo)
 	// Step along the movement looking down for the surface.
 	vDelta = *pDest - *pStart;
 	nSteps = (int)(vDelta.Mag() / (pInfo->m_fRadius * 0.99)) + 2;
-	fStep = 1.0f / (float)(nSteps - 1);
-	vStep = vDelta * fStep;
+	vStep = vDelta / (float)(nSteps - 1);
 
 	for (i = 0; i < nSteps; i++)
 	{
@@ -1285,7 +1284,7 @@ void OrientMovement(SphereMoveInfo *pInfo)
 	vAvg.Init(0.0f, 0.0f, 0.0f);
 	for (i = 0; i < pInfo->m_nGroundNormals; i++)
 		vAvg += pInfo->m_GroundNormals[i];
-	vAvg *= 1.0f / (float)pInfo->m_nGroundNormals;
+	vAvg /= (float)pInfo->m_nGroundNormals;
 	vAvg.Norm();
 	SweptSphereOrient(&vAvg, pInfo->m_pObj);
 	*pDest += vAvg * 2.0f;
