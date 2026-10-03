@@ -65,14 +65,9 @@ public:
 LTBOOL pcx_Create2(ILTStream *pStream, LoadedBitmap *pBitmap);	// 0x004461d0
 HSURFACE cis_CreateSurfaceFromPcx(LoadedBitmap *pLoadedBitmap);	// 0x0040c650
 
-// Default empty iterator
-// FUNCTION: LITHTECH 0x004206d0 _$E4
-// FUNCTION: LITHTECH 0x004206e0 _$E1
-// FUNCTION: LITHTECH 0x004206f0 ??_GCConIterator@@UAEPAXI@Z
-// FUNCTION: LITHTECH 0x00420710 _$E3
-// FUNCTION: LITHTECH 0x00420720 _$E2
+// Default empty iterator (console.cpp)
 // GLOBAL: LITHTECH 0x004e2f80
-CConIterator g_ConEmptyIterator;
+extern CConIterator g_ConEmptyIterator;
 
 // Convenience functions...
 // (Ignores vkKey and always tests VK_CONTROL, as in Jupiter.)
@@ -972,9 +967,14 @@ void CConsole::EndNav()
 	SetState( STATE_NORMAL );
 }
 
-// The original stores the OptimizeSurface result before loading m_fBackgroundAlpha for the call. GetBackgroundAlpha()
-// goes through fld/fstp instead of an integer load (worse); a local, a dOpt temp and `this->` change nothing.
-// STUB: LITHTECH 0x00421a70
+// The console's client interface (Jupiter's ilt_client). An inline accessor in the original: going through it
+// changes the register allocation and scheduling of LoadBackground and SetBackgroundAlpha.
+inline ILTClient* GetClientDE()
+{
+	return g_ClientGlob.m_pClientMgr->m_pClientDE;
+}
+
+// FUNCTION: LITHTECH 0x00421a70
 LTRESULT CConsole::LoadBackground()
 {
 	ILTStream *pStream;
@@ -991,7 +991,7 @@ LTRESULT CConsole::LoadBackground()
 	{
 		m_hBackground = cis_CreateSurfaceFromPcx( &bitmap );
 
-		m_bBackgroundOptimized = g_ClientGlob.m_pClientMgr->m_pClientDE->OptimizeSurface(m_hBackground, RGB(0,0,0));
+		m_bBackgroundOptimized = GetClientDE()->OptimizeSurface(m_hBackground, RGB(0,0,0));
 		SetBackgroundAlpha( m_fBackgroundAlpha );
 
 		dResult = LT_OK;
@@ -1002,8 +1002,7 @@ LTRESULT CConsole::LoadBackground()
 	return dResult;
 }
 
-// Register allocation differs in the SetSurfaceAlpha call (eax/ecx vs edx/eax).
-// STUB: LITHTECH 0x00421b80
+// FUNCTION: LITHTECH 0x00421b80
 void CConsole::SetBackgroundAlpha( float fValue )
 {
 	if ( !m_hBackground )
@@ -1012,9 +1011,9 @@ void CConsole::SetBackgroundAlpha( float fValue )
 	m_fBackgroundAlpha = fValue;
 
 	if ( m_bBackgroundOptimized != LT_OK )
-		m_bBackgroundOptimized = g_ClientGlob.m_pClientMgr->m_pClientDE->OptimizeSurface(m_hBackground, RGB(0,0,0));
+		m_bBackgroundOptimized = GetClientDE()->OptimizeSurface(m_hBackground, RGB(0,0,0));
 
-	g_ClientGlob.m_pClientMgr->m_pClientDE->SetSurfaceAlpha( m_hBackground, fValue );
+	GetClientDE()->SetSurfaceAlpha( m_hBackground, fValue );
 }
 
 // FUNCTION: LITHTECH 0x00421bf0

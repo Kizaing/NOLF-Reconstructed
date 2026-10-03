@@ -64,6 +64,8 @@ LTBOOL ModelAllocations::Load(ILTStream &str)
 // STUB: LITHTECH 0x00459270
 // Only the operand order of m_nChildModels * m_nNodes differs (original: load m_nChildModels, imul m_nNodes;
 // ours always loads m_nNodes first. Tried both orders, parenthesised, temp local, constant first/last).
+// Wave 6 also tried: plain sizeof without WordAlign, WordAlign around the product, a block-scoped copy of either
+// member, uint32/int nChildNodes, nChildNodes as an initialiser or before `size = 0` (worse): still 2 instructions.
 LTBOOL ModelAllocations::CalcAllocationSize(uint32 &size)
 {
 	uint32 nChildNodes;

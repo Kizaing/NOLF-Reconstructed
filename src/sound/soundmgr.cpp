@@ -23,9 +23,9 @@
 // GLOBAL: LITHTECH 0x004e36d0 ?g_CV_ForceNoSound@@3JA
 extern int32 g_CV_ForceNoSound;
 
-// When a buffer has more instances than this, the one closest to finishing is removed.
+// When a buffer has more instances than this, the one closest to finishing is removed (engine_vars).
 // GLOBAL: LITHTECH 0x004d2130 ?g_dwMaxInstancesPerBuffer@@3KA
-uint32 g_dwMaxInstancesPerBuffer = 32;
+extern uint32 g_dwMaxInstancesPerBuffer;
 
 
 // The original calls the out-of-line CMoArray<uint8> constructor (0x004961c0, Clear() only) for
@@ -1283,9 +1283,7 @@ LTRESULT CSoundMgr::GetVolumeByType(uint16 &nVolume, uint8 nSoundType)
 	return LT_OK;
 }
 
-// The original returns nError (ebp) on success instead of a constant 0; otherwise matches. Tried: `return LT_OK`, `!nError`
-// tests, `if(nError != LT_OK){cleanup; return}` first (much worse): VC always proves nError == 0 on that path.
-// STUB: LITHTECH 0x00494500 ?PlaySoundA@CSoundMgr@@QAEKAAUPlaySoundInfo@@AAUFileIdentifier@@K@Z
+// FUNCTION: LITHTECH 0x00494500 ?PlaySoundA@CSoundMgr@@QAEKAAUPlaySoundInfo@@AAUFileIdentifier@@K@Z
 LTRESULT CSoundMgr::PlaySound(PlaySoundInfo &playSoundInfo, FileIdentifier &fileIdent, uint32 dwOffsetTime)
 {
 	CSoundBuffer *pSoundBuffer;
@@ -1352,7 +1350,20 @@ LTRESULT CSoundMgr::PlaySound(PlaySoundInfo &playSoundInfo, FileIdentifier &file
 			nError = LT_ERROR;
 	}
 
-	if (nError == LT_OK)
+	if (nError != LT_OK)
+	{
+		eType = pSoundInstance->GetType();
+		pSoundInstance->Term();
+		if (eType == SOUNDTYPE_LOCAL)
+			m_LocalSoundInstanceBank.Free((CLocalSoundInstance *)pSoundInstance);
+		else if (eType == SOUNDTYPE_AMBIENT)
+			m_AmbientSoundInstanceBank.Free((CAmbientSoundInstance *)pSoundInstance);
+		else if (eType == SOUNDTYPE_3D)
+			m_3DSoundInstanceBank.Free((C3DSoundInstance *)pSoundInstance);
+
+		playSoundInfo.m_hSound = LTNULL;
+	}
+	else
 	{
 		// Don't let one buffer hog the instances.
 		if (pSoundBuffer->GetInstanceList()->m_nElements > g_dwMaxInstancesPerBuffer)
@@ -1361,20 +1372,7 @@ LTRESULT CSoundMgr::PlaySound(PlaySoundInfo &playSoundInfo, FileIdentifier &file
 			if (pOldSoundInstance)
 				RemoveInstance(*pOldSoundInstance);
 		}
-
-		return nError;
 	}
-
-	eType = pSoundInstance->GetType();
-	pSoundInstance->Term();
-	if (eType == SOUNDTYPE_LOCAL)
-		m_LocalSoundInstanceBank.Free((CLocalSoundInstance *)pSoundInstance);
-	else if (eType == SOUNDTYPE_AMBIENT)
-		m_AmbientSoundInstanceBank.Free((CAmbientSoundInstance *)pSoundInstance);
-	else if (eType == SOUNDTYPE_3D)
-		m_3DSoundInstanceBank.Free((C3DSoundInstance *)pSoundInstance);
-
-	playSoundInfo.m_hSound = LTNULL;
 
 	return nError;
 }
@@ -2363,9 +2361,7 @@ LTRESULT CSoundMgr::GetFilterParamName(uint32 nIndex, const char *pFilter, const
 	return LT_OK;
 }
 
-// Matches except for a swapped ecx/edx assignment in the parameter loop (all 119 permutations of the five local
-// declarations tried: no effect).
-// STUB: LITHTECH 0x00496060
+// FUNCTION: LITHTECH 0x00496060
 LTRESULT CSoundMgr::GetFilterParamIndex(const char *pFilter, const char *pParam, uint32 *pIndex)
 {
 	HINTENUM nextAttrib;
@@ -2389,21 +2385,20 @@ LTRESULT CSoundMgr::GetFilterParamIndex(const char *pFilter, const char *pParam,
 		hFilter = 0;
 	}
 
-	if (hFilter)
+	if (!hFilter)
+		RETURN_ERROR(1, CSoundMgr::GetFilterParamIndex, LT_NOTFOUND);
+
+	// Find the parameter.
+	nextAttrib = HINTENUM_FIRST;
+	while (AIL_enumerate_filter_sample_attributes(hFilter, &nextAttrib, &attrib))
 	{
-		// Find the parameter.
-		nextAttrib = HINTENUM_FIRST;
-		while (AIL_enumerate_filter_sample_attributes(hFilter, &nextAttrib, &attrib))
-		{
-			if (stricmp(attrib.entry_name, pParam) == 0)
-				return LT_OK;
+		if (stricmp(attrib.entry_name, pParam) == 0)
+			return LT_OK;
 
-			(*pIndex)++;
-		}
-
-		*pIndex = 0;
+		(*pIndex)++;
 	}
 
+	*pIndex = 0;
 	RETURN_ERROR(1, CSoundMgr::GetFilterParamIndex, LT_NOTFOUND);
 }
 

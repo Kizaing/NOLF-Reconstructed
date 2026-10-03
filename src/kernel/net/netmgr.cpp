@@ -902,9 +902,11 @@ LTBOOL CNetMgr::SendFragmented(void *pData, uint32 dataLen, uint32 spaceAfter, C
 }
 
 
-// Wave 5: byte-identical except the stack slots: the original keeps the spilled `this` in the third slot
-// (0x18, after cGroup/cAck) with pRestore/savedDataLen/savedPos (uint32) after it; ours puts `this` last.
-// Declaration order, initialisers and a `CNetMgr *pThis = this;` local did not change that.
+// Wave 6: `pRestore = pPacket` before the WriteType call (the original stores it before the call) leaves only the
+// stack slots (aligned: 18 mismatches, 2 ignoring offsets). The original keeps the spilled `this` in the third slot
+// (0x18, after cGroup/cAck) with pRestore 0x1c, savedDataLen 0x20, savedPos 0x24 (uint32, restored as words); ours
+// puts pRestore/savedDataLen/savedPos at 0x18-0x20 and `this` last. Tried: declaration order, initialisers vs
+// assignments, `savedDataLen = savedPos = 0`, a `CNetMgr *pThis = this;` local (wave 5).
 // STUB: LITHTECH 0x00464460
 LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 {
@@ -914,17 +916,19 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 	int spaceLeft;
 	LTBOOL bRet;
 
-	CPacket *pRestore = LTNULL;
-	uint32 savedDataLen = 0;
-	uint32 savedPos = 0;
+	CPacket *pRestore;
+	uint32 savedDataLen, savedPos;
+
+	savedDataLen = savedPos = 0;
+	pRestore = LTNULL;
 
 	// Guaranteed packets get their frame number at the end.
 	if(pPacket->m_Data[0] & PACKETFLAG_GUARANTEED)
 	{
+		pRestore = pPacket;
 		savedDataLen = pPacket->m_DataLen;
 		savedPos = pPacket->m_Pos;
 		pPacket->WriteType(idSendTo->m_OutgoingFrame);
-		pRestore = pPacket;
 	}
 
 	if(pPacket->m_ErrorFlags & (PACKETERR_READOVERFLOW|PACKETERR_WRITEOVERFLOW))
@@ -1215,9 +1219,14 @@ CFragmentGroup* CNetMgr::FindFragmentGroup(uint32 frameNum, CBaseConn *pConn)
 }
 
 
-// Remaining diff: the original loads the CPacketRef's packet into ebx before the ReadType call and the m_Data
-// pointer after it (we load the pointer first), then writes m_Pos/m_DataLen through one reload of *pFragment.
-// STUB: LITHTECH 0x00464c70
+// Stores the packet ID byte. An inline setter in the original (packet.h is frozen, so it lives here): the packet
+// pointer is evaluated before the ReadType call and the m_Data pointer after it.
+inline void SetPacketID(CPacket *pPacket, uint8 id)
+{
+	pPacket->m_Data[0] = id;
+}
+
+// FUNCTION: LITHTECH 0x00464c70
 LTBOOL CNetMgr::AddFragment(CPacket *pPacket, uint8 index, CFragmentGroup *pGroup)
 {
 	CPacketRef *pFragment;
@@ -1230,9 +1239,9 @@ LTBOOL CNetMgr::AddFragment(CPacket *pPacket, uint8 index, CFragmentGroup *pGrou
 
 	// The first fragment has the original packet ID.
 	if(index == 0)
-		pGroup->m_Fragments[0]->m_Data[0] = pPacket->ReadType((uint8*)0);
+		SetPacketID(pGroup->m_Fragments[0], pPacket->ReadType((uint8*)0));
 
-	(*pFragment)->m_DataLen = (*pFragment)->m_Pos = 1;
+	(*pFragment)->ResetWrite();
 	(*pFragment)->WriteRaw(&pPacket->m_Data[pPacket->m_Pos], pPacket->m_DataLen - pPacket->m_Pos);
 	return TRUE;
 }

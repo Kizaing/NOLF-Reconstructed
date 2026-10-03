@@ -10,6 +10,9 @@
 const int NumCodeBytes = 16;	// Number of code bytes to record.
 const int MaxStackDump = 2048;	// Maximum number of DWORDS in stack dumps.
 const int StackColumns = 8;		// Number of columns in stack dump.
+// The log file name sits in .rdata in the exe (before this object's EH tables), so it is a const array,
+// not a string literal (VC6 /Gf puts literals in .data).
+static const char CrashLogName[] = "crashlog.txt";
 
 #define	ONEK			1024
 #define	SIXTYFOURK		(64*ONEK)
@@ -265,7 +268,7 @@ int __cdecl RecordExceptionInfo(PEXCEPTION_POINTERS data, const char *Message)
 	if (lastperiod)
 		lastperiod[0] = 0;
 	// Replace the executable filename with our error log file name.
-	lstrcpy(FilePart, "crashlog.txt");
+	lstrcpy(FilePart, CrashLogName);
 	HANDLE LogFile = CreateFile(ModuleName, GENERIC_WRITE, 0, 0,
 				OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, 0);
 	if (LogFile == INVALID_HANDLE_VALUE)

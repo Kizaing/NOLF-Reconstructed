@@ -232,3 +232,8 @@ static LTBOOL DoesLinkExist(LTObject *pOwner, void *pOther, uint32 linkType)
 
 	return LTFALSE;
 }
+
+
+// The STLport list<ObjRefEntry> iterator accessors AddObjRef/ReleaseObjRef call out of line.
+// FUNCTION: LITHTECH 0x00444280 ?begin@?$list@UObjRefEntry@@V?$allocator@UObjRefEntry@@@_STL@@@_STL@@QAE?AU?$_List_iterator@UObjRefEntry@@U?$_Nonconst_traits@UObjRefEntry@@@_STL@@@2@XZ
+// FUNCTION: LITHTECH 0x00444290 ?end@?$list@UObjRefEntry@@V?$allocator@UObjRefEntry@@@_STL@@@_STL@@QAE?AU?$_List_iterator@UObjRefEntry@@U?$_Nonconst_traits@UObjRefEntry@@@_STL@@@2@XZ

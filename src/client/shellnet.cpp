@@ -1238,7 +1238,10 @@ LTRESULT OnServerGameTime(CClientShell *pShell, CPacket *pPacket)
 
 
 // STUB: LITHTECH 0x0048d0f0
-// The original computes &pPacket->m_Message before loading messageID for the call.
+// The original computes &pPacket->m_Message before loading messageID for the call (aligned: 5 mismatches; the
+// original pushes &m_Message, then loads the shell, then reloads messageID).
+// Wave 6 tried: locals for the client shell or the client manager (before SetupPacketMessage too, worse), inline
+// accessors for both, GetMessageImpl(), an HMESSAGEREAD cast, uint32/int/uint16 messageID (worse).
 LTRESULT OnMessagePacket(CClientShell *pShell, CPacket *pPacket)
 {
 	uint8 messageID;

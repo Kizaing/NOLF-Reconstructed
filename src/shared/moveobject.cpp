@@ -1226,6 +1226,9 @@ void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *pvDeltaP
 // (orig: one `test [obj+0x88],edx` with 0x4000 hoisted into edx, result spilled to [esp+0x54] with immediates), the frame
 // (orig sub esp,0x23c, 16 bytes less than ours) and register allocation remain.  DoSolidBBoxCollision can't be `inline`
 // until DetectAndProcessCollisions calls it out of line (the out-of-line copy would vanish: ERROR).
+// Waiting on this function: the original calls MoveState's constructor (0x00460c60, zeroes +0/+4/+8/+0x64/+0x68) twice
+// and MoveState::Inherit (0x00460c80) three times out of line, and those copies sit right after it; annotate them
+// (mangled names) once this compiles that way. MaybeCollide calls Inherit too.
 // STUB: LITHTECH 0x0045fc60
 LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bPushAway)
 {
@@ -1651,11 +1654,11 @@ LTBOOL ChangeObjectDimensions(MoveState *pState, LTVector *pNewDims, uint32 bCol
 }
 
 
-// Size matches (752); 69 bytes differ: nDim/pObj swap ebp/ebx (orig: nDim in ebp), and the `vTemp` of the
-// "move it back down" branch sits at [esp+0x20] in the original (ours +0x30).  What fixed the rest: indexing the
-// vectors as `(&v.x)[nDim]` for the reads and the first write (a repeated `v[nDim]` through LTVector::operator[] gets its address CSE'd
-// into a register), and SetDims(pObj->m_Dims + vTemp) (operand order) which removes a 12 byte temp.
-// STUB: LITHTECH 0x00461700
+// Indexing the vectors as `(&v.x)[nDim]` for the reads and the first write (a repeated `v[nDim]` through
+// LTVector::operator[] gets its address CSE'd into a register) and SetDims(pObj->m_Dims + vTemp) (operand order,
+// no 12 byte temp) fixed most of it; the "move it back down" branch moves vNewPos (not vTemp) and keeps the new low
+// end in fLow, which also fixed the nDim/pObj register swap.
+// FUNCTION: LITHTECH 0x00461700
 void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 {
 	MoveState moveState;
@@ -1703,13 +1706,14 @@ void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 		else
 		{
 			// Move it back down and see where it stops.
-			vTemp = pObj->GetPos();
-			vTemp[nDim] -= fGrow;
-			MoveObject(&moveState, vTemp, MO_DETACHSTANDING);
+			vNewPos = pObj->GetPos();
+			vNewPos[nDim] -= fGrow;
+			MoveObject(&moveState, vNewPos, MO_DETACHSTANDING);
 
 			vTemp = pObj->GetPos();
+			fLow = vTemp[nDim];
 			vNewPos = pObj->GetPos();
-			fDiff = (fHigh - vTemp[nDim]) * 0.5f;
+			fDiff = (fHigh - fLow) * 0.5f;
 			vNewPos[nDim] += fDiff;
 		}
 	}
@@ -1990,7 +1994,10 @@ void CollideWorldModelCB(WorldTreeObj *pObj, void *pUser)
 
 
 // Gets the attachment's world transform.
-// The inlined quat_Mul emits out[QX] terms in a different order.
+// The inlined quat_Mul emits out[QX] terms in a different order: the exe sums a[QX]*b[QW], a[QW]*b[QX], a[QY]*b[QZ]
+// (then - a[QZ]*b[QY]); ours, like the matched out-of-line quat_Mul at 0x004178b0, a[QW]*b[QX], a[QY]*b[QZ],
+// a[QX]*b[QW]. Only out[QX] differs (6 instructions). Wave 6 tried: quat_Mul straight into rRot or into a local,
+// a local LTRotation for the product, the rotation first, a LTRotation*/LTransform* local, m_Pos for GetPos().
 // STUB: LITHTECH 0x00462510
 void GetAttachmentTransform(LTObject *pParent, Attachment *pAttachment, LTVector &vPos, LTRotation &rRot)
 {

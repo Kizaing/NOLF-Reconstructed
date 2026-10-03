@@ -18,8 +18,8 @@ client/cobject,00417d80,004182b0,medium
 shared/collision,004182b0,0041f870,medium
 shared/concommand,0041f870,004201f0,medium
 shared/conparse,004201f0,004205c0,medium
-client/console,004205c0,004206d0,medium
-client/sys/win/winconsole_impl,004206d0,00422220,medium
+client/console,004205c0,00420730,medium
+client/sys/win/winconsole_impl,00420730,00422220,medium
 client/consolecommands,00422220,00423880,medium
 kernel/sys/win/counter,00423880,00423a20,medium
 shared/csbase,00423a20,00424970,low

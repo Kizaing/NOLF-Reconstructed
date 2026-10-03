@@ -12,9 +12,17 @@
 
 #define GetHelper()		((LMessageHelper*)m_Unknown04)
 
+// Bytes left to read. The original computes this in an inline helper (the operand loads come
+// out in the other order, m_Pos first, when the subtraction is written in the macro); the real
+// name is unknown (packet.h is frozen, so it lives here).
+inline int32 GetBytesLeftToRead(CPacket *pPacket)
+{
+	return pPacket->m_DataLen - pPacket->m_Pos;
+}
+
 // Reading past the end of a message resets it so it can be read again.
 #define CHECK_AUTORESET(pPacket) \
-	if((int)((pPacket)->m_DataLen - (pPacket)->m_Pos) <= 0 && ((pPacket)->m_ErrorFlags & 1)) \
+	if(GetBytesLeftToRead(pPacket) <= 0 && ((pPacket)->m_ErrorFlags & 1)) \
 		(pPacket)->m_Pos = 1;
 
 
@@ -448,8 +456,7 @@ LTRESULT LMessageImpl::Release()
 	return LT_OK;
 }
 
-// STUB: LITHTECH 0x00446090
-// The original loads m_Pos before m_DataLen for the auto-reset test.
+// FUNCTION: LITHTECH 0x00446090
 LTRESULT LMessageImpl::ReadRawFL(void *pData, uint32 len)
 {
 	m_pPacket->ReadRaw(pData, (uint16)len);
@@ -485,8 +492,7 @@ LTRESULT LMessageImpl::GetStatus(uint32 &flags)
 	return LT_OK;
 }
 
-// STUB: LITHTECH 0x00446130
-// As ReadRawFL.
+// FUNCTION: LITHTECH 0x00446130
 char const* LMessageImpl::ReadString()
 {
 	char *pRet;

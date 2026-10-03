@@ -2580,25 +2580,35 @@ LTRESULT si_SetObjectUserFlags(HOBJECT hObj, uint32 flags)
 	return LT_OK;
 }
 
-// Differs: register allocation only (the original tests the flags byte in dl; we pick cl).
-// STUB: LITHTECH 0x00480470
+// FUNCTION: LITHTECH 0x00480470
 HOBJECT si_GetNextObject(HOBJECT hObj)
 {
 	LTLink *pLink;
-	LTObject *pObj;
 
 	if (hObj)
-		pLink = hObj->sd->m_ListNode.m_pNext;
+	{
+		pLink = &hObj->sd->m_ListNode;
+
+		pLink = pLink->m_pNext;
+		if (pLink == &g_pServerMgr->m_Objects.m_Head)
+			return LTNULL;
+	}
 	else
+	{
 		pLink = g_pServerMgr->m_Objects.m_Head.m_pNext;
+		if (pLink == &g_pServerMgr->m_Objects.m_Head)
+			return LTNULL;
+	}
 
-	if (pLink == &g_pServerMgr->m_Objects.m_Head)
-		return LTNULL;
-
-	pObj = (LTObject*)pLink->m_pData;
+	LTObject *pObj = (LTObject*)pLink->m_pData;
 	if (pObj->m_InternalFlags & IFLAG_INACTIVE_MASK)
+	{
 		return LTNULL;
-	return pObj;
+	}
+	else
+	{
+		return pObj;
+	}
 }
 
 // FUNCTION: LITHTECH 0x004804c0

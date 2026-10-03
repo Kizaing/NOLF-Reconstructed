@@ -6,6 +6,20 @@
 // GLOBAL: LITHTECH 0x004d2230
 extern LTEngineVar g_LTEngineVars[96];
 
+// The engine variables themselves (0x4d2128-0x4d222c, initialised ints and floats that the table points
+// at) are not reconstructed yet either, except these, which other modules use.
+// soundinstance: filtered samples are muted and left looping on their tail instead of being stopped
+// when it is cleared.
+// GLOBAL: LITHTECH 0x004d212c ?g_bStopFilteredSamples@@3IA
+LTBOOL g_bStopFilteredSamples = LTTRUE;
+// soundmgr: when a buffer has more instances than this, the one closest to finishing is removed.
+// GLOBAL: LITHTECH 0x004d2130 ?g_dwMaxInstancesPerBuffer@@3KA
+uint32 g_dwMaxInstancesPerBuffer = 32;
+
+// servermgr: ticks spent in class updates this frame.
+// GLOBAL: LITHTECH 0x004e36c0
+uint32 g_Ticks_ClassUpdate;
+
 // The console's global model light add / directional add / world model ambient colors
 // (set by the ModelAdd, ModelDirAdd and WMAmbient commands), zero constructed here.
 // FUNCTION: LITHTECH 0x00436100 _$E2

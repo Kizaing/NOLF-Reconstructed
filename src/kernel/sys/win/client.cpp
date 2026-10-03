@@ -27,11 +27,16 @@
 typedef int (*GetLithtechCommandLineFn)(int32 argc, char **argv,
 	int32 *pOutArgc, char **pOutArgv, int32 maxNumOutArgs, int32 maxOutArgLength);
 
+// Used for finding memory leaks (Jupiter checks it in its allocator; nothing in Talon reads it). It is
+// the 0xffffffff that starts this object's .data in the exe.
+// GLOBAL: LITHTECH 0x004cf52c
+int g_iStopAllocCount = -1;
+
 // stdlith struct_bank.cpp
 // GLOBAL: LITHTECH 0x004e6908
 extern int g_bDebugStructBanks;
 
-// Console variables (consolecommands.cpp).
+// Console variables (engine_vars.cpp: g_LTEngineVars points at all of them).
 // GLOBAL: LITHTECH 0x004e3734
 extern LTBOOL g_bNullRender;
 // GLOBAL: LITHTECH 0x004d2134

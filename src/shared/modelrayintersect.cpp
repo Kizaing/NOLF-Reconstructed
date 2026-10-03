@@ -73,8 +73,8 @@ uint32 CModelRayIntersect::CalcLOD(const LTVector &vCamPos, int32 nLODOffset)
 }
 
 
-// STUB: LITHTECH 0x0045b0a0
-// Two TransformMaker member stores are scheduled differently.
+// FUNCTION: LITHTECH 0x0045b0a0
+// The explicit m_pOutput store (redundant with the constructor's) places the zero store after &mTransform.
 LTBOOL CModelRayIntersect::Setup()
 {
 	LTMatrix mTransform;
@@ -83,6 +83,7 @@ LTBOOL CModelRayIntersect::Setup()
 
 	TransformMaker tMaker;
 	tMaker.m_pStartMat = &mTransform;
+	tMaker.m_pOutput = LTNULL;
 	tMaker.m_hObject = m_hModel;
 	((ModelInstance*)m_hModel)->SetupTransformMaker(&tMaker);
 

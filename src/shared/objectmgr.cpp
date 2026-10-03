@@ -541,6 +541,21 @@ LTBOOL WorldModelInstance::IsPointInside(const LTVector *pPos)
 // ModelInstance.
 // ------------------------------------------------------------------------- //
 
+// In-class inline virtuals in the original (Jupiter de_objects.h has GetRadius in the class body): defined
+// inline before the constructor, so the constructor's vtable emits them before ??_GModelInstance, as in the exe.
+// The same holds for the slot-0x38 virtuals of SpriteInstance, DynamicLight, LTPolyGrid and Canvas::GetRadius.
+// FUNCTION: LITHTECH 0x00467650
+inline float ModelInstance::GetRadius()
+{
+	return GetModelDB()->m_VisRadius;
+}
+
+// FUNCTION: LITHTECH 0x00467660
+inline float ModelInstance::GetScaledRadius()
+{
+	return LTMAX(m_Scale.x, LTMAX(m_Scale.y, m_Scale.z)) * GetModelDB()->m_VisRadius;
+}
+
 // FUNCTION: LITHTECH 0x004674a0
 ModelInstance::ModelInstance() : LTObject(OT_MODEL)
 {
@@ -576,18 +591,6 @@ ModelInstance::ModelInstance() : LTObject(OT_MODEL)
 	m_Unknown2BC = -1.0f;
 	m_ModelLighting = LTVector(-1.0f, -1.0f, -1.0f);
 	m_Unknown2CC = 1;
-}
-
-// FUNCTION: LITHTECH 0x00467650
-float ModelInstance::GetRadius()
-{
-	return GetModelDB()->m_VisRadius;
-}
-
-// FUNCTION: LITHTECH 0x00467660
-float ModelInstance::GetScaledRadius()
-{
-	return LTMAX(m_Scale.x, LTMAX(m_Scale.y, m_Scale.z)) * GetModelDB()->m_VisRadius;
 }
 
 // FUNCTION: LITHTECH 0x004676f0 ??_GModelInstance@@UAEPAXI@Z
@@ -809,6 +812,12 @@ const char* ModelInstance::GetModelFilename()
 // Simple objects.
 // ------------------------------------------------------------------------- //
 
+// FUNCTION: LITHTECH 0x00467f20
+inline float SpriteInstance::CalcRadius()
+{
+	return LTMAX(m_Scale.x, m_Scale.y) * 363.0f;
+}
+
 // FUNCTION: LITHTECH 0x00467eb0
 SpriteInstance::SpriteInstance() : LTObject(OT_SPRITE)
 {
@@ -824,12 +833,6 @@ SpriteInstance::SpriteInstance() : LTObject(OT_SPRITE)
 	m_SCImpl.m_pSprite = this;
 }
 
-// FUNCTION: LITHTECH 0x00467f20
-float SpriteInstance::CalcRadius()
-{
-	return LTMAX(m_Scale.x, m_Scale.y) * 363.0f;
-}
-
 // FUNCTION: LITHTECH 0x00467f50 ??_GSpriteInstance@@UAEPAXI@Z
 
 // FUNCTION: LITHTECH 0x00467f70
@@ -837,16 +840,16 @@ SpriteInstance::~SpriteInstance()
 {
 }
 
+// FUNCTION: LITHTECH 0x00467fa0
+inline float DynamicLight::GetLightRadius(uint32 unused)
+{
+	return m_LightRadius;
+}
+
 // FUNCTION: LITHTECH 0x00467f80
 DynamicLight::DynamicLight() : LTObject(OT_LIGHT)
 {
 	m_LightRadius = 100.0f;
-}
-
-// FUNCTION: LITHTECH 0x00467fa0
-float DynamicLight::GetLightRadius(uint32 unused)
-{
-	return m_LightRadius;
 }
 
 // FUNCTION: LITHTECH 0x00467fb0 ??_GDynamicLight@@UAEPAXI@Z
@@ -937,6 +940,17 @@ void LTParticleSystem::Init(ObjectMgr *pMgr, ObjectCreateStruct *pStruct)
 	m_pParticleBank = &pMgr->m_ParticleBank;
 }
 
+// FUNCTION: LITHTECH 0x00468310
+inline float LTPolyGrid::CalcRadius()
+{
+	LTVector vDims;
+
+	vDims.x = (float)(m_Width >> 1) * m_Scale.x;
+	vDims.y = m_Scale.y * 128.0f;
+	vDims.z = (float)(m_Height >> 1) * m_Scale.z;
+	return vDims.Mag() + 1.0f;
+}
+
 // FUNCTION: LITHTECH 0x00468270
 LTPolyGrid::LTPolyGrid() : LTObject(OT_POLYGRID)
 {
@@ -956,17 +970,6 @@ LTPolyGrid::LTPolyGrid() : LTObject(OT_POLYGRID)
 	dl_TieOff(&m_LeafLinks);
 	m_Width = m_Height = 0;
 	memset(m_ColorTable, 0, sizeof(m_ColorTable));
-}
-
-// FUNCTION: LITHTECH 0x00468310
-float LTPolyGrid::CalcRadius()
-{
-	LTVector vDims;
-
-	vDims.x = (float)(m_Width >> 1) * m_Scale.x;
-	vDims.y = m_Scale.y * 128.0f;
-	vDims.z = (float)(m_Height >> 1) * m_Scale.z;
-	return vDims.Mag() + 1.0f;
 }
 
 // FUNCTION: LITHTECH 0x00468380 ??_GLTPolyGrid@@UAEPAXI@Z
@@ -1045,6 +1048,12 @@ void ContainerInstance::Init(ObjectMgr *pMgr, ObjectCreateStruct *pStruct)
 	m_ContainerCode = pStruct->m_ContainerCode;
 }
 
+// FUNCTION: LITHTECH 0x004685a0
+inline float Canvas::GetRadius()
+{
+	return m_CanvasRadius;
+}
+
 // FUNCTION: LITHTECH 0x00468570
 Canvas::Canvas() : LTObject(OT_CANVAS)
 {
@@ -1053,13 +1062,9 @@ Canvas::Canvas() : LTObject(OT_CANVAS)
 	m_CanvasRadius = 1.0f;
 }
 
-// FUNCTION: LITHTECH 0x004685a0
-float Canvas::GetRadius()
-{
-	return m_CanvasRadius;
-}
-
-// FUNCTION: LITHTECH 0x004685b0 ??_GLTObject@@UAEPAXI@Z
+// ??_GLTObject is byte-identical (Canvas has no destructor of its own) and the linker kept this later copy;
+// both vtables point here.
+// FUNCTION: LITHTECH 0x004685b0 ??_GCanvas@@UAEPAXI@Z
 
 
 // ------------------------------------------------------------------------- //

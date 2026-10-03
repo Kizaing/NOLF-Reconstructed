@@ -211,8 +211,13 @@ public:
 
 			uint32 seekOffset = m_SeekOffset;
 			if ((g_pDeFileLastRezItm == m_pRezItm) && (g_nDeFileLastRezPos == seekOffset))
-				seekOffset = (uint32)-1;
-			sizeRead = m_pRezItm->Read(pData, size, seekOffset);
+			{
+				sizeRead = m_pRezItm->Read((BYTE*)pData, size);
+			}
+			else
+			{
+				sizeRead = m_pRezItm->Read((BYTE*)pData, size, seekOffset);
+			}
 
 			LeaveCriticalSection(&m_pTree->m_CriticalSection);
 
@@ -859,10 +864,11 @@ int df_GetRawInfo(HLTFileTree *hTree, const char *pName, char* sFileName, unsign
 // FUNCTION: LITHTECH 0x004272e0 ?SeekTo@DosFileStream@@UAEKK@Z
 // FUNCTION: LITHTECH 0x00427310 ?Read@DosFileStream@@UAEKPAXK@Z
 // FUNCTION: LITHTECH 0x004273b0 ?SeekTo@RezFileStream@@UAEKK@Z
-// Remaining diff (19 bytes): the original keeps the if/else with two CRezItm::Read calls (push -1 / push seekOffset into one
-// shared call) and loads pData into edi before comparing g_pDeFileLastRezItm; we load it after.
+// Remaining diff (6 aligned instructions): with Jupiter's if/else of two CRezItm::Read calls (tail-merged into push -1 /
+// push seekOffset) only the pData load differs: the original loads it into edi before comparing g_pDeFileLastRezItm
+// (so that compare uses eax); ours loads it at the merged call. Tried: operand order of both compares, a BYTE* local for
+// pData before/after the seek offset, no seekOffset local (reloads m_SeekOffset, worse).
 // STUB: LITHTECH 0x004273e0 ?Read@RezFileStream@@UAEKPAXK@Z
-// (Read: the original loads the seek offset after the item compare and keeps pData in edi.)
 // FUNCTION: LITHTECH 0x00427ac0 ?AllocVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00427b30 ?AllocVoid@?$ObjectBank@VRezFileStream@@VLCriticalSection@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00427ba0 ?FreeVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEXPAX@Z

@@ -549,6 +549,7 @@ LTRESULT Model::InitAllocations(ILTStream &file, LAlloc *pDelegate)
 // - 0x00457e10 is the out-of-line 2-argument basic_string::_M_range_initialize<const char*>(f, l) with the
 //   forward-iterator body inlined; ours inlines the 2-argument dispatcher and calls the 3-argument copy instead.
 //   The original did not inline the dispatcher into the string(const char*) constructor at the two key temporaries.
+//   (Our Load now calls that copy at three sites too and it matches; 0x00457e10 is annotated below.)
 LTRESULT Model::Load(ModelLoadRequest *pRequest)
 {
 	ILTStream *pFile;
@@ -937,6 +938,7 @@ Error:
 // FUNCTION: LITHTECH 0x00457bc0 ?_M_copy@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$_Identity@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@AAEPAU?$_Rb_tree_node@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@PAU32@0@Z
 // FUNCTION: LITHTECH 0x00457ca0 ?_M_erase@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$_Identity@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@AAEXPAU?$_Rb_tree_node@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@Z
 // FUNCTION: LITHTECH 0x00457df0 ?_Construct@_STL@@YAXPAPBDABQBD@Z
+// FUNCTION: LITHTECH 0x00457e10 ?_M_range_initialize@?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@AAEXPBD0@Z
 // FUNCTION: LITHTECH 0x00457ed0 ?_M_increment@?$_Rb_global@_N@_STL@@SAXPAU_Rb_tree_base_iterator@2@@Z
 // FUNCTION: LITHTECH 0x00457f10 ??M_STL@@YA_NABV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@0@0@Z
 // FUNCTION: LITHTECH 0x00457f80 ?deallocate@?$__node_alloc@$00$0A@@_STL@@SAXPAXI@Z

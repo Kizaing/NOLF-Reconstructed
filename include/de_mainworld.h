@@ -46,21 +46,7 @@ struct LAPolyFrame
 // Talon light animation (0x60 bytes, world light anims driven by ILTLightAnim).
 struct LightAnim
 {
-					LightAnim()						// 0x00428320
-					{
-						m_vLightPos.Init();
-						m_vLightColor.Init();
-						m_fLightRadius = 0.0f;
-						m_Name[0] = 0;
-						m_bShadowMap = LTFALSE;
-						m_pFrames = LTNULL;
-						m_nFrames = 0;
-						m_pPolyRefs = LTNULL;
-						m_nPolies = 0;
-						m_iFrames[0] = m_iFrames[1] = 0xFFFFFFFF;
-						m_PercentBetween = 0;
-						m_fBlendPercent = 1.0f;
-					}
+					LightAnim();					// 0x00428320 (de_mainworld.cpp; not inline: every caller calls it)
 
 	char			m_Name[0x20];		// 0x00
 	LTBOOL			m_bShadowMap;		// 0x20 LAInfo::m_bShadowMap (impl_common la_GetInfo)

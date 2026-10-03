@@ -3,6 +3,7 @@
 #include "ratetracker.h"
 
 
+// FUNCTION: LITHTECH 0x0046eab0
 RateTracker::RateTracker()
 {
 	m_Seconds = 0.0001f;

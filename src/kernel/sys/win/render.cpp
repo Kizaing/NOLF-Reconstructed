@@ -75,6 +75,8 @@ void r_UnloadSystemTexture(TextureData *pTexture)
 // Remaining diff (10 bytes): in the EnvMapAlpha block the original stores m_eTexType (2) before the `add esp, 8` that
 // pops cm_AddSharedTexture's arguments (we pop first). Tried: type store before/after the pointer store, no pLinked temp,
 // comma expression, an else-chain: none moves the store across the pop.
+// Wave 6 tried: dropping the block's own `return LT_OK` (and an explicit else return), pointer store first with and
+// without pLinked, an early `if(!pStream) RETURN_ERROR_PARAM` (much worse).
 LTRESULT r_LoadSystemTexture(SharedTexture *pSharedTexture, TextureData **ppTextureData, LTBOOL bBind)
 {
 	LThreadMessage unused;	// An unused local whose constructor was folded with LThreadMessage's.

@@ -1,8 +1,15 @@
 // Jupiter runtime/model/src/animtracker.cpp (Talon version: time scale, weight sets, key types).
 #include "animtracker.h"
+#include "transformmaker.h"
 
 static void trk_ProcessKey(LTAnimTracker *pTracker, ModelAnim *pAnim, uint32 iFrame);
 static AnimKeyFrame* trk_NextPositionFrame(LTAnimTracker *pTracker, uint32 iStart, uint32 &iNextFrame);
+
+// 0x00401000 is the linker's one `vector constructor iterator': this is the first object linked, so the original
+// animtracker.obj had a ??_H COMDAT. VC6 emits ??_H (unreferenced) for an in-class inline constructor of a class with
+// an array member of a class with a constructor (TransformMaker::m_Anims, netmgr.h's CPacketRef m_Fragments[]), so
+// the original included some such header here; transformmaker.h (same module) is the likeliest.
+// FUNCTION: LITHTECH 0x00401000 ??_H@YGXPAXIHP6EX0@Z@Z
 
 
 // FUNCTION: LITHTECH 0x00401030

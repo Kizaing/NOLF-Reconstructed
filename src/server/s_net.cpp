@@ -982,6 +982,8 @@ void FillInPlaysoundMessage(CServerEvent *pEvent, Client *pClient, CPacket *pPac
 // STUB: LITHTECH 0x00476710
 // Loads pClient->m_hFTServ into ecx where the original uses eax (2 bytes).
 // Wave 5 tried: a local for the handle, assignment-in-condition, an else that clears pClient: no change.
+// Wave 6 tried: a separate Client local for the else branch, `!pClient` + continue, braces, storing the
+// fts_ProcessPacket result, and Jupiter's ProcessIncomingPacket split into an inline helper (SIZE, much worse).
 LTBOOL ProcessIncomingPackets(CServerMgr *pServerMgr)
 {
 	CPacket *pPacket;
@@ -1156,6 +1158,9 @@ static LTRESULT OnPeerToPeerAuthPacket(CServerMgr *pServerMgr, CPacket *pPacket,
 // eax/edx swapped for the message ID and the shell vtable (4 bytes).
 // Wave 5 tried: GetMessageImpl(), a local for the shell, a local for the message handle, initialising
 // messageID to 0: no change (the other OnMessagePacket, the client's at 0x0048d0f0, differs the same way).
+// Wave 6 tried: early `return LT_OK` guards (one or two), `messageID = 0;` before the if, the inverted if/else,
+// inline helpers for the message ID read (by value and by reference), for the remaining-bytes test and for the
+// server shell, and an HMESSAGEREAD local: still 3 aligned mismatches.
 static LTRESULT OnMessagePacket(CServerMgr *pServerMgr, CPacket *pPacket, Client *pClient)
 {
 	uint8 messageID;

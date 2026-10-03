@@ -11,6 +11,11 @@ All units link together, so a unit whose functions move also changes the call si
 units that call them: a few bytes in an otherwise identical unit usually mean that, not a fault of that unit
 (check with `tools/relink.py --mode mixed --only <unit>`).
 Exit code 1 if a unit that was identical in the previous run is not identical now.
+
+  --data       also run relink.py --data-units: per-unit data ranges and the .rdata/.data status of every fully matched
+               unit (build/relink-gate/data_units.json, data_status.json); lists units whose data status got worse.
+  --own-data   link with --own-data (fully matched units whose data matches supply their own .rdata/.data; implies
+               --data). .rdata then differs where a vtable points at a function that moved in .text.
 """
 import bisect, json, os, subprocess, sys
 
@@ -28,7 +33,10 @@ def main():
     import build as B
     out = os.path.normpath(os.environ.get('RELINK_OUT') or os.path.join(BUILD, 'relink-gate'))
     env = dict(os.environ, RELINK_OUT=out)
-    r = subprocess.run([sys.executable, os.path.join(TOOLS, 'relink.py'), '--mode', 'mixed'], cwd=ROOT, env=env,
+    own = '--own-data' in sys.argv
+    data = own or '--data' in sys.argv
+    extra = ['--own-data'] if own else ['--data-units'] if data else []
+    r = subprocess.run([sys.executable, os.path.join(TOOLS, 'relink.py'), '--mode', 'mixed'] + extra, cwd=ROOT, env=env,
                        capture_output=True, text=True)
     full, fell_back = [], ''
     for l in r.stdout.splitlines():
@@ -99,6 +107,24 @@ def main():
         for k, v in state['sections'].items():
             if k != '.text' and v != prev['sections'].get(k, 0):
                 print('%s: %d bytes differ (previous run %d)' % (k, v, prev['sections'].get(k, 0)))
+    # data status (relink.py --data-units): 'match' > 'edge' (own sections match, unexplained bytes beside them) > 'differs'
+    rank = {'match': 2, 'edge': 1, 'differs': 0}
+    if data and os.path.exists(os.path.join(out, 'data_status.json')):
+        ds = json.load(open(os.path.join(out, 'data_status.json')))
+        state['data'] = {u: v['status'] for u, v in ds.items()}
+        cnt = {}
+        for v in state['data'].values():
+            cnt[v] = cnt.get(v, 0) + 1
+        print('data status of the fully matched units: %s' % ', '.join('%s %d' % kv for kv in sorted(cnt.items())))
+        for u, v in sorted(ds.items()):
+            if v['status'] != 'match':
+                print('  %-40s %s: %s' % (u, v['status'], '; '.join(v['issues'][:2])))
+        old = (prev or {}).get('data', {})
+        worse = sorted(u for u, v in state['data'].items() if u in old and rank[v] < rank.get(old[u], 0))
+        if worse:
+            print('DATA REGRESSED (status worse than in the previous --data run): %s' % ', '.join(worse))
+    elif prev and 'data' in prev:
+        state['data'] = prev['data']
     json.dump(state, open(STATE, 'w'), indent=1, sort_keys=True)
     return rc
 

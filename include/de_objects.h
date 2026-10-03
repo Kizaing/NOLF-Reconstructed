@@ -222,7 +222,7 @@ class LTPolyGrid : public LTObject
 public:
 	LTPolyGrid();					// 0x00468270
 	virtual ~LTPolyGrid();			// 0x004683a0
-	float			CalcRadius();	// 0x00468310 (name unknown)
+	virtual float	CalcRadius();	// 0x38 (0x00468310, name unknown)
 
 	char			*m_Data;		// 0x1b0 The grid data.
 	unsigned short	*m_Indices;		// 0x1b4 The precalculated index list.
@@ -365,7 +365,7 @@ class SpriteInstance : public LTObject
 public:
 	SpriteInstance();				// 0x00467eb0
 	virtual ~SpriteInstance();		// 0x00467f70
-	float			CalcRadius();	// 0x00467f20 (name unknown)
+	virtual float	CalcRadius();	// 0x38 (0x00467f20, name unknown)
 
 	uint8			m_SpriteTracker[0x14];	// 0x1b0 SpriteTracker (sprite.h)
 	HPOLY			m_ClipperPoly;			// 0x1c4 Poly index if this sprite is clipped.
@@ -437,7 +437,7 @@ class DynamicLight : public LTObject
 public:
 	DynamicLight();					// 0x00467f80
 	virtual ~DynamicLight();		// 0x00467fd0
-	float			GetLightRadius(uint32 unused);	// 0x00467fa0 (name unknown)
+	virtual float	GetLightRadius(uint32 unused);	// 0x38 (0x00467fa0, name unknown)
 
 	float			m_LightRadius;		// 0x1b0
 };

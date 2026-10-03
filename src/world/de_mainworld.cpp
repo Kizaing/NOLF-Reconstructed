@@ -197,8 +197,8 @@ WorldData* w_FindWorldModel(MainWorld *pWorld, const char *pName)
 // The out-of-line copy of the SDK's inline MatVMul (ltmatrix.h).
 // FUNCTION: LITHTECH 0x00428120 ?MatVMul@@YAXPAV?$_CVector@M@@PAVLTMatrix@@0@Z
 
-// The points loop schedules its FPU loads differently (x*m00, z*m02, y*m01 order).
-// STUB: LITHTECH 0x00427ed0
+// The pDestPt local decides the term order of the inlined MatVMul's sums (without it the loads come out z, y, x).
+// FUNCTION: LITHTECH 0x00427ed0
 void w_TransformWorldModel(WorldModelInstance *pInst, LTMatrix *pMat, LTBOOL bPartial)
 {
 	uint32 i;
@@ -222,7 +222,8 @@ void w_TransformWorldModel(WorldModelInstance *pInst, LTMatrix *pMat, LTBOOL bPa
 	// Transform the points.
 	for (i=0; i < pDest->m_nPoints; i++)
 	{
-		MatVMul(&pDest->m_Points[i], pMat, &pSrc->m_Points[i]);
+		LTVector *pDestPt = &pDest->m_Points[i];
+		MatVMul(pDestPt, pMat, &pSrc->m_Points[i]);
 	}
 
 	// Transform the planes!
@@ -319,8 +320,23 @@ LTBOOL w_MakeSpecialName(const char *pName, int id, char *pBuf, uint32 bufLen)
 }
 
 
-// The out-of-line LightAnim constructor (BaseNew<LightAnim>).
+// Not inline in Talon: BaseNew<LightAnim> (clientmgr 0x00414880) and the CMoArray<LightAnim> copies call it.
 // FUNCTION: LITHTECH 0x00428320 ??0LightAnim@@QAE@XZ
+LightAnim::LightAnim()
+{
+	m_vLightPos.Init();
+	m_vLightColor.Init();
+	m_fLightRadius = 0.0f;
+	m_Name[0] = 0;
+	m_bShadowMap = LTFALSE;
+	m_pFrames = LTNULL;
+	m_nFrames = 0;
+	m_pPolyRefs = LTNULL;
+	m_nPolies = 0;
+	m_iFrames[0] = m_iFrames[1] = 0xFFFFFFFF;
+	m_PercentBetween = 0;
+	m_fBlendPercent = 1.0f;
+}
 
 
 // ----------------------------------------------------------------------------- //
@@ -1258,6 +1274,8 @@ void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTabl
 // Adds a light to the light table samples in its radius ("fast" light objects).
 // 42 bytes differ: the prologue loads pTable before pushing edi, and the blue channel is
 // extracted later than in the original.
+// Wave 6 tried for the colour: separate component stores, VEC_SET, Init without casts (no change), LTVector
+// temporary or reading through pSample (SIZE).
 // STUB: LITHTECH 0x0042ab60
 void w_LightTableAddLight(LTVector *pPos, LTVector *pColor, float radius, CLightTable *pTable)
 {

@@ -8,6 +8,15 @@ r"""Relink spike: link target (and base) objects with data/import/resource stand
                                                --data-detail lists each unit's data symbols with their exe addresses, '>>' = out of order)
   python tools/relink_cmp.py [new.exe]        # headers, per-section and per-byte comparison with the original
 
+Data (tools/relink_data.py; mixed mode only, all off by default):
+  --data-units [--write-data-units] [--data-verbose]
+        locate every object's data sections in the exe; per-unit .rdata/.data/.bss/.CRT ranges (OUT/data_units.json,
+        config/data_units.csv) and the data status of every fully matched unit (OUT/data_status.json): 'match' (its
+        .rdata/.data sections, in section-table order, are where LINK would put them and hold the exe's bytes),
+        'edge' (they match, but bytes next to them belong to no known object), 'differs' (with the reason).
+  --split-standin   the stand-in as one piece per unit and output group (OUT/standin/), in link order
+  --own-data [u,..] units with status match/edge keep their own .rdata/.data sections (implies the split stand-in)
+
 What it builds in build/relink (RELINK_OUT overrides):
   obj/*.obj      the target objects, made linkable: unique external names (a COMDAT leader gets '@<va>' when its
                  name is used at several addresses, and a leading '_' so that /ORDER can name it), every reference
@@ -51,6 +60,7 @@ BSS_SIZE = 0x19198 - 0x10000
 
 EXTRA_LINK_FLAGS = []
 USE_ORDER = False
+INV_RESULTS = []        # inventory()'s check results (relink_data uses the MATCH functions of partly matched units)
 
 
 def tool_env():
@@ -80,6 +90,7 @@ def inventory():
     exe, symtab, libs = B.Exe(B.EXE), B.SymTab(), B.Libraries()
     with contextlib.redirect_stdout(io.StringIO()):
         results, _ = B.run_check(units, exe, symtab, False, '\0nomatch', libs)
+    INV_RESULTS[:] = results
     status = {(r.a.unit.name, r.a.va): (r.status, r.a.kind) for r in results}
     objvas = load_json('objvas.json')
     standin = {u.name for u in units if any(B.STANDIN_RE.match(l) for l in open(u.path, encoding='latin1'))}
@@ -159,10 +170,16 @@ def subset_sections(o, secnos):
         n.sections[-1].size = sec.size
         newno[k] = len(n.sections)
     symmap = {}
+    import struct
     for idx, s in enumerate(o.syms):
         if s is not None and s.sec in newno:
             symmap[idx] = len(n.syms)
-            n.syms.append(Sym(s.name, s.value, newno[s.sec], s.typ, s.cls, s.aux))
+            aux = s.aux
+            if is_section_sym(s) and len(aux) >= 18 and aux[14] == 5:
+                # associative COMDAT ($T EH tables): renumber the section it belongs to, or make it 'any' if that's gone
+                num = struct.unpack_from('<H', aux, 12)[0]
+                aux = aux[:12] + struct.pack('<H', newno.get(num, 0)) + (aux[14:] if num in newno else b'\x02' + aux[15:])
+            n.syms.append(Sym(s.name, s.value, newno[s.sec], s.typ, s.cls, aux))
             n.syms.extend([None] * s.naux)
     for k in secnos:
         for off, si, t in o.sections[k - 1].relocs:
@@ -495,7 +512,71 @@ class Prepared:
             s.cls = F.CLS_EXTERNAL
             include.append((s.name, va if cn and s.name == cn else None))
         self.data_refs[u.name] = (o, data_refs)
+        self.base_code = getattr(self, 'base_code', {})
+        self.base_code[u.name] = code
         return subset_sections(o, code), include, fva
+
+    def own_data(self, name, x, layout):
+        """--own-data: let base unit `name` keep its .rdata/.data sections (the chain relink_data found for it, `x`).
+        Relocations in those sections that leave the kept sections are re-pointed at the names the exe's bytes imply;
+        the sections' own symbols get unit-unique names, and every canonical data name inside them becomes an alias
+        there (the stand-in pieces no longer cover these bytes). Kept COMDATs are /INCLUDEd: stand-in data that refers
+        to them carries no relocations, so /OPT:REF would drop them."""
+        import relink_data as RD
+        img = self.orig.img
+        o, _ = self.data_refs[name]
+        code = self.base_code[name]
+        kept = {}
+        for g in ('.rdata', '.data'):
+            for k, va in x.chain[g].owned:
+                kept[k] = va
+        keep_all = set(code) | set(kept)
+        newsym = {}
+
+        def sym_for(nm):
+            if nm not in newsym:
+                newsym[nm] = len(o.syms)
+                o.syms.append(Sym(nm, 0, 0, 0, coffedit.CLS_EXTERNAL))
+            return newsym[nm]
+
+        for k, va in kept.items():
+            sec = o.sections[k - 1]
+            for rel in sec.relocs:
+                off, si, t = rel
+                S = o.syms[si]
+                if S.sec in keep_all:
+                    continue
+                tva = RD.reloc_target(img, va + off, sec.data, off, t)
+                nm = self.canon_target(tva)
+                if nm is None:
+                    raise BaseFail('own data: reloc +%x in section %d targets %08x, which nothing names' % (off, k, tva))
+                rel[1] = sym_for(nm)
+        suffix = '@' + name.replace('/', '_')
+        for s in o.syms:
+            if s is not None and s.sec in kept and not is_section_sym(s):
+                s.name = s.name + suffix          # unit-unique: nothing outside refers to these names any more
+        spans = sorted((va, va + o.sections[k - 1].size, k) for k, va in kept.items())
+        self.own_spans = getattr(self, 'own_spans', [])
+        self.own_names = getattr(self, 'own_names', set())
+        aliases = 0
+        for va, nm in sorted(self.data_name.items()):
+            for lo, hi, k in spans:
+                if lo <= va < hi:
+                    o.add_symbol(nm, va - lo, k)
+                    self.own_names.add(va)
+                    aliases += 1
+                    break
+        include = []
+        for k in sorted(kept):
+            if o.sections[k - 1].flags & coffedit.SCN_LNK_COMDAT:
+                ext = [s.name for s in o.syms if s is not None and s.sec == k and s.cls == coffedit.CLS_EXTERNAL]
+                if ext:
+                    include.append(ext[0])
+        self.own_spans += [(lo, hi, name, k) for lo, hi, k in spans]
+        sub = subset_sections(o, code + sorted(kept))
+        obj, inc, fva = self.base[name]
+        self.base[name] = (sub, inc + [(n, None) for n in include], fva)
+        return len(kept), aliases
 
     def write(self):
         d = os.path.join(OUT, 'obj')
@@ -670,10 +751,137 @@ def make_standin(prep):
     return p, bad
 
 
+def build_layout(prep, units, full):
+    """relink_data.Layout over every unit's base object (located by its MATCH functions) and every library object."""
+    import relink_data as RD
+    good = {}
+    for r in INV_RESULTS:
+        if r.status == 'MATCH' and r.a.kind == 'FUNCTION' and r.a.symbol is not None:
+            good.setdefault(r.a.unit.name, {})[r.a.symbol.name] = r.a.va
+    objs = []
+    for u in units:
+        if os.path.exists(u.base_obj):
+            objs.append(RD.Obj(u.name, Coff.load(u.base_obj), good.get(u.name, {}), 'full' if u.name in full else 'base'))
+    libs = json.load(open(os.path.join(ROOT, 'config', 'libraries.json')))
+    for L in libs['units']:
+        objs.append(RD.Obj(L['name'], Coff.load(L['obj']), {nm: int(va, 16) for va, nm in L['functions'].items()}, 'lib'))
+    link_of = {}
+    for n, vas in list(prep.objvas.items()) + list(prep.orig_vas.items()):
+        u = prep.unit_of.get(n, n.split('#')[0])
+        if vas and not n.startswith('gap/'):
+            link_of[u] = min(link_of.get(u, 1 << 40), min(vas))
+    symva = load_json('symva.json')
+    byname = {v: int(k, 16) for k, v in load_json('namemap.json').items()}
+    # // GLOBAL: annotations (bound by inventory's check) also name globals that no code refers to
+    byname.update({a.symbol: a.va for u in units for a in u.annots if a.kind == 'GLOBAL' and isinstance(a.symbol, str)})
+
+    def va_of_name(n):
+        return symva.get(n, byname.get(n))
+
+    lay = RD.Layout(prep.orig.img, objs, link_of)
+    lay.run(va_of_name)
+    return lay
+
+
+def report_layout(lay, full, write_csv=False, verbose=False):
+    """Per-unit data ranges (OUT/data_units.json, config/data_units.csv with --write-data-units) and the data status
+    of every fully matched unit (OUT/data_status.json)."""
+    import relink_data as RD
+    rows = []
+    for g in RD.GROUPS:
+        for u, (lo, hi, how, n) in sorted(lay.range[g].items(), key=lambda kv: kv[1][0]):
+            rows.append((u, g, lo, hi, how, n))
+    for u, ents in sorted(lay.crt_entries().items(), key=lambda kv: min(kv[1])):
+        lo = min(va for va, size, nm in ents)
+        hi = max(va + size for va, size, nm in ents)
+        rows.append((u, '.CRT', lo, hi, 'exact', len(ents)))
+    json.dump([dict(unit=u, group=g, start='%08x' % lo, end='%08x' % hi, source=how, anchors=n) for u, g, lo, hi, how, n in rows],
+              open(os.path.join(OUT, 'data_units.json'), 'w'), indent=0)
+    if write_csv:
+        with open(os.path.join(ROOT, 'config', 'data_units.csv'), 'w', newline='') as f:
+            f.write('unit,group,start,end,source,anchors\n')
+            for u, g, lo, hi, how, n in sorted(rows, key=lambda r: (r[1], r[2])):
+                f.write('%s,%s,%08x,%08x,%s,%d\n' % (u, g, lo, hi, how, n))
+    print('data ranges: %s' % ', '.join('%s %d units (%d anchors against link order)' % (
+        g, len(lay.range[g]), len(lay.rejected[g])) for g in RD.GROUPS))
+    for g in RD.GROUPS:
+        for lo, hi, u, w in lay.rejected[g]:
+            if w >= 1000 or verbose:
+                print('  %s anchor against link order: %s %08x-%08x' % (g, u, lo, hi))
+    status = {}
+    for x in lay.objs:
+        if x.kind != 'full':
+            continue
+        st, iss = lay.status(x)
+        info = {g: ('%08x-%08x' % (x.chain[g].lo, x.chain[g].hi) if x.chain[g].owned else '-') for g in RD.GROUPS}
+        info['pooled'] = sum(len(x.chain[g].pooled) for g in ('.rdata', '.data'))
+        status[x.unit] = dict(status=st, issues=['%s %s: %s' % i for i in iss], bss=RD.bss_order(x), **info)
+    json.dump(status, open(os.path.join(OUT, 'data_status.json'), 'w'), indent=1)
+    good = sorted(u for u, s in status.items() if s['status'] == 'match')
+    edge = sorted(u for u, s in status.items() if s['status'] == 'edge')
+    print('fully matched units whose .rdata/.data match: %d of %d (+%d whose own sections match, with unexplained bytes '
+          'next to them)' % (len(good), len(status), len(edge)))
+    for u, s in sorted(status.items()):
+        if s['status'] != 'match' or verbose:
+            print('  %-42s %s' % (u, s['status']))
+            for t in s['issues'][:8]:
+                print('      ' + t)
+    return status
+
+
+def make_standin_pieces(prep, layout, own):
+    """--split-standin: the stand-in cut into one object per unit and output group (relink_data.pieces), plus a head
+    piece (the merged .CRT tables at the start of .data) and a tail piece (.rdata$r/.xdata$x, as the last '.rdata').
+    Returns ([(sort key, path)], names that no piece or own-data section could hold)."""
+    import relink_data as RD
+    img = prep.orig.img
+    d = os.path.join(OUT, 'standin')
+    os.makedirs(d, exist_ok=True)
+    for f in os.listdir(d):
+        os.remove(os.path.join(d, f))
+    ps = RD.pieces(layout, own)
+    ps = [(key, g, lo, hi, u) for key, g, lo, hi, u in ps if hi > lo]
+    spans = [((-1, 0, RD.CRT_LO), '.data', RD.CRT_LO, RD.CRT_HI, '(crt)'),
+             ((1 << 40, 0, layout.rtail), '.rdata', layout.rtail, RDATA_HI, '(rtail)')] + ps
+    names = {i: [] for i in range(len(spans))}
+    starts = sorted((lo, i) for i, (key, g, lo, hi, u) in enumerate(spans))
+    import bisect
+    los = [s[0] for s in starts]
+    own_names = getattr(prep, 'own_names', set())
+    bad = []
+    for va, nm in sorted(prep.data_name.items()):
+        if va in own_names:
+            continue
+        j = bisect.bisect_right(los, va) - 1
+        if j < 0:
+            bad.append((va, nm))
+            continue
+        i = starts[j][1]
+        key, g, lo, hi, u = spans[i]
+        if va >= hi and va - hi >= 16:      # (within 16: the alignment gap before .bss, or one past a group's end)
+            bad.append((va, nm))
+            continue
+        names[i].append((va, nm))
+    out = []
+    for i, (key, g, lo, hi, u) in enumerate(spans):
+        c = RD.make_piece_obj(img, g, lo, hi, names[i])
+        if u == '(crt)':
+            c.syms.append(Sym('__except_list', 0, -1, 0, coffedit.CLS_EXTERNAL))      # fs:[0], see make_standin
+        p = os.path.join(d, '%08x_%s.obj' % (lo, (u or 'none').replace('/', '__').strip('()')))
+        c.save(p)
+        out.append((key, p))
+    return out, bad, ps
+
+
 # ------------------------------------------------------------------------------------------ link
 
-def do_link(prep, standin, idata, mode):
-    objs = [idata, standin, make_rsrc_obj(prep.orig)] + [prep.paths[n] for _, n in prep.order]
+def do_link(prep, standin, idata, mode, pieces=None):
+    if pieces is None:
+        objs = [idata, standin, make_rsrc_obj(prep.orig)] + [prep.paths[n] for _, n in prep.order]
+    else:
+        # data pieces sort by (unit link position, 0 piece / 3 gap after the unit, address), code objects by (address, 2)
+        code = [((va, 2, va), prep.paths[n]) for va, n in prep.order]
+        objs = [idata, make_rsrc_obj(prep.orig)] + [p for _, p in sorted(pieces + code, key=lambda x: x[0])]
     entry = prep.text_name[prep.orig.entry]
     entry = entry[1:] if entry.startswith('_') else entry       # LINK adds the decoration itself
     rsp = ['/NOLOGO', '/NODEFAULTLIB', '/OUT:' + os.path.join(OUT, 'lithtech.exe'),
@@ -701,6 +909,12 @@ def main():
     ap.add_argument('--data-detail', action='store_true', help='mixed mode: per unit, every data symbol the code refers to, in the base object section/offset order with the address the exe gives it; ">>" marks a symbol whose address is below the previous one (the variable order differs from the original)')
     ap.add_argument('--show-order', action='store_true', help='mixed mode: list, per unit, the base objects function emission order (VA, name) with ">>" at every descent')
     ap.add_argument('--order', action='store_true', help='pass /ORDER (not needed: object order = address order)')
+    ap.add_argument('--data-units', action='store_true', help='mixed mode: locate every object' + chr(39) + 's data sections, print the per-unit data ranges (OUT/data_units.json) and the data status of each fully matched unit (OUT/data_status.json); see tools/relink_data.py')
+    ap.add_argument('--write-data-units', action='store_true', help='with --data-units: also write config/data_units.csv')
+    ap.add_argument('--data-verbose', action='store_true', help='with --data-units: list every unit, and the weak anchors against link order')
+    ap.add_argument('--split-standin', action='store_true', help='mixed mode: one stand-in piece per unit and output group, placed in link order (OUT/standin/)')
+    ap.add_argument('--own-data', nargs='?', const='', default=None, help='mixed mode: fully matched units whose .rdata/.data match supply their own sections (all of them, or the comma-separated list); implies --split-standin')
+    ap.add_argument('--own-data-force', action='store_true', help='with --own-data: also units whose data status is not "match" (to see the byte differences)')
     a = ap.parse_args()
     EXTRA_LINK_FLAGS.extend(a.link_flag)
     global USE_ORDER
@@ -732,19 +946,49 @@ def main():
                 for va, nm in prep.order_detail[n]:
                     print('  %s %08x %s' % ('>>' if va < prev else '  ', va, nm))
                     prev = va
+    lay, own = None, []
+    if a.mode == 'mixed' and (a.data_units or a.write_data_units or a.split_standin or a.own_data is not None):
+        lay = build_layout(prep, units, full)
+        status = report_layout(lay, full, a.write_data_units, a.data_verbose)
+        if a.own_data is not None:
+            want = set(a.own_data.split(',')) if a.own_data else None
+            import relink_data as RD
+            for x in lay.objs:
+                if x.unit not in prep.base or (want is not None and x.unit not in want):
+                    continue
+                if status.get(x.unit, {}).get('status') not in ('match', 'edge') and not a.own_data_force:
+                    continue
+                # the unit's range must be exactly its chain (an anchor against link order has no range)
+                if any(x.chain[g].owned and lay.range[g].get(x.unit, [None])[:2] != [x.chain[g].lo, x.chain[g].hi]
+                       for g in ('.rdata', '.data')):
+                    print('  own data: %s skipped (its range is not its chain)' % x.unit)
+                    continue
+                try:
+                    nk, nal = prep.own_data(x.unit, x, lay)
+                except BaseFail as e:
+                    print('  own data: %s skipped: %s' % (x.unit, e))
+                    continue
+                own.append(x.unit)
+            print('units supplying their own .rdata/.data: %d: %s' % (len(own), ', '.join(sorted(own))))
     print("sliced %d interleaved library objects" % len(prep.sliced))
     prep.write()
     print('objects %d, renamed %d, unresolved %d, data symbols %d' % (
         len(prep.objs), prep.renamed, len(prep.unresolved), len(prep.data_name)))
     for n, objs in list(prep.unresolved.items())[:20]:
         print('  unresolved', n, objs[:3])
-    standin, bad = make_standin(prep)
+    pieces = None
+    if lay is not None and (a.split_standin or own):
+        pieces, bad, ps = make_standin_pieces(prep, lay, set(own))
+        print('stand-in pieces: %d' % len(pieces))
+        standin = None
+    else:
+        standin, bad = make_standin(prep)
     for va, nm in bad[:20]:
         print('  data symbol outside stand-in sections: %08x %s' % (va, nm))
     idata = make_idata_obj(orig)
     if a.stage == 'prep':
         return
-    rc, out = do_link(prep, standin, idata, a.mode)
+    rc, out = do_link(prep, standin, idata, a.mode, pieces)
     print(out[-6000:])
     print('link rc', rc)
 

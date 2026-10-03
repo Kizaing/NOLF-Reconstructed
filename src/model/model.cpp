@@ -998,6 +998,11 @@ void Model::SetNodeParentOffsets()
 }
 
 // FUNCTION: LITHTECH 0x0044f830 ?Mat_InverseTransformation@@YAXPAVLTMatrix@@0@Z
+// 0x0044f8f0 is AnimTimeRef::AnimTimeRef() out of line (??0AnimTimeRef@@QAE@XZ) and 0x00450000 (after
+// VerifyChildModelTree) LTMatrix::Init(16 floats). Their only callers in the exe are ModelInstance::UpdateTransforms
+// (objectmgr, its inlined TransformMaker constructor) and SetObjectFilenames; no function of this file calls them out of
+// line (ParseCommandString inlines both), so whatever placed them here is not in the exe (probably a function /OPT:REF
+// dropped). Left unannotated: our object has no copies of them.
 
 // FUNCTION: LITHTECH 0x0044f920
 uint32 Model::CalcNumTris(uint32 iLOD)
@@ -1076,9 +1081,12 @@ uint32 Model::CalcNumParentAnims()
 
 // Parses the model's command string (the "ModelEdit" properties).
 // STUB: LITHTECH 0x0044fa10
-// Only the register choice of the NormalRef matrix copy (edx/esi) differs: the original computes
-// `idx << 6` in esi first and then adds the array base (eax); ours loads the base into esi and adds the index.
-// Tried: GetAt/Get, pointer arithmetic in both operand orders, a local index, a local pointer, memcpy.
+// Wave 6 (hillclimb): storing m_iNormalRefNode before m_bNormalRef fixes the register choice of the NormalRef
+// matrix copy (orig `idx << 6` in esi, base in eax) and of the ShadowCenterOffset atof loads; what is left is the
+// order of those two stores before FindNode (orig: m_bNormalRef (ebp) first, then [edi] = -1). Writing m_bNormalRef
+// first restores the store order but brings the register differences back (0 for LTFALSE, INVALID_MODEL_NODE,
+// 0xFFFFFFFF, hoisting m_iNormalRefAnim's reset, `!= LTNULL`, GetArray()[] give the same).
+// Earlier: GetAt/Get, pointer arithmetic in both operand orders, a local index, a local pointer, memcpy.
 void Model::ParseCommandString()
 {
 	struct FloatCommand
@@ -1161,8 +1169,8 @@ void Model::ParseCommandString()
 				else if(stricmp("NormalRef", parse.m_Args[0]) == 0)
 				{
 					// Node name and animation name: the reference transform is the first frame of the animation.
-					m_bNormalRef = LTFALSE;
 					m_iNormalRefNode = (uint32)-1;
+					m_bNormalRef = LTFALSE;
 					if(FindNode(parse.m_Args[1], &m_iNormalRefNode))
 					{
 						m_iNormalRefAnim = (uint32)-1;
@@ -1314,6 +1322,8 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 // FUNCTION: LITHTECH 0x00450c60 ?GenGetAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBE?AVNodeRelation@@AAVGenListPos@@@Z
 // STUB: LITHTECH 0x00450cb0 ?GenAppend@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHAAVNodeRelation@@@Z
 // The original runs out of inline budget after two copy loops and calls NodeRelation::operator= out of line.
+// That copy is 0x00453c40 (??4NodeRelation@@QAEAAV0@ABV0@@Z, after GenAppendList<AnimInfo>); annotate it once
+// this matches.
 // FUNCTION: LITHTECH 0x00450ea0 ?GenRemoveAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00451040 ?GenRemoveAll@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXXZ
 // FUNCTION: LITHTECH 0x00451070 ?GenCopyList@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHABV?$GenList@VNodeRelation@@@@@Z

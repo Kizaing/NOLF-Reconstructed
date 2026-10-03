@@ -78,3 +78,13 @@ void con_OnKeyPress(uint32 key)
 // FUNCTION: LITHTECH 0x004206c0 _$E2
 // GLOBAL: LITHTECH 0x004e2f88
 CConsole g_Console;
+
+// Default empty iterator (Jupiter: winconsole_impl.cpp). Talon defines it here: its initializer
+// group follows g_Console's in .text and the CRT table, and its .bss slot is console.obj's.
+// FUNCTION: LITHTECH 0x004206d0 _$E9
+// FUNCTION: LITHTECH 0x004206e0 _$E6
+// FUNCTION: LITHTECH 0x004206f0 ??_GCConIterator@@UAEPAXI@Z
+// FUNCTION: LITHTECH 0x00420710 _$E8
+// FUNCTION: LITHTECH 0x00420720 _$E7
+// GLOBAL: LITHTECH 0x004e2f80
+CConIterator g_ConEmptyIterator;

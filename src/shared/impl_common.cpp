@@ -556,9 +556,9 @@ LTRESULT ic_GetNextModelNode(HOBJECT hObject, HMODELNODE hNode, HMODELNODE *pNex
 	}
 }
 
-// STUB: LITHTECH 0x0043e7c0
-// Register allocation: the original computes maxLen-1 before loading the node name (dec edx; push edx; then
-// the m_FlatNodeList data pointer). Wave 5 tried: a length local, maxLen--, GetNode(), a name pointer local.
+// FUNCTION: LITHTECH 0x0043e7c0
+// The node-range test returns its own RETURN_ERROR (cross-jumped into the shared one); nesting the strncpy in an
+// `if(hNode < NumNodes())` block allocates the registers differently.
 LTRESULT ic_GetModelNodeName(HOBJECT hObject, HMODELNODE hNode, char *pName, uint32 maxLen)
 {
 	LTObject *pObj;
@@ -568,11 +568,10 @@ LTRESULT ic_GetModelNodeName(HOBJECT hObject, HMODELNODE hNode, char *pName, uin
 	if(hNode && maxLen && pObj && pObj->m_ObjectType == OT_MODEL)
 	{
 		pModel = ((ModelInstance*)pObj)->GetModelDB();
-		if(hNode < pModel->NumNodes())
-		{
-			strncpy(pName, pModel->m_FlatNodeList[hNode]->m_pName, maxLen-1);
-			return LT_OK;
-		}
+		if(hNode >= pModel->NumNodes())
+			RETURN_ERROR(1, GetNextModelNode, LT_INVALIDPARAMS);
+		strncpy(pName, pModel->m_FlatNodeList[hNode]->m_pName, maxLen-1);
+		return LT_OK;
 	}
 
 	RETURN_ERROR(1, GetNextModelNode, LT_INVALIDPARAMS);

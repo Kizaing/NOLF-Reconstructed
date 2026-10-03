@@ -16,8 +16,8 @@
 
 
 // When cleared, filtered samples are muted and left looping on their tail instead of being stopped.
-// GLOBAL: LITHTECH 0x004d212c ?g_bStopFilteredSamples@@3IA
-LTBOOL g_bStopFilteredSamples = LTTRUE;
+// An engine variable: defined in engine_vars.cpp (its .data block, listed in g_LTEngineVars).
+extern LTBOOL g_bStopFilteredSamples;
 
 
 // Inline in the header in Talon; never inlined by the original.

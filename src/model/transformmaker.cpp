@@ -46,6 +46,8 @@ LTBOOL TransformMaker::SetupTransforms()
 
 // Remaining diff: the two inlined GetWeightSet() lookups swap edx/edi (register allocation only; orig: model edx,
 // weight-set index edi). Tried: indices in locals, a local AnimTimeRef pointer, ++i.
+// Wave 6 tried: eight bodies for Model::GetWeightSet (ternaries, if/else, GetSize vs NumWeightSets, operator[] vs
+// GetArray; it is only used here) and a statement hill-climb: no change (13 aligned mismatches).
 // STUB: LITHTECH 0x0049c630
 LTBOOL TransformMaker::SetupCall()
 {
@@ -82,6 +84,8 @@ LTBOOL TransformMaker::SetupCall()
 
 // Remaining diff (shape-identical, ~20 instructions): prologue scheduling (orig loads iAnim into eax first, resolves both
 // m_pAnim*/AnimNode chains before the key frame arrays). AnimNode/key frame locals and statement order make no difference.
+// Wave 6 tried: inline key-frame helpers (from the ModelAnim or the AnimNode), GetArray() indexing and pointer
+// arithmetic (no change), Jupiter's inter_frame_param local for m_Percent (much worse).
 // STUB: LITHTECH 0x0049c770
 void TransformMaker::InitTransform(uint32 iAnim, uint32 iNode, LTRotation &outQuat, LTVector &outVec)
 {
@@ -181,6 +185,8 @@ float TransformMaker::BlendTransform(uint32 iAnim, uint32 iNode, float fTotalWei
 // Remaining diff (13 bytes): the original pushes &m_mRelation (lea esi+0x144) before it computes
 // &m_pChildInfo->m_Relation[iNode] (lea ebp after the push); ours computes the relation pointer first. Tried:
 // m_pRelation/pRelation assigned before/after ConvertToMatrix, a local LTMatrix pointer, direct quat_ConvertToMatrix.
+// Wave 6 tried: the assignment inside the call expression, GetArray()[iNode], GetArray() + iNode, Get(iNode), a
+// ChildInfo local, and a statement hill-climb: no change (6 aligned mismatches; edx/eax swap plus the lea order).
 // STUB: LITHTECH 0x0049cd00
 void TransformMaker::Recurse(uint32 iNode, LTMatrix *pParentT)
 {

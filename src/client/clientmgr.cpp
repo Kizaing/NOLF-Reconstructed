@@ -1,7 +1,7 @@
 // Jupiter runtime/client/src/clientmgr.cpp
 // Talon passes the manager explicitly to the C-style helpers (cm_*), keeps the client shell in
 // m_pClientShell (no holders) and authenticates peers through WONAPI (PeerAuthClient).
-// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC /IE:/AVP2Source/build/proj/LT2/lithshared/wonapi
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC /IE:/AVP2Source/build/proj/LT2/lithshared/wonapi /IE:/AVP2Source/jupiter/dx9inc /IE:/AVP2Source/build/proj/LT2/lithshared/lith /IE:/AVP2Source/build/proj/LT2/lithshared/controlfilemgr
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
@@ -112,14 +112,6 @@ void ic_FreeFileList(FileEntry *pList);	// 0x0043eae0											// 0x00430680
 
 #define MODELFLAG_CACHED	(1<<0)
 
-// ltdirectmusic_impl.h needs the DirectX 8 headers; only its constructor is used here.
-class CLTDirectMusicMgr
-{
-public:
-					CLTDirectMusicMgr();	// 0x00447be0
-	uint8			m_Data[0x110];
-};
-
 // Empty memory failure callback (folded with the other empty functions at 0x004359b0).
 void cm_OnMemoryFailure(void *pUser);
 LTRESULT om_Init(ObjectMgr *pMgr, LTBOOL bClient);	// 0x004685d0
@@ -174,6 +166,12 @@ uint32 g_Ticks_Input;
 uint32 g_Ticks_ClientShell;
 // GLOBAL: LITHTECH 0x004defa8
 uint32 g_Ticks_Render;
+
+// Only the constructor is used here, but the header's chunk allocators make this object the first to
+// emit CSegment's and CStyle's vector deleting destructors (0x00414750, 0x004147e0). Its six static
+// CLithChunkAllocator members each use up a static-initializer number, so the original included it
+// after the globals above (their _$E29.._$E42 numbers leave no room before them).
+#include "ltdirectmusic_impl.h"
 
 // The WONAPI headers (via <string>) use up 28 static initializer numbers first.
 // FUNCTION: LITHTECH 0x0040fa60 _$E32
@@ -530,6 +528,9 @@ void CClientMgr::OnExitWorld(CClientShell *pShell)
 // Starts a shell: hosts or joins a game, or runs one locally, and sends the hello message.
 // Remaining diff: register allocation only (the original keeps pShell in esi and pRequest in edi). Wave 5 tried
 // `pShell->m_ShellMode` instead of `pRequest->m_Type` in the switch and the HOST test (worse: ~980 bytes).
+// Wave 6: pShell declared last, `new CClientShell()`, pShell declared at the new, an (int) cast on m_Type: all
+// unchanged (60 aligned mismatches; besides the esi/edi swap, one packet-length compare loads its two words in the
+// other order, exe 0x36b).
 // STUB: LITHTECH 0x00410500
 LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 {
@@ -1986,6 +1987,8 @@ LTRESULT cm_OnModelRefRemoved(void *pUser, ClientModelUser *pUser2, LTBOOL bServ
 
 // FUNCTION: LITHTECH 0x00411650 ??0LTList@@QAE@XZ
 // FUNCTION: LITHTECH 0x00411710 ?GetPhysics@CMoveAbstract@@UAEPAVILTPhysics@@XZ
+// LTVector(x, y, z), called out of line by cm_Init (the SetForce gravity vector).
+// FUNCTION: LITHTECH 0x00412960 ??0?$_CVector@M@@QAE@MMM@Z
 // FUNCTION: LITHTECH 0x00412980 ?GenGetNext@?$CMoArray@PAUWorldPoly@@VDefaultCache@@@@UBEPAUWorldPoly@@AAVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x004129a0 ?GenAppendList@?$CMoArray@PAUWorldPoly@@VDefaultCache@@@@UAEHABV?$GenList@PAUWorldPoly@@@@@Z
 // FUNCTION: LITHTECH 0x00412a70 ?AllocVoid@?$ObjectBank@VModelInstance@@VNullCS@@@@UAEPAXXZ
@@ -2062,5 +2065,10 @@ LTRESULT cm_OnModelRefRemoved(void *pUser, ClientModelUser *pUser2, LTBOOL bServ
 // FUNCTION: LITHTECH 0x00413bf0 ?_M_do_lock@?$_STL_mutex_spin@$0A@@_STL@@SAXPCK@Z
 // FUNCTION: LITHTECH 0x00414630 ?Insert2@?$CMoArray@EVDefaultCache@@@@QAEHKABEPAVLAlloc@@@Z
 // FUNCTION: LITHTECH 0x00414720 ?_DeleteAndDestroyArray@?$CMoArray@ULAPolyRef@@VDefaultCache@@@@AAEXPAVLAlloc@@K@Z
+// CLithChunkAllocator<T>::Term's delete[] (called from CLTDirectMusicMgr::Term); the copies come from here
+// because this object links before ltdirectmusic_impl.
+// FUNCTION: LITHTECH 0x00414750 ??_ECSegment@CLTDirectMusicMgr@@QAEPAXI@Z
+// FUNCTION: LITHTECH 0x004147e0 ??_ECStyle@CLTDirectMusicMgr@@QAEPAXI@Z
 // FUNCTION: LITHTECH 0x00414860 ?BaseNew@@YAPAPAUWorldPoly@@PAVLAlloc@@PAPAU1@K@Z
+// FUNCTION: LITHTECH 0x00414880 ?BaseNew@@YAPAULightAnim@@PAVLAlloc@@PAU1@K@Z
 // FUNCTION: LITHTECH 0x004148c0 ?BaseNew@@YAPAULAPolyFrame@@PAVLAlloc@@PAU1@K@Z

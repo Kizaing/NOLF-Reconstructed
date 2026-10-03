@@ -490,6 +490,8 @@ static LTRESULT se_InitSprite(CServerMgr *pServerMgr, LTObject *pObject, ObjectC
 
 // Register allocation: pServerMgr and the zero constant swap ebx/edi (the original: ebx = 0, edi = pServerMgr).
 // Wave 5 tried: local declaration order, pInstance in Setup, a MainWorld pointer local: no change.
+// Wave 6 tried: early RETURN_ERROR guard, early return for untransformed BSPs (SIZE), Jupiter's single block, MoveState
+// declared in the inner block (lazy construction, worse), a statement hill-climb: no change (16 aligned).
 // STUB: LITHTECH 0x00478de0
 static LTRESULT se_InitWorldModel(CServerMgr *pServerMgr, LTObject *pObject, ObjectCreateStruct *pStruct)
 {

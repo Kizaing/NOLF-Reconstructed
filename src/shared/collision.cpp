@@ -2123,6 +2123,11 @@ void AddPushPlane(LTPlane *pPlane, void *pID)
 // Pushes the box at the end of the movement out of all the planes it touches.
 // 31 bytes differ: the loop's first x87 operand order (z, x, y in the original) and where the two
 // counters are cleared.
+// Wave 6: VC6 orders the inlined Dot's products by its own canonical rule; naming one more pointer changes it
+// (`LTVector *pNormal = &pPlane->m_Normal; dist = pNormal->Dot(pts[j]) - pPlane->m_Dist;` or even
+// `LTPlane *pP = pPlane; pP->DistTo(pts[j])` give z first: 7 aligned instead of 10, but then y, x where the original
+// has x, y). Tried also: a pts pointer local, a by-value point copy, VEC_DOT (SIZE), pts[j].Dot(normal), declaration
+// order, `for(i=0, nIterations=0; ...)` and the counters next to the loop: no change.
 // STUB: LITHTECH 0x0041d820
 static void PushBoxOutOfPlanes()
 {

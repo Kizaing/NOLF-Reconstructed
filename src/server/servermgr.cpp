@@ -145,7 +145,7 @@ void sm_UncacheModels(CServerMgr *pServerMgr);
 void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj);		// s_object, 0x00477120
 
 // GLOBAL: LITHTECH 0x004e36c0
-uint32 g_Ticks_ClassUpdate;
+extern uint32 g_Ticks_ClassUpdate;		// engine_vars
 
 #define IFLAG_INACTIVE_MASK		0x38
 #define IFLAG_DEACTIVATENOW		(1<<9)
@@ -288,7 +288,9 @@ void sm_FreeID(CServerMgr *pServerMgr, LTLink *pIDLink)
 // Init/term.
 // ----------------------------------------------------------------------- //
 
-// 3 bytes off at the end: VC6 computes &m_RefCount from eax instead of the esi copy.
+// 3 bytes off at the end: VC6 computes &m_RefCount from eax instead of the esi copy (the original:
+// `mov esi,eax; lea ecx,[esi+4]; push ecx`, ours `add eax,4; push eax`). Wave 6: a two-round statement
+// hill-climb (180 candidates) found nothing.
 // STUB: LITHTECH 0x004823b0
 LTBOOL CServerMgr::Init()
 {
