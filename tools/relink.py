@@ -39,6 +39,7 @@ BSS_SIZE = 0x19198 - 0x10000
 
 
 EXTRA_LINK_FLAGS = []
+USE_ORDER = False
 
 
 def tool_env():
@@ -113,6 +114,32 @@ def make_idata_obj(orig):
 
 
 # ------------------------------------------------------------------------------------------ target objects
+
+def slice_section(o, secno):
+    """A new object holding only section `secno` (1-based) of `o`. Symbols defined in other sections that this one
+    refers to become undefined externals."""
+    sec = o.sections[secno - 1]
+    n = Coff()
+    n.sections = [Sec(sec.name, sec.data, [], sec.flags, sec.nlines)]
+    n.sections[0].size = sec.size
+    symmap = {}
+    for idx, s in enumerate(o.syms):
+        if s is not None and s.sec == secno:
+            symmap[idx] = len(n.syms)
+            n.syms.append(Sym(s.name, s.value, 1, s.typ, s.cls, s.aux))
+            n.syms.extend([None] * s.naux)
+    for off, si, t in sec.relocs:
+        if si not in symmap:
+            s = o.syms[si]
+            symmap[si] = len(n.syms)
+            if s.sec > 0:                       # defined in another section: now an undefined external
+                n.syms.append(Sym(s.name, 0, 0, s.typ, coffedit.CLS_EXTERNAL))
+            else:
+                n.syms.append(Sym(s.name, s.value, s.sec, s.typ, s.cls, s.aux))
+                n.syms.extend([None] * s.naux)
+        n.sections[0].relocs.append([off, symmap[si], t])
+    return n
+
 
 def is_section_sym(s):
     return s.cls == coffedit.CLS_STATIC and s.naux and s.name.startswith('.')
@@ -255,6 +282,35 @@ class Prepared:
                     return
         raise SystemExit('no section contains code address %08x' % va)
 
+    def slice_interleaved(self):
+        """Library objects whose sections sit between other objects' sections (COMDATs the original linker placed
+        elsewhere) are cut into one object per section, so that link order = address order."""
+        spans = sorted((min(v), max(v) + 1, n) for n, v in self.objvas.items() if n in self.objs and v)
+        hit, reach = set(), None
+        for lo, hi, n in spans:
+            if reach and lo < reach[0]:
+                hit.update((n, reach[1]))
+            if not reach or hi > reach[0]:
+                reach = (hi, n)
+        hit.discard(None)
+        self.sliced = sorted(hit)
+        for name in self.sliced:
+            o = self.objs.pop(name)
+            vas = self.objvas.pop(name)
+            # a static symbol that another section of the object refers to must become external
+            for idx, s in enumerate(o.syms):
+                if s is not None and s.cls == coffedit.CLS_STATIC and s.sec > 0 and not is_section_sym(s) \
+                        and not s.name.startswith('$L') and s.typ != 0x20:
+                    s.cls = coffedit.CLS_EXTERNAL
+                    s.name = '%s@%08x' % (s.name, vas[s.sec - 1] + s.value)
+            for i, va in enumerate(vas):
+                new = slice_section(o, i + 1)
+                key = '%s#%08x' % (name, va)
+                self.objs[key] = new
+                self.objvas[key] = [va]
+                self.leader[(key, 1)] = self.leader[(name, i + 1)]
+        self.order = sorted((min(v), k) for k, v in self.objvas.items() if v and k in self.objs)
+
     def write(self):
         d = os.path.join(OUT, 'obj')
         os.makedirs(d, exist_ok=True)
@@ -341,7 +397,9 @@ def do_link(prep, standin, idata, mode):
     entry = entry[1:] if entry.startswith('_') else entry       # LINK adds the decoration itself
     rsp = ['/NOLOGO', '/NODEFAULTLIB', '/OUT:' + os.path.join(OUT, 'lithtech.exe'),
            '/BASE:0x400000', '/FIXED', '/SUBSYSTEM:WINDOWS,4.0', '/ENTRY:' + entry,
-           '/OPT:REF,NOICF', '/MAP:' + os.path.join(OUT, 'lithtech.map'), '/ORDER:@' + os.path.join(OUT, 'order.txt')]
+           '/OPT:REF,NOICF', '/MAP:' + os.path.join(OUT, 'lithtech.map')]
+    if USE_ORDER:
+        rsp.append('/ORDER:@' + os.path.join(OUT, 'order.txt'))
     # /OPT:REF drops the import libraries' unreferenced thunks (the original has few of them); /INCLUDE keeps every
     # target function, whose callers are partly stand-in data (vtables) that carries no relocations
     rsp += EXTRA_LINK_FLAGS
@@ -357,13 +415,18 @@ def main():
     ap.add_argument('--mode', default='targets')
     ap.add_argument('--stage', default='all')
     ap.add_argument('--link-flag', action='append', default=[], help='extra LINK flag (repeatable)')
+    ap.add_argument('--order', action='store_true', help='pass /ORDER (not needed: object order = address order)')
     a = ap.parse_args()
     EXTRA_LINK_FLAGS.extend(a.link_flag)
+    global USE_ORDER
+    USE_ORDER = a.order
     os.makedirs(OUT, exist_ok=True)
     orig = Orig()
     prep = Prepared(orig)
     print('gap objects %d (%d bytes)' % (len(prep.gaps), sum(h - l for l, h in prep.gaps)))
     prep.run()
+    prep.slice_interleaved()
+    print("sliced %d interleaved library objects" % len(prep.sliced))
     prep.write()
     print('objects %d, renamed %d, unresolved %d, data symbols %d' % (
         len(prep.objs), prep.renamed, len(prep.unresolved), len(prep.data_name)))
