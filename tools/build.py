@@ -19,7 +19,7 @@ sys.path.insert(0, TOOLS)
 from coffobj import CoffObj, undecorate, REL_DIR32, REL_REL32, REL_SIZES  # noqa: E402
 
 EXE = r'E:\AVP2Source\bin\lithtech.exe'
-VC6CL = r'E:\AVP2Source\scripts\vc6cl.bat'
+VC6CL = os.environ.get('VC6CL') or r'E:\AVP2Source\scripts\vc6cl.bat'   # worktrees: set VC6CL=tools\vc6cl_wt.bat
 OBJDIFF = r'E:\AVP2Source\tools\objdiff\objdiff-cli.exe'
 SRC, INC, BUILD = os.path.join(ROOT, 'src'), os.path.join(ROOT, 'include'), os.path.join(ROOT, 'build')
 SYMBOLS_CSV = os.path.join(ROOT, 'config', 'symbols.csv')
@@ -550,7 +550,7 @@ def write_library_units(libs, namemap):
         nm.update({int(k, 16): v for k, v in u['data'].items()})
         nm.update({int(k, 16): v for k, v in u['functions'].items()})
         os.makedirs(os.path.dirname(u['target_obj']), exist_ok=True)
-        if not os.path.exists(u['target_obj']) or os.path.getmtime(u['target_obj']) < stamp:
+        if True:     # always rewritten: SYMVA (build/symva.json, used by tools/relink.py) needs every object's names
             base = CoffObj(u['obj'])
             secs = []
             for sva, n in u['text']:
@@ -558,6 +558,8 @@ def write_library_units(libs, namemap):
                 offs = {off for off, _, _ in base.sections[secno - 1].relocs}
                 secs.append((sva, sva + n, [tuple(x) for x in syms], offs))
             info = mktarget.write_target_sections(u['target_obj'], secs, EXE, st, nm)
+            _note_names(info['name2va'], SYMVA, u['name'])
+            OBJVAS[u['name']] = [sva for sva, n in u['text']]
             for bad in mktarget.verify(u['target_obj'], EXE, info['name2va']):
                 print('TARGET ROUND-TRIP FAILED: ' + bad)
         out_units.append({'name': u['name'], 'target_path': rel(u['target_obj']), 'base_path': rel(u['base_obj']),
@@ -594,6 +596,8 @@ def write_targets(units, symtab, namemap, libs=None):
         target = os.path.join(BUILD, 'target', name + '.obj')
         os.makedirs(os.path.dirname(target), exist_ok=True)
         info = mktarget.write_target_obj(target, sorted(vas), EXE, symtab_for_mktarget(), namemap)
+        _note_names(info['name2va'], SYMVA, name)
+        OBJVAS[name] = sorted(vas)
         for bad in mktarget.verify(target, EXE, info['name2va']):
             print('TARGET ROUND-TRIP FAILED: ' + bad)
         entry = {'name': name, 'target_path': rel(target), 'metadata': {'complete': False}}
@@ -610,12 +614,28 @@ def write_targets(units, symtab, namemap, libs=None):
         name = 'unassigned/%08x' % blk
         path = os.path.join(BUILD, 'target', name + '.obj')
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.exists(path) or os.path.getmtime(path) < _inputs_mtime():
-            mktarget.write_target_obj(path, vas, EXE, symtab_for_mktarget(), namemap)
+        info = mktarget.write_target_obj(path, vas, EXE, symtab_for_mktarget(), namemap)
+        _note_names(info['name2va'], SYMVA, name)
+        OBJVAS[name] = sorted(vas)
         out_units.append({'name': name, 'target_path': rel(path), 'metadata': {'auto_generated': True}})
     return out_units
 
 
+def _note_names(name2va, into, obj=None):
+    for k, v in name2va.items():
+        if k.startswith('$L') and len(k) >= 8:      # mktarget's '$L<hex va>' labels, not Ghidra's '$L4470'
+            continue
+        if into.get(k, v) != v:
+            SYMCONFLICT.setdefault(k, set()).update((into[k], v))
+        into[k] = v
+        if obj:
+            OBJSYM.setdefault(obj, {})[k] = v
+
+
+OBJVAS = {}         # target object name (unit / lib/... / unassigned/...) -> section VAs in object order
+OBJSYM = {}         # target object name -> {symbol name: VA} (names are unique per object, not across objects)
+SYMCONFLICT = {}    # symbol name -> VAs, for names that mean different addresses in different objects
+SYMVA = {}          # symbol name -> VA for every name used in a target object (not the '$L' labels)
 _mk_symtab = None
 
 
@@ -766,6 +786,11 @@ def main(argv):
         units_json = write_targets(units, symtab, namemap, libs)
         if units_json is not None:
             write_objdiff_json(units_json)
+            json.dump({k: v for k, v in sorted(SYMVA.items()) if not (k.startswith('$L') and len(k) >= 8)},
+                      open(os.path.join(BUILD, 'symva.json'), 'w'), indent=0)
+            json.dump(OBJVAS, open(os.path.join(BUILD, 'objvas.json'), 'w'), indent=0)
+            json.dump(OBJSYM, open(os.path.join(BUILD, 'objsym.json'), 'w'), indent=0)
+            json.dump({k: sorted(v) for k, v in SYMCONFLICT.items()}, open(os.path.join(BUILD, 'symconflict.json'), 'w'), indent=0)
             objdiff_report()
     print('done in %.1fs' % (time.time() - t0))
     if COMPILE_FAILED:
