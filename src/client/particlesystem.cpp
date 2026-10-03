@@ -2,6 +2,7 @@
 // Talon: functions take the client manager explicitly, there are no particle angles or
 // collisions, and the bounding box ignores particle sizes.
 // In Talon PSParticle+0x20 is the forward link (m_pNext).
+#include <windows.h>		// before the StdLith headers (clientmgr.h brings in lthread.h)
 #include <string.h>
 #include <stdlib.h>
 #include "bdefs.h"

@@ -104,7 +104,7 @@ LTRESULT cm_LoadModel(CClientMgr *pClientMgr, FileIdentifier *pIdent, Model **pp
 	if (!bNow)
 	{
 		// Already loading it?
-		if (((CLoaderThread*)pClientMgr->m_LoaderThread)->IsLoadingFile(pIdent))
+		if (pClientMgr->m_LoaderThread.IsLoadingFile(pIdent))
 			return LT_INPROGRESS;
 
 		LThreadMessage msg;
@@ -112,7 +112,7 @@ LTRESULT cm_LoadModel(CClientMgr *pClientMgr, FileIdentifier *pIdent, Model **pp
 		msg.m_ID = CLT_LOADFILE;
 		msg.m_Data[0].m_dwData = FT_MODEL;
 		msg.m_Data[1].m_pData = pIdent;
-		((CLoaderThread*)pClientMgr->m_LoaderThread)->PostMessage(msg);
+		pClientMgr->m_LoaderThread.PostMessage(msg);
 		return LT_INPROGRESS;
 	}
 

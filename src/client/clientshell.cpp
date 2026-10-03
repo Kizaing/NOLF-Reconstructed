@@ -4,7 +4,6 @@
 // (SurfaceSprite) and surface effects animate texture coordinates every frame.
 #include <windows.h>
 #include <string.h>
-#define SERVERMGR_LOADERTHREAD
 #include "bdefs.h"
 #include "clientshell.h"
 #include "clientmgr.h"
@@ -334,13 +333,11 @@ LTRESULT CClientShell::StartupLocal(StartGameRequest *pRequest, LTBOOL bHost, CB
 }
 
 
-// The original inlines the whole CServerMgr constructor (inline in servermgr.h). Everything up to CClassMgr
-// matches (MotionInfo's empty constructor needs __forceinline, motion.h). After that the original calls
-// LTList::LTList (0x411650) for m_Objects and m_ClientReferences, CMoArray::CMoArray (0x416930), the empty
-// SkyDef constructor (0x45c5f0), ObjectBank<ServerData>::ObjectBank (0x416e10) and ServerFileMgr (0x4150c0), where
-// we inline the lists, the CMoArray and the ObjectBank constructors (CMoArray's Clear/Init stay calls).
-// Pending free calls and ballast in the constructor body or in a base constructor don't move those decisions.
-// STUB: LITHTECH 0x00414cd0
+// The original inlines the whole CServerMgr constructor (inline in servermgr.h). MotionInfo's empty constructor
+// needs __forceinline (motion.h). The member constructors after CClassMgr (LTList, CMoArray, SkyDef, ObjectBank)
+// stay out of line only because of the GetAppGuid() accessor at the end: one pending inline site after the
+// constructor halves the budget share of the constructor's own call sites.
+// FUNCTION: LITHTECH 0x00414cd0
 LTRESULT CClientShell::CreateServerMgr()
 {
 	m_pServerMgr = new CServerMgr;
@@ -354,7 +351,7 @@ LTRESULT CClientShell::CreateServerMgr()
 	}
 
 	if (m_pClientMgr)
-		m_pServerMgr->m_NetMgr.SetAppGuid(&m_pClientMgr->m_NetMgr.m_guidApp);
+		m_pServerMgr->m_NetMgr.SetAppGuid(m_pClientMgr->m_NetMgr.GetAppGuid());
 
 	return LT_OK;
 }
@@ -873,7 +870,7 @@ void CClientShell::CloseWorlds()
 	cm_FreeSurfaceSprites(m_pClientMgr);
 
 	// Shut down the sounds.
-	((CSoundMgr*)m_pClientMgr->m_SoundMgr)->StopAllSounds();
+	m_pClientMgr->m_SoundMgr.StopAllSounds();
 
 	// Close any open world files.
 	m_pClientMgr->m_World.Term();
@@ -1128,12 +1125,3 @@ MainWorld* CClientShell::GetWorld()
 // FUNCTION: LITHTECH 0x00416ef0 ?BaseNew@@YAPAUObjectMapEntry@@PAVLAlloc@@PAU1@K@Z
 // FUNCTION: LITHTECH 0x00416ed0 ?BaseDelete@@YAXPAVLAlloc@@PAUObjectMapEntry@@K@Z
 
-// STANDIN: the original CreateServerMgr calls these two constructors out of line; ours inlines them, so this
-// forces out-of-line copies (not in lithtech.exe). Delete it once CreateServerMgr matches.
-#pragma inline_depth(0)
-void standin_ServerMgrMemberCtors(void *p1, void *p2)
-{
-	new (p1) CMoArray<ObjectMapEntry>;
-	new (p2) ObjectBank<ServerData>;
-}
-#pragma inline_depth()

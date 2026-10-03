@@ -2413,9 +2413,9 @@ void WorldBsp::TermNodes()
 }
 
 
-// The original keeps the CopyArray2 calls of the inlined TerrainSection::operator= out of line;
-// ours inlines them (inline budget).
-// STUB: LITHTECH 0x0042ce00
+// SAFE_STRCPY for the world name (the SDK's inline LTStrCpy) is the pending inline site that keeps the
+// CopyArray2 calls of the inlined TerrainSection::operator= out of line.
+// FUNCTION: LITHTECH 0x0042ce00
 LTBOOL WorldBsp::InheritFrom(WorldBsp *pOther)
 {
 	uint32 i, j;
@@ -2471,8 +2471,7 @@ LTBOOL WorldBsp::InheritFrom(WorldBsp *pOther)
 	m_TextureNames = pOther->m_TextureNames;
 	m_nTextures = pOther->m_nTextures;
 
-	strncpy(m_WorldName, pOther->m_WorldName, sizeof(m_WorldName)-1);
-	m_WorldName[sizeof(m_WorldName)-1] = 0;
+	SAFE_STRCPY(m_WorldName, pOther->m_WorldName);
 
 	m_MinBox = pOther->m_MinBox;
 	m_MaxBox = pOther->m_MaxBox;

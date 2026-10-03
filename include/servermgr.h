@@ -4,6 +4,9 @@
 #define __SERVERMGR_H__
 
 #include <stddef.h>
+// First: lthread.h brings in <windows.h>, which has to come before the StdLith headers (stdlithdefs.h
+// #defines DWORD, BOOL, WORD and BYTE).
+#include "sloaderthread.h"
 #include "bdefs.h"
 #include "de_objects.h"
 #include "classmgr.h"
@@ -18,12 +21,6 @@
 #include "motion.h"
 #include "../../build/proj/LT2/lithshared/stdlith/stringholder.h"
 #include "../../build/proj/LT2/lithshared/stdlith/object_bank.h"
-
-// The units that construct or destroy a CServerMgr define SERVERMGR_LOADERTHREAD (after <windows.h>),
-// which makes the loader thread a real member.
-#ifdef SERVERMGR_LOADERTHREAD
-#include "sloaderthread.h"
-#endif
 
 // A file the clients should cache (4 bytes).
 struct OtherFile
@@ -331,12 +328,7 @@ public:
 	ConsoleState	m_ConsoleState;		// 0xe84
 	uint8		m_PadEC8[0xed0 - 0xec8];
 	class ServerAppHandler	*m_pServerAppHandler;	// 0xed0
-#ifdef SERVERMGR_LOADERTHREAD
 	CServerLoaderThread	m_LoaderThread;	// 0xed4 (sloaderthread.h)
-#else
-	uint8		m_LoaderThread[0x64];	// 0xed4 CServerLoaderThread (sloaderthread.h; opaque here so the
-										// units that don't define SERVERMGR_LOADERTHREAD don't need windows.h)
-#endif
 	class Model	*m_pDefaultModel;		// 0xf38 stands in for models that fail to load
 };
 

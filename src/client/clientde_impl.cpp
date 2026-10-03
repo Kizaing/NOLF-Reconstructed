@@ -1,3 +1,4 @@
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC
 // Jupiter runtime/client/src/clientde_impl.cpp. Talon keeps the client's interface
 // implementations together in this file: ILTClient (CLTClient + the ci_ function pointers),
 // ILTCommon (client_iltcommon.cpp), ILTPhysics (client_iltphysics.cpp), ILTModel
@@ -324,7 +325,7 @@ public:
 		m_pTransformLT = &m_TransformLT;
 		m_pLightAnimLT = &m_LightAnimLT;
 		m_pTexMod = &m_TexMod;
-		m_pSoundMgr = (ILTSoundMgr*)pClientMgr->m_SoundMgr;
+		m_pSoundMgr = &pClientMgr->m_SoundMgr;
 		m_pCursorLT = &m_CursorLT;
 		m_hVideo = LTNULL;
 
@@ -426,8 +427,8 @@ public:
 
 // Global profile counter (Jupiter client_ticks.cpp's g_TotalGlobalTimeCounter); only its constructor
 // is referenced in lithtech.exe.
-// FUNCTION: LITHTECH 0x004049f0 _$E2
-// FUNCTION: LITHTECH 0x00404a00 _$E1
+// FUNCTION: LITHTECH 0x004049f0 _$E20
+// FUNCTION: LITHTECH 0x00404a00 _$E19
 // GLOBAL: LITHTECH 0x004decb4
 CountPercent g_TotalGlobalTimeCounter;
 

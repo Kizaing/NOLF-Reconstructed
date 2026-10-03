@@ -7,7 +7,6 @@
 #include "bdefs.h"
 #include "servermgr.h"
 #include "s_object.h"
-#define SERVERDE_STL
 #include "serverde_impl.h"
 #include "shared_iltcommon.h"
 #include "iltmodel.h"
@@ -113,16 +112,21 @@ LTBOOL si_GetPointShade(LTVector *pPoint, LTVector *pColor)
 // ----------------------------------------------------------------------- //
 
 // Creates the server's ILT interface (the CLTServer constructor, in serverde_impl.h, is inline).
-// Differs: the original builds the child model link map (member at 0x280) with _M_empty_initialize
-// (0x00487d10) out of line and keeps pServerMgr in ebp; we inline _M_empty_initialize. The inline budget
-// can't be steered into that split: pending free sites after the map (up to 12) un-inline the whole map
-// constructor instead, ballast before it (up to 48 units) gives a 187-byte diff, and the order of the
-// pointer assignments only changes the stores' schedule (the 0x10, 0x244, 0x08, 0x14, 0x0c, 0x18, 0x1c order
-// in the original is not the source order).
+// si_SetupFunctionPointers is called here, inside a null test that merges with operator new's, not at the end of
+// the constructor: that is what restores ebx/ebp/edi before the call, as in the original. The constructor's pointer
+// assignments are in the original's order (model, transform, physics).
+// Remaining difference: the original builds the child model link map (member at 0x280) with _M_empty_initialize
+// (0x00487d10) out of line. That needs 5-8 code-free ballast statements (if(0) x = 0;) anywhere before the map
+// (e.g. in the ServerLightAnimLT or ServerModelLT constructor): with them this is a MATCH. 1-4 are too few, 16 too
+// many; pending free calls in CreateLTServer don't change anything, and after the map they un-inline the whole map
+// constructor. The real source of that cost is unknown.
 // STUB: LITHTECH 0x004798b0
 ILTServer* CreateLTServer(CServerMgr *pServerMgr)
 {
-	return new CLTServer(pServerMgr);
+	CLTServer *pServer = new CLTServer(pServerMgr);
+	if (pServer)
+		si_SetupFunctionPointers(pServer);
+	return pServer;
 }
 
 // FUNCTION: LITHTECH 0x004799f0 ??_GILTServer@@MAEPAXI@Z

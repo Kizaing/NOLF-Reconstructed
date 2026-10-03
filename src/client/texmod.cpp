@@ -2,6 +2,7 @@
 // embeds one in the client interface). Jupiter dropped it. The file name is a guess: the
 // object sits between tcpdriver (udpdriver.cpp) and text_mgr.cpp.
 // FLAGS: /O2 /GX-
+#include <windows.h>		// before the StdLith headers (clientmgr.h brings in lthread.h)
 #include "bdefs.h"
 #include "de_world.h"
 #include "clientmgr.h"

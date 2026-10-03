@@ -199,10 +199,9 @@ static LTRESULT sm_SendCacheListSection(CServerMgr *pServerMgr, Client *pClient,
 
 
 // Writes a light animation's changed state.
-// STUB: LITHTECH 0x0046f8e0
-// Wave 5: becomes a MATCH (864 bytes) with ONE extra free inline call pending anywhere after the first
-// WriteType (inline_scan p1 matches at every later statement; ~12 units of ballast before the first WriteType
-// also match, ours otherwise inlines the third WriteType). Source of the extra site unknown, so no fake call shipped.
+// pPacket->GetMessageImpl() (not &pPacket->m_Message) is the pending inline site that keeps the third WriteType out
+// of line.
+// FUNCTION: LITHTECH 0x0046f8e0
 static void sm_WriteLightAnimInfo(CServerMgr *pServerMgr, LightAnim *pAnim, uint16 iLightAnim,
 	CPacket *pPacket, uint32 flags)
 {
@@ -226,7 +225,7 @@ static void sm_WriteLightAnimInfo(CServerMgr *pServerMgr, LightAnim *pAnim, uint
 		pPacket->WriteType((uint8)(pAnim->m_fBlendPercent * 255.0f));
 
 	if (flags & LIGHTANIMF_POS)
-		ic_WriteCompPos(&pPacket->m_Message, &pAnim->m_vLightPos, &pServerMgr->m_World);
+		ic_WriteCompPos(pPacket->GetMessageImpl(), &pAnim->m_vLightPos, &pServerMgr->m_World);
 
 	if (flags & LIGHTANIMF_COLOR)
 	{

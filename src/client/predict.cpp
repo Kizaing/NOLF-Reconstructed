@@ -2,6 +2,7 @@
 // Talon: the client shell holds its CClientMgr (no holders), objects are moved through the
 // cm_ functions, interpolation keeps a per-object time left (cd.m_fMoveAccumulatedTime), and
 // pd_OnObjectRotate times rotations from the previous rotation update.
+#include <windows.h>		// before the StdLith headers (clientmgr.h brings in lthread.h)
 #include "bdefs.h"
 #include "de_objects.h"
 #include "clientmgr.h"

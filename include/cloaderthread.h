@@ -13,7 +13,7 @@ class MainWorld;
 
 // The client's ILTMessage helper: object references and string resources for LMessageImpl
 // (through LMessageImpl::m_Unknown04). 8 bytes, vtable 0x004c6e7c; cm_Init stores one in
-// CClientMgr::m_pMessageHelper. The server's twin is CServerSerializeHelper (sloaderthread.h).
+// CClientMgr::m_pMessageHelper. The server's twin is CServerSerializeHelper (sserializehelper.h).
 class CClientSerializeHelper
 {
 public:

@@ -115,7 +115,9 @@ public:
 	char*	ReadString();
 	void	ReadRaw(void *pData, uint16 len);
 	void	WriteString(char *pStr);
-	void	WriteRaw(void *pData, uint16 len);
+	// WriteRaw is an inline wrapper (one more pending inline site at every call, as in the original).
+	void	WriteRaw(void *pData, uint16 len)	{ WriteData(pData, len); }
+	void	WriteData(void *pData, uint16 len);	// 0x00469430
 
 	// WriteType/ReadType are one-line wrappers around the real bodies (names of the inner
 	// functions unknown). The extra inline level is what the original's decisions need: the

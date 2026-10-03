@@ -10,24 +10,6 @@
 #include "bdefs.h"
 #include "de_memory.h"
 
-// This unit builds the inline CClientMgr constructor and destructor, so it sees the opaque members as the
-// real objects (the other units keep them as byte arrays of the same size).
-#define CLIENTMGR_REAL_MEMBERS
-class ILTClient;
-class LTRect;
-// The debug graph manager (debuggraphmgr.cpp; 0x64 bytes), embedded at CClientMgr+0x1300.
-class CDebugGraphMgr
-{
-public:
-	CDebugGraphMgr();															// 0x004309c0
-	~CDebugGraphMgr();															// 0x00430a70
-	LTRESULT	Init(ILTClient *pClientDE, LTRect *pRect);						// 0x00430ae0
-	LTRESULT	Term();															// 0x00430b70
-	LTRESULT	Draw();															// 0x00430d10
-
-private:
-	uint8		m_Pad[0x64];
-};
 #include "clientmgr.h"
 #include "clientshell.h"
 #include "iclientshell.h"
@@ -528,9 +510,9 @@ void CClientMgr::OnExitWorld(CClientShell *pShell)
 // Starts a shell: hosts or joins a game, or runs one locally, and sends the hello message.
 // Remaining diff: register allocation only (the original keeps pShell in esi and pRequest in edi). Wave 5 tried
 // `pShell->m_ShellMode` instead of `pRequest->m_Type` in the switch and the HOST test (worse: ~980 bytes).
-// Wave 6: pShell declared last, `new CClientShell()`, pShell declared at the new, an (int) cast on m_Type: all
-// unchanged (60 aligned mismatches; besides the esi/edi swap, one packet-length compare loads its two words in the
-// other order, exe 0x36b).
+// Wave 6: SAFE_STRCPY for the playback world name (697 -> 674 bytes differ). pShell declared last,
+// `new CClientShell()`, pShell declared at the new, an (int) cast on m_Type: all unchanged (besides the esi/edi
+// swap, one packet-length compare loads its two words in the other order, exe 0x36b).
 // STUB: LITHTECH 0x00410500
 LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 {
@@ -688,8 +670,7 @@ LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 			// If they asked for a playdemo, fill in the world name.
 			if(pRequest->m_PlaybackFilename[0] != 0)
 			{
-				strncpy(pRequest->m_WorldName, playbackWorldName, 99);
-				pRequest->m_WorldName[99] = 0;
+				SAFE_STRCPY(pRequest->m_WorldName, playbackWorldName);
 			}
 		}
 		break;
@@ -1091,8 +1072,8 @@ void CClientMgr::UpdateAllSounds(float fFrameTime)
 // ------------------------------------------------------------------ //
 
 // The inline CClientMgr constructor (the member constructors in member order, with MotionState's gravity
-// through SetForce, 0x00411670) is built into this function: this unit sees the real CSoundMgr,
-// CDebugGraphMgr and CLoaderThread members (CLIENTMGR_REAL_MEMBERS), and MotionInfo's empty constructor
+// through SetForce, 0x00411670) is built into this function: the CSoundMgr,
+// CDebugGraphMgr and CLoaderThread members are real objects (clientmgr.h), and MotionInfo's empty constructor
 // is __forceinline in motion.h so that it vanishes as in the original.
 // FUNCTION: LITHTECH 0x004112c0
 CClientMgr* cm_Init()
@@ -1185,8 +1166,7 @@ CClientMgr* cm_Init()
 }
 
 
-// Talon does Jupiter's Term here; the members' destructors follow inline (the real member types are visible
-// in this unit: see CLIENTMGR_REAL_MEMBERS in clientmgr.h).
+// Talon does Jupiter's Term here; the members' destructors follow inline.
 // FUNCTION: LITHTECH 0x00411720
 CClientMgr::~CClientMgr()
 {

@@ -151,7 +151,7 @@ void CPacket::WriteString(char *pStr)
 }
 
 // FUNCTION: LITHTECH 0x00469430
-void CPacket::WriteRaw(void *pData, uint16 len)
+void CPacket::WriteData(void *pData, uint16 len)
 {
 	uint16 nBytes = len;
 

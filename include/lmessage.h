@@ -10,7 +10,7 @@ class MainWorld;
 
 // The engine services an LMessageImpl uses for object references, string resources and
 // compressed positions. LMessageImpl::m_Unknown04 points at one: the server's is
-// CServerSerializeHelper (sloaderthread.h). Name unknown.
+// CServerSerializeHelper (sserializehelper.h). Name unknown.
 class LMessageHelper
 {
 public:

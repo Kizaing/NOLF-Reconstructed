@@ -26,6 +26,7 @@
 #include "objectmgr.h"
 #include "stringmgr.h"
 #include "sloaderthread.h"
+#include "sserializehelper.h"
 #include "packet.h"
 #include "s_client.h"
 #include "server_extradata.h"
@@ -35,7 +36,6 @@
 
 #define SMSG_PEERAUTH		27
 
-#define LoaderThread()	((CServerLoaderThread*)m_LoaderThread)
 
 // GLOBAL: LITHTECH 0x004e5dcc
 extern CClassMgr *g_pClassMgr;
@@ -307,10 +307,10 @@ LTBOOL CServerMgr::Init()
 	}
 
 	// Start the loader thread.
-	if (!LoaderThread()->Init(this))
+	if (!m_LoaderThread.Init(this))
 		return LTFALSE;
 
-	if (LoaderThread()->Start(3) != LT_OK)
+	if (m_LoaderThread.Start(3) != LT_OK)
 		return LTFALSE;
 
 	m_World.m_WorldTree.InitWorldTree(&m_ObjectMgr);
@@ -422,7 +422,7 @@ void CServerMgr::Term()
 	SetupGlobals();
 
 	// Stop loading.
-	LoaderThread()->Terminate(LTTRUE);
+	m_LoaderThread.Terminate(LTTRUE);
 	ProcessLoaderMessages();
 
 	// Shutdown the world if it's running.
@@ -1008,7 +1008,7 @@ void CServerMgr::ProcessLoaderMessages()
 {
 	LThreadMessage msg;
 
-	while (LoaderThread()->m_Outgoing.GetMessage(msg, LTFALSE) == LT_OK)
+	while (m_LoaderThread.m_Outgoing.GetMessage(msg, LTFALSE) == LT_OK)
 	{
 		OnLoaderMessage(msg);
 	}

@@ -53,7 +53,7 @@ extern char g_SSFile[];
 #define MUSIC_IMMEDIATE		0
 
 // The client manager's CSoundMgr (embedded at CClientMgr::m_SoundMgr).
-#define CLIENT_SOUNDMGR()	((CSoundMgr*)g_ClientGlob.m_pClientMgr->m_SoundMgr)
+#define CLIENT_SOUNDMGR()	(&g_ClientGlob.m_pClientMgr->m_SoundMgr)
 
 // 0x0040fbb0 (clientmgr.cpp)
 SMusicMgr* GetMusicMgr();
