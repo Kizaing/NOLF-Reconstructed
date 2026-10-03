@@ -136,9 +136,9 @@ public:
 	{
 		m_pServerMgr = pServerMgr;
 		m_pCommonLT = &m_CommonLT;
-		m_pPhysicsLT = &m_PhysicsLT;
 		m_pModelLT = &m_ModelLT;
 		m_pTransformLT = &m_TransformLT;
+		m_pPhysicsLT = &m_PhysicsLT;
 		m_pLightAnimLT = &m_LightAnimLT;
 		m_pSoundMgr = pServerMgr;
 
@@ -146,8 +146,6 @@ public:
 		m_CommonLT.m_pServerMgr = pServerMgr;
 		m_CommonLT.m_pTransformLT = &m_TransformLT;
 		m_CommonLT.m_pModelLT = &m_ModelLT;
-
-		si_SetupFunctionPointers(this);
 	}
 
 	virtual			~CLTServer() {}
