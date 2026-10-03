@@ -8,6 +8,12 @@
 #include "de_memory.h"
 
 
+// Not referenced by any code in lithtech.exe (Jupiter's libs/dtxmgr reads it in
+// GetNumValidTextureSizes / IsValidTextureSize, which Talon doesn't have).
+// GLOBAL: LITHTECH 0x004d2074
+uint32 g_ValidTextureSizes[] = { 1024, 512, 256, 128, 64, 32, 16, 8 };
+
+
 // --------------------------------------------------------------------------------- //
 // TextureMipData.
 // --------------------------------------------------------------------------------- //

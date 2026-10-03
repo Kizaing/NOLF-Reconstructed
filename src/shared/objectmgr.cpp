@@ -1054,6 +1054,12 @@ inline float Canvas::GetRadius()
 	return m_CanvasRadius;
 }
 
+// Identical to GetRadius: the linker folded the two (vtable slots 0x2c and 0x38 both point at 0x004685a0).
+inline float Canvas::CalcRadius()
+{
+	return m_CanvasRadius;
+}
+
 // FUNCTION: LITHTECH 0x00468570
 Canvas::Canvas() : LTObject(OT_CANVAS)
 {
