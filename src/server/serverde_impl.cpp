@@ -1410,8 +1410,9 @@ void si_RemoveObjectFromList(ObjectList *pList, HOBJECT hObj)
 	}
 }
 
-// Differs: VC6 orders the MatVMul_H products and the bsp pointer load differently.
-// STUB: LITHTECH 0x0047e160
+// Jupiter's pWorldBsp local and m_Point.DistSqr: the vector subtraction written out made VC6 order the MatVMul_H
+// products differently (README, wave 6).
+// FUNCTION: LITHTECH 0x0047e160
 void GPCCallback(WorldTreeObj *pObj, void *pUser)
 {
 	if (pObj->GetObjType() != WTObj_DObject)
@@ -1428,16 +1429,18 @@ void GPCCallback(WorldTreeObj *pObj, void *pUser)
 	if (pContainer->m_pOriginalBsp->IsUntransformed())
 		return;
 
-	LTVector vecTo = pStruct->m_Point - pContainer->GetPos();
-	LTVector boxSize = pContainer->m_pOriginalBsp->m_MaxBox - pContainer->m_pOriginalBsp->m_MinBox;
-	if (vecTo.MagSqr() > boxSize.MagSqr())
+	WorldBsp *pWorldBsp = pContainer->m_pOriginalBsp;
+
+	float dist = pStruct->m_Point.DistSqr(pContainer->GetPos());
+	LTVector boxSize = pWorldBsp->m_MaxBox - pWorldBsp->m_MinBox;
+	if (dist > boxSize.MagSqr())
 		return;
 
 	// Transform the point..
 	LTVector transformedPoint;
 	MatVMul_H(&transformedPoint, &pContainer->m_BackTransform, &pStruct->m_Point);
 
-	if (!ci_IsPointInsideBSP(pContainer->m_pOriginalBsp->m_RootNode, transformedPoint))
+	if (!ci_IsPointInsideBSP(pWorldBsp->m_RootNode, transformedPoint))
 	{
 		pStruct->m_pList[pStruct->m_CurListSize] = pContainer;
 		pStruct->m_CurListSize++;
