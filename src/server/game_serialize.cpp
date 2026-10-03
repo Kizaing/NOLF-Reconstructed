@@ -700,20 +700,8 @@ LTRESULT sm_RestoreObjects(CServerMgr *pServerMgr, ILTStream *pStream, uint32 dw
 // PRECREATE_SAVEGAME (3.0f) passed through sm_AddObjectToWorld's uint32 parameter.
 #define OBJECTCREATED_SAVEGAME	0x40400000
 
-// Wave 7: the mystery locals were a ServerData (tempData, 0x44): the next-update/deactivation values are read
-// into its fields (which is why its CPacketRef is reloaded and released at every return), tempRadius and
-// skyIndex are zero-initialised, and the two vectors are read with `*pStream >> tempVec` (3 pending inline
-// sites that keep _InitArray out of line in the SFX packet's Init): SIZE (155 aligned) -> DIFF 2944 bytes,
-// 4 aligned. Also fixed: the client reference goes to the head of m_ClientReferences (dl_AddHead, as Jupiter),
-// not the tail. Remaining: the original stores moveState.m_nRestart's zero with the first (eax) group of
-// constructor stores, we with the second (edi); the MoveState constructor order is shared (moveobject.h).
-// Wave 7 phase 2: moving the MoveState declaration (top, after createStruct/tempObj/tempData/tempRadius/
-// skyIndex) gives 4-25 aligned, never better. The exe stores moveState.m_nRestart (frame 0x108) with the first
-// zero group (eax, before `push eax` at +0x4b), ours with the edi group after it (+0x76). MoveState's inline
-// constructor (moveobject.h) is shared by 10 functions, so its store order wasn't changed; try reordering its
-// zero stores (m_nRestart first) with a full build.py check.
-// PARKED: one zero store (MoveState::m_nRestart) scheduled with the edi group instead of eax (4 aligned); behaviour identical
-// STUB: LITHTECH 0x00439f40
+// The mystery locals are a ServerData (tempData): the next-update/deactivation values are read into its fields.
+// FUNCTION: LITHTECH 0x00439f40
 LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObject **ppObj,
 	uint32 dwParam)
 {

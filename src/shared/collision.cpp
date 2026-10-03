@@ -270,34 +270,25 @@ ClassifyFn g_ClassifyFns[] =
 
 // Sets up the box points, spheres and planes for the movement from g_P0 to g_P1.
 // Returns FALSE if there isn't enough movement to generate the box info.
-// The offset positions are built in temporaries (the vector constructor) like the original, and the
-// original reads the box dimensions through both pDims (x) and g_pCurRequest (y, z).
-// Close (3 aligned mismatches, was 103): a 16-bit loop counter (uint16; uint8 and short give the same) makes VC6
-// count the point loop down in edi like the original (an int compares the point pointer against its end). Left:
-// the original adds 4 to esp (cnt_StartCounter's argument) after the first fabs compare, ours right after the call.
-// Wave 7: tried `v = g_P1 - g_P0`, a direct-initialised v, double constants, nested ifs, an if/else body, `(float)fabs`,
-// pDims set before the test and the CountAdder declared later: no change (or worse); the deferred `add esp,4` stays.
-// Wave 7 phase 2: ALIGNED 3. Audit: behaviour matches. The only difference is where the scheduler puts
-// cnt_StartCounter's `add esp,4` (exe: after the first fabs/fcomp at +0x4e, ours right after the call); the
-// constant (double)0.0001f at 0x4c6eb0 is the same. Next idea: a different CountAdder/Counter form (e.g. the
-// counter started through a member function) changing the call's dependency chain.
-// PARKED: instruction scheduling only (one deferred add esp,4); behaviour and inlining match
-// STUB: LITHTECH 0x00418840
+// Jupiter's forms (v initialised from g_P1 - g_P0, operator+ for the offset positions, the chained radius store);
+// the dimensions go through a reference and a pointer to it (x) and through g_pCurRequest (y, z).
+// FUNCTION: LITHTECH 0x00418840
 LTBOOL SetupBox()
 {
 	CountAdder cntAdd(&g_Ticks_SetupBox);
-	LTVector v, offsetPos[2], *pDims;
+	LTVector offsetPos[2], *pDims;
 	uint16 i;
 
-	VEC_SUB(v, g_P1, g_P0);
+	LTVector v = g_P1 - g_P0;
 	if (fabs(v.x) < 0.0001f && fabs(v.y) < 0.0001f && fabs(v.z) < 0.0001f)
 		return FALSE;
 
-	offsetPos[0] = LTVector(g_BoxOffset.x + g_P0.x, g_BoxOffset.y + g_P0.y, g_BoxOffset.z + g_P0.z);
-	offsetPos[1] = LTVector(g_BoxOffset.x + g_P1.x, g_BoxOffset.y + g_P1.y, g_BoxOffset.z + g_P1.z);
+	offsetPos[0] = g_P0 + g_BoxOffset;
+	offsetPos[1] = g_P1 + g_BoxOffset;
 
 	// Setup the box points.
-	pDims = &g_pCurRequest->m_Dims;
+	LTVector &dims = g_pCurRequest->m_Dims;
+	pDims = &dims;
 	for (i=0; i < 2; i++)
 	{
 		LTVector *pBoxPts = g_MovePts[i];
@@ -321,8 +312,8 @@ LTBOOL SetupBox()
 
 	// The whole sphere encloses the other two (as small as possible tho!  the size of this sphere
 	// directly relates to how fast the physics are).
-	g_BoxFindCenter = offsetPos[0] + v * 0.5f;
-	g_BoxFindRadius = v.Mag() + g_BoxRadius;
+	g_BoxFindCenter = g_StartSphere.m_Center + v * 0.5f;
+	g_BoxFindRadius = g_BoxRadius + v.Mag();
 
 	VEC_MIN(g_BoxMin, offsetPos[0], offsetPos[1]);
 	VEC_MAX(g_BoxMax, offsetPos[0], offsetPos[1]);
@@ -1649,7 +1640,7 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 			g_pCurRequest->m_Dims = request.m_Dims;
 			g_pCurRequest->m_Dims.y = fHalfStair;
 
-			fRestart = *(float*)request.m_pRestart * 0.5f;
+			fRestart = *request.m_pRestart * 0.5f;
 			g_BoxOffset.y += fRestart;
 			g_pCurRequest->m_Dims.y -= fRestart;
 
@@ -1661,8 +1652,8 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 				StairStep(g_pCurBlock->m_iRoot, pInfo, &bHitNonStep);
 			}
 
-			*(float*)request.m_pRestart += g_P0.y - vSavedP0.y;
-			fRestart = *(float*)request.m_pRestart * 0.5f;
+			*request.m_pRestart += g_P0.y - vSavedP0.y;
+			fRestart = *request.m_pRestart * 0.5f;
 			g_P0 = vSavedP0;
 
 			if (bHitNonStep)
@@ -2152,19 +2143,8 @@ void AddPushPlane(LTPlane *pPlane, void *pID)
 
 
 // Pushes the box at the end of the movement out of all the planes it touches.
-// 31 bytes differ: the loop's first x87 operand order (z, x, y in the original) and where the two
-// counters are cleared.
-// Wave 6: VC6 orders the inlined Dot's products by its own canonical rule; naming one more pointer changes it
-// (`LTVector *pNormal = &pPlane->m_Normal; dist = pNormal->Dot(pts[j]) - pPlane->m_Dist;` or even
-// `LTPlane *pP = pPlane; pP->DistTo(pts[j])` give z first: 7 aligned instead of 10, but then y, x where the original
-// has x, y). Tried also: a pts pointer local, a by-value point copy, VEC_DOT (SIZE), pts[j].Dot(normal), declaration
-// order, `for(i=0, nIterations=0; ...)` and the counters next to the loop: no change.
-// Wave 7: toy copies of this function (scratch w7_collision/p1.cpp) reproduce ours (y, z, x); explicit products and VEC_DOT
-// give the original's z, x, y but drop the by-value copy the original has; copy + VEC_DOT/explicit/Dot forms give x, z, y.
-// `pos = g_P1 + g_BoxOffset` (61), `g_BoxOffset + g_P1` (12), `pts[j].Dot(normal)` (26): no improvement.
-// Wave 7 phase 2: ALIGNED 11 (10 ignoring stack offsets), audit: behaviour matches.
-// PARKED: x87 operand order of the loop's Dot (z, x, y in the exe) and the counters' clear position; behaviour matches
-// STUB: LITHTECH 0x0041d820
+// The end position is built in a named vector and copied (that gives the Dot's x87 term order in the loop).
+// FUNCTION: LITHTECH 0x0041d820
 static void PushBoxOutOfPlanes()
 {
 	LTVector pos, *pDims, pts[NUM_BOX_POINTS], move;
@@ -2174,7 +2154,8 @@ static void PushBoxOutOfPlanes()
 
 	i = 0;
 	nIterations = 0;
-	VEC_ADD(pos, g_P1, g_BoxOffset);
+	LTVector vEnd = g_P1 + g_BoxOffset;
+	pos = vEnd;
 	pDims = &g_pCurRequest->m_Dims;
 
 	pts[0].Init(pos.x + pDims->x, pos.y + pDims->y, pos.z + pDims->z);
@@ -2633,7 +2614,9 @@ void StairStep(uint16 iRoot, CollideInfo *pInfo, LTBOOL *pbHitNonStep)
 // pCollisionInfo->m_Plane.m_Normal.Dot(pPlane->m_Normal) (exe +0x2c0: y term first) and of g_P0.z + vMove.z (exe
 // +0x513 loads g_P0.z first). Per README wave 6 "x87 operand order", the fix is an earlier statement's first
 // reference to these fields.
-// PARKED: x87 operand order of two sums only; behaviour and calls match
+// Hand pass after wave 7: a reference to the collision normal (vN) for the y = 0 store, Norm and the wall Dot: 8 -> 6
+// aligned (the Dot is now z, y, x; the exe has y, z, x). Named copies of g_P0/vMove/vNormal and a plane reference: no better.
+// PARKED: x87 operand order of two sums only (6 aligned); behaviour and calls match
 // STUB: LITHTECH 0x0041edb0
 LTBOOL StairStepOld(uint16 iRoot, CollideInfo *pInfo)
 {
@@ -2694,12 +2677,13 @@ LTBOOL StairStepOld(uint16 iRoot, CollideInfo *pInfo)
 				if (pPlane->m_Normal.y < g_fStairOldFlatNormalY)
 				{
 					// Push it straight out horizontally.
-					pCollisionInfo->m_Plane.m_Normal.y = 0.0f;
-					pCollisionInfo->m_Plane.m_Normal.Norm();
+					LTVector &vN = pCollisionInfo->m_Plane.m_Normal;
+					vN.y = 0.0f;
+					vN.Norm();
 					for (iPt = 0; iPt < 4; iPt++)
 					{
 						fDist = (pCollisionInfo->m_Plane.m_Dist - pPlane->m_Normal.Dot(g_MovePts[1][iPt])) *
-							(-1.0f / pCollisionInfo->m_Plane.m_Normal.Dot(pPlane->m_Normal));
+							(-1.0f / vN.Dot(pPlane->m_Normal));
 						if (fDist < fMinDist)
 							fMinDist = fDist;
 					}

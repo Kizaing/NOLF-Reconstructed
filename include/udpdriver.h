@@ -51,7 +51,7 @@ public:
 					CUDPQuery()
 					{
 						m_pInfo = LTNULL;
-						m_Unknown9C = 0;
+						m_Unknown9C = 0.0f;
 						m_iTime = 0;
 						memset(m_SendTimes, 0, sizeof(m_SendTimes));
 						m_Ping = 0.0f;
@@ -95,7 +95,7 @@ public:
 	float			m_LastResponseTime;		// 0x84
 	sockaddr_in		m_Addr;					// 0x88
 	char			*m_pInfo;				// 0x98 Session info from the response.
-	uint32			m_Unknown9C;			// 0x9c
+	float			m_Unknown9C;			// 0x9c (a float: its zero is not counted with the integer zero stores)
 	float			m_Ping;					// 0xa0
 };
 

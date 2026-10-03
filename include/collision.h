@@ -44,7 +44,7 @@ struct CollideRequest
 	LTBOOL			m_bSlide;			// 0x40
 
 	uint32			m_Unknown44;		// 0x44 (MoveState::m_Unknown64)
-	int				*m_pRestart;		// 0x48 (&MoveState::m_nRestart); the stair step code of CollideWithWorld reads and
+	float			*m_pRestart;		// 0x48 (&MoveState::m_nRestart); the stair step code of CollideWithWorld reads and
 										//      adds to it as a float (the height the cylinder was raised)
 };
 

@@ -270,21 +270,9 @@ void sm_SendAllLightAnims(CServerMgr *pServerMgr, Client *pClient)
 
 
 // Sends the light animations that changed since the last update.
-// Wave 5: the code is identical except the frame: the original has ONE new slot (the CPacketRef temp, a
-// `push ecx`) and keeps the loop counter i in the dead home of the pServerMgr argument ([esp+0x14], stored right
-// after pServerMgr is loaded into edi); ours takes two new slots (sub esp,8). Same dead-argument-slot reuse as
-// se_InitModelObject (pModel/pFile live in the pObject/pStruct homes). Declaration order doesn't change it.
-// Wave 6: pChange set before the loop and stepped with i (aligned 8 -> 6) gets the one-slot frame, but i goes
-// into pClient's home ([esp+0x1c]) instead of pServerMgr's, and `push ebp`/`lea ebp,[ebx+0xc]` move to the
-// prologue (the original does them after the loop guard). Tried: int i, ++i, a while loop, i declared in the for
-// or after the first statement, `pChange = arr + i`, both inits in the for, a pServerMgr copy: no better.
-// Wave 7: `pChange = &pClient->m_LightAnimChanges[i]` inside the loop gets the original's late `push ebp`/`lea
-// ebp,[ebx+0xc]` after the loop guard (VC6 saves a callee-saved register only where it first becomes live), but i
-// then takes a new slot instead of pServerMgr's dead home (14 aligned, 8 ignoring offsets); i declared in the
-// for or mid-function doesn't change that.
-// Wave 7 phase 2: audit: behaviour matches. 13 aligned (6 ignoring stack offsets): frame slot reuse only.
-// PARKED: frame/slot allocation only (the loop counter in pServerMgr's dead argument home); behaviour identical; three waves tried
-// STUB: LITHTECH 0x0046fd30
+// The loop counter lives in pServerMgr's dead argument home: VC6 gives that home to the least used parameter, and the
+// light animation array reference keeps pServerMgr's use count below pClient's.
+// FUNCTION: LITHTECH 0x0046fd30
 void sm_SendChangedLightAnims(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacket *pPacket;
@@ -293,13 +281,15 @@ void sm_SendChangedLightAnims(CServerMgr *pServerMgr, Client *pClient)
 
 	pPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
 
-	pChange = pClient->m_LightAnimChanges;
-	for (i=0; i < pClient->m_nLightAnimChanges; i++, pChange++)
+	CMoArray<LightAnim> &anims = pServerMgr->m_World.m_LightAnims;
+
+	for (i=0; i < pClient->m_nLightAnimChanges; i++)
 	{
+		pChange = &pClient->m_LightAnimChanges[i];
 		iLightAnim = pChange->m_iLightAnim;
-		if (iLightAnim < pServerMgr->m_World.m_LightAnims.GetSize())
+		if (iLightAnim < anims.GetSize())
 		{
-			sm_WriteLightAnimInfo(pServerMgr, &pServerMgr->m_World.m_LightAnims[iLightAnim], (uint16)iLightAnim,
+			sm_WriteLightAnimInfo(pServerMgr, &anims[iLightAnim], (uint16)iLightAnim,
 				pPacket, pChange->m_ChangeFlags);
 
 			if (pPacket->GetSpaceLeft() <= 22)

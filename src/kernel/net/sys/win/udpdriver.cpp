@@ -355,15 +355,7 @@ LTRESULT CUDPDriver::GetServiceList(NetService* &pListHead)
 }
 
 
-// Same size and inlining as the original; this build keeps ebp == 0 live through the parse loop
-// (cmp [m_nArgs], ebp) where the original reloads (test eax, eax). In the original ebp's zero is only used before
-// the loop (the bind check, the SetupLocalSockaddr argument); after it every zero is `push 0` / `test`.
-// `if(parse.m_nArgs != 0 && parse.m_nArgs > 0)` makes the first compare a load+test but doesn't fix the rest.
-// Wave 6 tried: `for(;;){ if(!parse.Parse()) break; ...}`, storing setsockopt's result, separate bind checks (worse),
-// hillclimb (no move helps).
-// Wave 7 phase 2: audit: only setsockopt's import not named yet (004c62dc). 16 aligned.
-// PARKED: a zero kept in ebp through the parse loop (the exe reloads/pushes 0); behaviour identical
-// STUB: LITHTECH 0x00497d20
+// FUNCTION: LITHTECH 0x00497d20
 LTRESULT CUDPDriver::StartQuery(char *pInfo)
 {
 	CUDPQuery tempQuery;
@@ -516,17 +508,8 @@ char* tcp_GetLastError()
 #pragma warning(default : 4715)
 
 
-// Wave 6: both packets are CPacketRefs declared before tempQuery (the original releases them after tempQuery's
-// destructor, and each `->` is a pending inline site: the first ReadType<uint8> now stays out of line), subID is a
-// uint32 (compared as an int) and SendTo takes `&m_Queries[i].m_Addr` (the original recomputes it after the
-// calls). Aligned 166 -> 9: the original doesn't keep 0 in ebx across the receive loop (ours re-zeroes ebx after
-// the send loop for the CPacketRef null tests and the ReadType dummy argument).
-// Wave 7: a 2-round hillclimb finds no improving move. StartQuery has the same symptom (a zero kept in a
-// callee-saved register, which also turns `inc dword ptr [m_nElements]` into load/inc/store), so the cause is
-// probably shared.
-// Wave 7 phase 2: audit: behaviour matches (9 aligned).
-// PARKED: a zero kept in ebx across the receive loop (same symptom as StartQuery); behaviour identical
-// STUB: LITHTECH 0x00498240
+// Both packets are CPacketRefs declared before tempQuery (the original releases them after tempQuery's destructor).
+// FUNCTION: LITHTECH 0x00498240
 LTRESULT CUDPDriver::UpdateQuery()
 {
 	CPacketRef cQueryPacket, cPacket;

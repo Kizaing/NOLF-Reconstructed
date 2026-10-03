@@ -626,7 +626,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 	pState->m_vDestPos = destPos;
 	pState->m_vDeltaPos = destPos - startPos;
 	pState->m_vMoveCenter = startPos + pState->m_vDeltaPos * 0.5f;
-	pState->m_nRestart = 0;
+	pState->m_nRestart = 0.0f;
 	pState->m_fMoveRadius = (0.5f * pState->m_vDeltaPos.Mag()) + pState->m_pObj->m_Dims.Mag();
 
 	// Sphere physics objects do their own collisions.

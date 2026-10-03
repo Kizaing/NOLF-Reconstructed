@@ -48,7 +48,7 @@ public:
 		m_pAbstract = LTNULL;
 		m_pObj = LTNULL;
 		m_Unknown64 = 0;
-		m_nRestart = 0;
+		m_nRestart = 0.0f;
 	}
 
 	void Setup(WorldTree *pWorldTree,
@@ -92,7 +92,7 @@ public:
 	LTVector		m_vMoveMax;				// 0x54
 	LTMatrix		*m_pWMObjectTransform;	// 0x60
 	uint32			m_Unknown64;			// 0x64
-	int				m_nRestart;				// 0x68
+	float			m_nRestart;				// 0x68 the height the stair step code raised the cylinder (a float)
 };
 
 // LTObject::m_InternalFlags.
