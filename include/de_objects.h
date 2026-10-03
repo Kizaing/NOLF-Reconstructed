@@ -426,6 +426,7 @@ class Canvas : public LTObject
 public:
 	Canvas();						// 0x00468570
 	virtual float	GetRadius();	// 0x004685a0
+	virtual float	CalcRadius();	// 0x38 (folded with GetRadius by the linker, name unknown)
 
 	CanvasDrawFn	m_Fn;				// 0x1b0
 	void			*m_pFnUserData;		// 0x1b4

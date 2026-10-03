@@ -95,7 +95,7 @@ ActionDef g_ActionDefHead;
 
 
 // GLOBAL: LITHTECH 0x004e3b0c
-static ConsoleState		*g_pInputConsoleState;
+static ConsoleState		*g_pInputConsoleState = LTNULL;
 
 
 // --------------------------------------------------------------------- //
@@ -106,7 +106,7 @@ class CTriggerActionConsoleVar;
 
 // list of all the console variables that are used in the TriggerAction
 // GLOBAL: LITHTECH 0x004e3b10
-static CTriggerActionConsoleVar*	g_lstTriggerActionConsoleVariables;
+static CTriggerActionConsoleVar*	g_lstTriggerActionConsoleVariables = LTNULL;
 
 class TriggerAction
 {
@@ -369,29 +369,29 @@ class DeviceDef
 
 	// The window input is attached to.
 	// GLOBAL: LITHTECH 0x004e3b14
-	static HWND				g_InputHWND;
+	static HWND				g_InputHWND=LTNULL;
 
 	// The main DirectInput object.
 	// GLOBAL: LITHTECH 0x004e3b18
-	static LPDIRECTINPUT	g_pDirectInput;
+	static LPDIRECTINPUT	g_pDirectInput=LTNULL;
 
 	// Devices we've enumerated.
 	// GLOBAL: LITHTECH 0x004e3b1c
-	static DeviceDef		*g_pDeviceHead;
+	static DeviceDef		*g_pDeviceHead=LTNULL;
 
 	// Force-Feedback effects
 	// GLOBAL: LITHTECH 0x004e3b20
-	static CJoystickEffect	*g_pJoystickEffects;
+	static CJoystickEffect	*g_pJoystickEffects=LTNULL;
 
 	// Useful for remembering current device when enumerating device objects
 	// GLOBAL: LITHTECH 0x004e3b24
-	static DeviceDef		*g_pCurrentEnumDevice;
+	static DeviceDef		*g_pCurrentEnumDevice=LTNULL;
 
 	// What input_AddTrigger is looking for (DeviceObjectEnumCallback).
 	// GLOBAL: LITHTECH 0x004e39c4
 	static LTBOOL			g_bLookingForSpecial;
 	// GLOBAL: LITHTECH 0x004e39bc
-	static uint32			g_nSpecialType;
+	static uint32			g_SpecialType;
 	// GLOBAL: LITHTECH 0x004e397c
 	static uint32			g_nSpecialOffset;
 	// GLOBAL: LITHTECH 0x004e3980
@@ -399,7 +399,7 @@ class DeviceDef
 	// GLOBAL: LITHTECH 0x004e39c8
 	static LTBOOL			g_bSpecialGuid;
 	// GLOBAL: LITHTECH 0x004e39c0
-	static LTBOOL			g_bObjectFound;
+	static LTBOOL			g_bFoundObject;
 	// GLOBAL: LITHTECH 0x004e39d0
 	static DIDEVICEOBJECTINSTANCE	g_DeviceEnumFindings;
 
@@ -573,16 +573,16 @@ static BOOL CALLBACK DeviceObjectEnumCallback( LPCDIDEVICEOBJECTINSTANCE pObj, L
 					}
 				}
 
-				g_bObjectFound = TRUE;
+				g_bFoundObject = TRUE;
 				memcpy( &g_DeviceEnumFindings, pObj, sizeof(DIDEVICEOBJECTINSTANCE) );
 				return DIENUM_STOP;
 			}
 		}
-		else if( g_nSpecialType != 0xFFFFFFFF)
+		else if( g_SpecialType != 0xFFFFFFFF)
 		{
-			if(DIDFT_GETINSTANCE(pObj->dwType) == g_nSpecialType )
+			if(DIDFT_GETINSTANCE(pObj->dwType) == g_SpecialType )
 			{
-				g_bObjectFound = TRUE;
+				g_bFoundObject = TRUE;
 				memcpy( &g_DeviceEnumFindings, pObj, sizeof(DIDEVICEOBJECTINSTANCE) );
 				return DIENUM_STOP;
 			}
@@ -591,7 +591,7 @@ static BOOL CALLBACK DeviceObjectEnumCallback( LPCDIDEVICEOBJECTINSTANCE pObj, L
 		{
 			if( pObj->dwOfs == g_nSpecialOffset )
 			{
-				g_bObjectFound = TRUE;
+				g_bFoundObject = TRUE;
 				memcpy( &g_DeviceEnumFindings, pObj, sizeof(DIDEVICEOBJECTINSTANCE) );
 				return DIENUM_STOP;
 			}
@@ -601,7 +601,7 @@ static BOOL CALLBACK DeviceObjectEnumCallback( LPCDIDEVICEOBJECTINSTANCE pObj, L
 	{
 		if(stricmp( pObj->tszName, (const char*)pvRef ) == 0)
 		{
-			g_bObjectFound = TRUE;
+			g_bFoundObject = TRUE;
 			memcpy( &g_DeviceEnumFindings, pObj, sizeof(DIDEVICEOBJECTINSTANCE) );
 			return DIENUM_STOP;
 		}
@@ -629,7 +629,7 @@ static TriggerObject* input_AddTrigger(DeviceDef *pDevice, const char *pTriggerN
 		if(pTriggerName[0] == '#' && pTriggerName[1] == '#')
 		{
 			g_bLookingForSpecial = TRUE;
-			g_nSpecialType = g_nSpecialOffset = 0xFFFFFFFF;
+			g_SpecialType = g_nSpecialOffset = 0xFFFFFFFF;
 			g_bSpecialGuid = FALSE;
 
 			if(stricmp(&pTriggerName[2], "x-axis") == 0)
@@ -703,15 +703,15 @@ static TriggerObject* input_AddTrigger(DeviceDef *pDevice, const char *pTriggerN
 			}
 			else if(isalnum(pTriggerName[2]))
 			{
-				g_nSpecialType = (uint32)atoi(&pTriggerName[2]);
+				g_SpecialType = (uint32)atoi(&pTriggerName[2]);
 			}
 		}
 	}
 
 	// Enumerate objects on this device.
-	g_bObjectFound = FALSE;
+	g_bFoundObject = FALSE;
 	hResult = pDevice->m_pDevice->EnumObjects( DeviceObjectEnumCallback, (void*)pTriggerName, DIDFT_ALL );
-	if( hResult != DI_OK || !g_bObjectFound )
+	if( hResult != DI_OK || !g_bFoundObject )
 		return LTNULL;
 
 	// Found an object with that name.  Make sure DirectEngine supports its type of input.

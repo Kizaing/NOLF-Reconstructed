@@ -51,9 +51,12 @@ typedef void (*FreeModeListFn)(RMode *pModes);
 
 
 // GLOBAL: LITHTECH 0x004e3690
-LTBOOL g_bComInitialized;
+LTBOOL g_bComInitialized = LTFALSE;
 // GLOBAL: LITHTECH 0x004e3694
-HINSTANCE g_hResourceModule;
+HINSTANCE g_hResourceModule = LTNULL;
+// Not referenced in lithtech.exe (Jupiter's server DLL entry point sets it).
+// GLOBAL: LITHTECH 0x004e3698
+HINSTANCE g_hModuleInstanceHandle = LTNULL;
 
 struct LTSysResultString
 {

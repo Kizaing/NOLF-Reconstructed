@@ -8,9 +8,9 @@
 
 
 // GLOBAL: LITHTECH 0x004e45a8
-static HINSTANCE g_hMusicDLL;
+static HINSTANCE g_hMusicDLL = 0;
 // GLOBAL: LITHTECH 0x004e45ac
-static SMusicMgr *g_pMusicMgr;
+static SMusicMgr *g_pMusicMgr = LTNULL;
 
 
 // FUNCTION: LITHTECH 0x00462690

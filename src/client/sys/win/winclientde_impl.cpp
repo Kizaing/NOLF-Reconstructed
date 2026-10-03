@@ -56,7 +56,7 @@ FormatMgr* GetFormatMgr();
 CisSurface g_ScreenSurface;
 
 // The render struct we're using..
-RenderStruct *g_pCisRenderStruct;
+RenderStruct *g_pCisRenderStruct = LTNULL;
 
 // Used for transparent drawing.
 GenericColor g_TransparentColor;

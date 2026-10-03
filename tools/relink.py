@@ -2,20 +2,24 @@ r"""Relink spike: link target (and base) objects with data/import/resource stand
 
   python tools/build.py                       # first (in a worktree: set VC6CL=tools\vc6cl_wt.bat)
   python tools/relink.py                      # every unit from its target object   -> .text/.rdata/.data/.rsrc identical
-  python tools/relink.py --mode mixed         # fully matched units from their base objects
+  python tools/relink.py --mode mixed         # fully matched units from their base objects, with their own .rdata/.data
+  python tools/relink.py --mode mixed --standin-data   # ... with every unit's data from the exe (stand-in), as before wave 7
   python tools/relink.py --mode mixed --only client/cnet,shared/nexus [--report-data] [--stage prep] [--show-order]
                                               (--show-order lists each unit's function emission order with the descents marked;
                                                --data-detail lists each unit's data symbols with their exe addresses, '>>' = out of order)
   python tools/relink_cmp.py [new.exe]        # headers, per-section and per-byte comparison with the original
 
-Data (tools/relink_data.py; mixed mode only, all off by default):
+Data (tools/relink_data.py; mixed mode only; --own-data is the default there, --standin-data turns it off):
   --data-units [--write-data-units] [--data-verbose]
         locate every object's data sections in the exe; per-unit .rdata/.data/.bss/.CRT ranges (OUT/data_units.json,
         config/data_units.csv) and the data status of every fully matched unit (OUT/data_status.json): 'match' (its
         .rdata/.data sections, in section-table order, are where LINK would put them and hold the exe's bytes),
         'edge' (they match, but bytes next to them belong to no known object), 'differs' (with the reason).
   --split-standin   the stand-in as one piece per unit and output group (OUT/standin/), in link order
-  --own-data [u,..] units with status match/edge keep their own .rdata/.data sections (implies the split stand-in)
+  --own-data [u,..] units with status match/edge keep their own .rdata/.data sections (implies the split stand-in);
+                    the default in mixed mode (all such units); pass a list to restrict it
+  --standin-data    mixed mode without --own-data: the base objects' data sections are dropped and one stand-in
+                    object holds the exe's .rdata/.data/.bss (the pre-wave-7 behaviour)
 
 What it builds in build/relink (RELINK_OUT overrides):
   obj/*.obj      the target objects, made linkable: unique external names (a COMDAT leader gets '@<va>' when its
@@ -574,9 +578,27 @@ class Prepared:
                     include.append(ext[0])
         self.own_spans += [(lo, hi, name, k) for lo, hi, k in spans]
         sub = subset_sections(o, code + sorted(kept))
+        self.own_secno = getattr(self, 'own_secno', {})
+        for i, k in enumerate(sorted(kept)):
+            self.own_secno[(name, k)] = len(code) + i + 1      # section number of kept section k in `sub`
         obj, inc, fva = self.base[name]
         self.base[name] = (sub, inc + [(n, None) for n in include], fva)
         return len(kept), aliases
+
+    def own_data_late_aliases(self):
+        """Data names created after a unit's own_data() ran (a later unit's kept data pointing into it, e.g. at a
+        string literal COMDAT the earlier unit supplies) become aliases in that unit's object too."""
+        n = 0
+        for va, nm in sorted(self.data_name.items()):
+            if va in self.own_names:
+                continue
+            for lo, hi, name, k in getattr(self, 'own_spans', []):
+                if lo <= va < hi:
+                    self.base[name][0].add_symbol(nm, va - lo, self.own_secno[(name, k)])
+                    self.own_names.add(va)
+                    n += 1
+                    break
+        return n
 
     def write(self):
         d = os.path.join(OUT, 'obj')
@@ -915,7 +937,12 @@ def main():
     ap.add_argument('--split-standin', action='store_true', help='mixed mode: one stand-in piece per unit and output group, placed in link order (OUT/standin/)')
     ap.add_argument('--own-data', nargs='?', const='', default=None, help='mixed mode: fully matched units whose .rdata/.data match supply their own sections (all of them, or the comma-separated list); implies --split-standin')
     ap.add_argument('--own-data-force', action='store_true', help='with --own-data: also units whose data status is not "match" (to see the byte differences)')
+    ap.add_argument('--standin-data', action='store_true', help='mixed mode: take every unit' + chr(39) + 's .rdata/.data from the exe (one stand-in object) instead of the default --own-data')
     a = ap.parse_args()
+    if a.mode == 'mixed' and a.own_data is None and not a.standin_data:
+        a.own_data = ''         # default: fully matched units whose data matches supply their own sections
+    if a.standin_data:
+        a.own_data = None
     EXTRA_LINK_FLAGS.extend(a.link_flag)
     global USE_ORDER
     USE_ORDER = a.order
@@ -969,7 +996,10 @@ def main():
                     print('  own data: %s skipped: %s' % (x.unit, e))
                     continue
                 own.append(x.unit)
+            late = prep.own_data_late_aliases() if own else 0
             print('units supplying their own .rdata/.data: %d: %s' % (len(own), ', '.join(sorted(own))))
+            if late:
+                print('  late data aliases in own sections: %d' % late)
     print("sliced %d interleaved library objects" % len(prep.sliced))
     prep.write()
     print('objects %d, renamed %d, unresolved %d, data symbols %d' % (

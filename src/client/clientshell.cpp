@@ -49,13 +49,13 @@ CClientShell *g_pClientShell;
 
 // Profiling (named after the PlayDemo profile, demomgr.cpp).
 // GLOBAL: LITHTECH 0x004df000
-uint32 g_Ticks_NetUpdate;
+uint32 g_Ticks_NetUpdate = 0;
 // GLOBAL: LITHTECH 0x004df004
-uint32 g_Ticks_ServerUpdate;
+uint32 g_Ticks_ServerUpdate = 0;
 // GLOBAL: LITHTECH 0x004df008
-uint32 g_Ticks_ProcessPackets;
+uint32 g_Ticks_ProcessPackets = 0;
 // GLOBAL: LITHTECH 0x004df00c
-uint32 g_Ticks_GameClientShell;
+uint32 g_Ticks_GameClientShell = 0;
 // Other frame profile counters (names unknown).
 // GLOBAL: LITHTECH 0x004decf4
 extern uint32 g_Ticks_FrameServer;

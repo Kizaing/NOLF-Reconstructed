@@ -32,7 +32,7 @@ extern WCHAR g_wszEmptyString[];
 
 // the manager the notification thread works on
 // GLOBAL: LITHTECH 0x004e446c
-static CLTDirectMusicMgr* g_pLTDMMgr;
+static CLTDirectMusicMgr* g_pLTDMMgr = LTNULL;
 
 
 // output error to console

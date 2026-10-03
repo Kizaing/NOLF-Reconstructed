@@ -116,9 +116,9 @@ float g_MinDemoTime = 100000.0;
 // GLOBAL: LITHTECH 0x004d1af8
 float g_MinDemoFPS = 100000.0;
 // GLOBAL: LITHTECH 0x004e3638
-float g_MaxDemoTime;
+float g_MaxDemoTime = 0.0f;
 // GLOBAL: LITHTECH 0x004e363c
-float g_MaxDemoFPS;
+float g_MaxDemoFPS = 0.0f;
 
 
 static void DemoPrint(const char *pMsg, ...);

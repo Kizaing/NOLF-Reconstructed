@@ -12,10 +12,14 @@ units that call them: a few bytes in an otherwise identical unit usually mean th
 (check with `tools/relink.py --mode mixed --only <unit>`).
 Exit code 1 if a unit that was identical in the previous run is not identical now.
 
-  --data       also run relink.py --data-units: per-unit data ranges and the .rdata/.data status of every fully matched
-               unit (build/relink-gate/data_units.json, data_status.json); lists units whose data status got worse.
-  --own-data   link with --own-data (fully matched units whose data matches supply their own .rdata/.data; implies
-               --data). .rdata then differs where a vtable points at a function that moved in .text.
+By default the relink uses relink.py's --own-data: every fully matched unit whose data matches supplies its own
+.rdata/.data (the others, and everything not fully matched, come from the exe's bytes). .rdata then differs where a
+vtable points at a function that moved in .text. The per-unit data status is always reported
+(build/relink-gate/data_units.json, data_status.json), with the units whose status got worse.
+
+  --standin-data   the pre-wave-7 link: all .rdata/.data from one stand-in object (relink.py --standin-data
+                   --data-units), so only .text can differ.
+  --data, --own-data   accepted for compatibility (both are the default now).
 """
 import bisect, json, os, subprocess, sys
 
@@ -33,9 +37,9 @@ def main():
     import build as B
     out = os.path.normpath(os.environ.get('RELINK_OUT') or os.path.join(BUILD, 'relink-gate'))
     env = dict(os.environ, RELINK_OUT=out)
-    own = '--own-data' in sys.argv
-    data = own or '--data' in sys.argv
-    extra = ['--own-data'] if own else ['--data-units'] if data else []
+    own = '--standin-data' not in sys.argv
+    data = True
+    extra = ['--own-data'] if own else ['--standin-data', '--data-units']
     r = subprocess.run([sys.executable, os.path.join(TOOLS, 'relink.py'), '--mode', 'mixed'] + extra, cwd=ROOT, env=env,
                        capture_output=True, text=True)
     full, fell_back = [], ''
@@ -44,6 +48,8 @@ def main():
             fell_back = l.split('fell back to target:', 1)[-1].strip()
         if l.startswith('fully matched units:'):
             print(l)
+        if l.startswith('units supplying their own .rdata/.data:'):
+            print(l.split(':')[0] + ': ' + l.split(':')[1].strip())
     exe = os.path.join(out, 'lithtech.exe')
     if r.returncode != 0 or 'link rc 0' not in r.stdout or not os.path.exists(exe):
         print(r.stdout[-3000:], r.stderr[-3000:])
