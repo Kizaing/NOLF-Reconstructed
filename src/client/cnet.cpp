@@ -18,7 +18,7 @@
 #define SOUNDPACKET (m_SoundMgr.GetSoundUpdatePacket())
 
 // GLOBAL: LITHTECH 0x004d2148
-extern uint8 g_CV_UpdateRate;
+extern int32 g_CV_UpdateRate;
 
 CPacketRef packet_Get(uint16 maxSize, uint16 cacheSize);	// 0x00469120
 
@@ -37,7 +37,7 @@ void CClientMgr::SendUpdate(CNetMgr *pNetMgr, CBaseConn *pConnID, int32 *pComman
 
 	cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
 
-	updateRate = LTCLAMP(g_CV_UpdateRate, 2, 60);
+	updateRate = LTCLAMP((uint8)g_CV_UpdateRate, 2, 60);
 	cPacket->WriteType(updateRate);
 	bRateChanged = updateRate != m_LastUpdateRate;
 	m_LastUpdateRate = updateRate;

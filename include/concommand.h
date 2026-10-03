@@ -44,6 +44,11 @@ struct LTEngineVar
 	char			**pValueAddressString;	// 0x10
 };
 
+#define EV_FLOAT(name, addr) { name, addr, NULL, NULL, NULL }
+#define EV_LONG(name, addr) { name, NULL, (int32*)(addr), NULL, NULL }
+#define EV_CVAR(name, addr) { name, NULL, NULL, addr, NULL }
+#define EV_STRING(name, addr) { name, NULL, NULL, NULL, addr }
+
 // Only used in cc_InitState to register a list of commands.
 struct LTCommandStruct
 {
