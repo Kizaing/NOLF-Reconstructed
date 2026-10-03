@@ -4,3 +4,4 @@ objdiff.json
 __pycache__/
 *.pyc
 *.tmp
+.claude/
