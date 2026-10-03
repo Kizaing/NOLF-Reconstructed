@@ -159,8 +159,9 @@ CLithChunkAllocator<CLTDirectMusicMgr::CDLSBank> CLTDirectMusicMgr::CDLSBank::m_
 ///////////////////////////////////////////////////////////////////////////////////////////
 // thread that handles the DirectMusic notifications
 ///////////////////////////////////////////////////////////////////////////////////////////
+// Extern: as a static, VC6 emits it after Init, which takes its address.
 // FUNCTION: LITHTECH 0x004477c0
-static void LTDMNotificationThread(void* pData)
+void LTDMNotificationThread(void* pData)
 {
 	DMUS_NOTIFICATION_PMSG* pPmsg;
 	IDirectMusicSegmentState* pDMSegState = LTNULL;
@@ -551,10 +552,8 @@ LTRESULT CLTDirectMusicMgr::Term()
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Initialize a game level using the parameters in the given control file
 ///////////////////////////////////////////////////////////////////////////////////////////
-// STUB: LITHTECH 0x00448040
-// One byte off (the 742 differing bytes are the following jumps shifting): the original indexes the last working-directory
-// char as `add ecx,-2; [ecx+esi]`, we get `dec ecx; [ecx+esi-1]`. Tried: `*(s+len-1)`, `(s+len)[-1]`, an int index local,
-// a pointer local, `strlen != 0` / `*s` for the guard.
+// Jupiter's nLastPos local indexed three times (not one char local) gives the original's `add ecx,-2; [ecx+esi]`.
+// FUNCTION: LITHTECH 0x00448040
 LTRESULT CLTDirectMusicMgr::InitLevel(const char* sWorkingDirectory, const char* sControlFileName, const char* sDefine1,
 		  						     const char* sDefine2, const char* sDefine3)
 {
@@ -607,8 +606,9 @@ LTRESULT CLTDirectMusicMgr::InitLevel(const char* sWorkingDirectory, const char*
 			strcpy(sFileName, sWorkingDirectory);
 			if (strlen(sWorkingDirectory) > 0)
 			{
-				char cLast = sWorkingDirectory[strlen(sWorkingDirectory)-1];
-				if ((cLast != '\\') && (cLast != '/') && (cLast != ':')) strcat(sFileName, "\\");
+				// see if we need to append a backslash to directory
+				int nLastPos = strlen(sWorkingDirectory)-1;
+				if ((sWorkingDirectory[nLastPos] != '\\') && (sWorkingDirectory[nLastPos] != '/') && (sWorkingDirectory[nLastPos] != ':')) strcat(sFileName, "\\");
 			}
 			strcat(sFileName, sControlFileName);
 

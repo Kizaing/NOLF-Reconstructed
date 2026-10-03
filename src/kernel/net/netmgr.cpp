@@ -337,11 +337,8 @@ LTRESULT CNetMgr::GetLocalIpAddress(char *pAddress, uint32 bufLen, uint16 &hostP
 }
 
 
-// Wave 5: ResetWrite() and `CPacketRef cAckPacket` declared in the ack block (lazy constructor) fix the frame
-// size and the m_Pos/m_DataLen store order. Left: in the latent-packet loop the original evaluates GetNext's
-// pointer arithmetic before the `fadd [pLatent+8]` and keeps pLatent in eax; ours does the opposite and keeps
-// it in ebx (loop forms, `+=` forms and `>=` operand order did not change it).
-// STUB: LITHTECH 0x00462eb0
+// The ack is built in cPacket itself (the original releases the old packet there and has no second CPacketRef).
+// FUNCTION: LITHTECH 0x00462eb0
 void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 {
 	uint32 i;
@@ -409,12 +406,11 @@ void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 
 		if(!(pConn->m_ConnFlags & CONNFLAG_LOCAL) && pConn->m_AckTimer > g_AckSendTime)
 		{
-			NetDebugOut2(pConn, 2, "Sending ack local: %d remote: %d.", pConn->m_IncomingFrame-1, pConn->m_OutgoingFrame);
+			NetDebugOut2(pConn, 2, "Sending ack  local: %d remote: %d.", pConn->m_IncomingFrame-1, pConn->m_OutgoingFrame);
 
-			CPacketRef cAckPacket;
-			cAckPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
-			FillAckPacket(pConn, cAckPacket);
-			LagOrSend(cAckPacket, pConn, 0);
+			cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+			FillAckPacket(pConn, cPacket);
+			LagOrSend(cPacket, pConn, 0);
 		}
 
 		if(bAllowTimeout && g_CV_AllowTimeout)
@@ -469,9 +465,9 @@ void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 // FUNCTION: LITHTECH 0x00463350 ??_GCPacketBase@@UAEPAXI@Z
 
 
-// Wave 5: ResetWrite() did not change the diff (first difference at +0x161, in the NAK loops, where both builds
-// inline WriteType<uint32> with CMoArray::Insert2 out of line but schedule the loop tests differently).
-// STUB: LITHTECH 0x00463370
+// The receive-queue loop is `for(;;){ if(!pos) break; ...}`: as `for(pos=...; pos; )` or `while(pos)` VC6 places
+// its body after the second NAK loop.
+// FUNCTION: LITHTECH 0x00463370
 void CNetMgr::FillAckPacket(CBaseConn *pConn, CPacket *pPacket)
 {
 	uint32 nNaks, frame;
@@ -504,8 +500,12 @@ void CNetMgr::FillAckPacket(CBaseConn *pConn, CPacket *pPacket)
 	// NAK the frames missing between the ones we have.
 	nNaks = 0;
 	frame = pConn->m_IncomingFrame;
-	for(pos=pConn->m_RecvQueue.GetHeadPosition(); pos; )
+	pos = pConn->m_RecvQueue.GetHeadPosition();
+	for(;;)
 	{
+		if(!pos)
+			break;
+
 		pGPacket = pConn->m_RecvQueue.GetNext(pos);
 
 		while(frame < pGPacket->m_FrameNum && nNaks < MAX_NAKS)
@@ -902,12 +902,8 @@ LTBOOL CNetMgr::SendFragmented(void *pData, uint32 dataLen, uint32 spaceAfter, C
 }
 
 
-// Wave 6: `pRestore = pPacket` before the WriteType call (the original stores it before the call) leaves only the
-// stack slots (aligned: 18 mismatches, 2 ignoring offsets). The original keeps the spilled `this` in the third slot
-// (0x18, after cGroup/cAck) with pRestore 0x1c, savedDataLen 0x20, savedPos 0x24 (uint32, restored as words); ours
-// puts pRestore/savedDataLen/savedPos at 0x18-0x20 and `this` last. Tried: declaration order, initialisers vs
-// assignments, `savedDataLen = savedPos = 0`, a `CNetMgr *pThis = this;` local (wave 5).
-// STUB: LITHTECH 0x00464460
+// The saved packet state is a struct local: as three scalars VC6 puts them below the spilled `this` (wave 6).
+// FUNCTION: LITHTECH 0x00464460
 LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 {
 	CPacketRef cGroup, cAck;
@@ -916,18 +912,22 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 	int spaceLeft;
 	LTBOOL bRet;
 
-	CPacket *pRestore;
-	uint32 savedDataLen, savedPos;
+	// The caller's packet, restored before returning (a guaranteed packet gets its frame number appended).
+	struct
+	{
+		CPacket	*m_pPacket;
+		uint32	m_DataLen, m_Pos;
+	} restore;
 
-	savedDataLen = savedPos = 0;
-	pRestore = LTNULL;
+	restore.m_Pos = restore.m_DataLen = 0;
+	restore.m_pPacket = LTNULL;
 
 	// Guaranteed packets get their frame number at the end.
 	if(pPacket->m_Data[0] & PACKETFLAG_GUARANTEED)
 	{
-		pRestore = pPacket;
-		savedDataLen = pPacket->m_DataLen;
-		savedPos = pPacket->m_Pos;
+		restore.m_pPacket = pPacket;
+		restore.m_DataLen = pPacket->m_DataLen;
+		restore.m_Pos = pPacket->m_Pos;
 		pPacket->WriteType(idSendTo->m_OutgoingFrame);
 	}
 
@@ -941,10 +941,10 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 		idSendTo->m_ConnFlags |= CONNFLAG_FORCEDISCONNECT;
 		pPacket->m_ErrorFlags &= ~(PACKETERR_READOVERFLOW|PACKETERR_WRITEOVERFLOW);
 
-		if(pRestore)
+		if(restore.m_pPacket)
 		{
-			pRestore->m_DataLen = savedDataLen;
-			pRestore->m_Pos = savedPos;
+			restore.m_pPacket->m_DataLen = (uint16)restore.m_DataLen;
+			restore.m_pPacket->m_Pos = (uint16)restore.m_Pos;
 		}
 		return FALSE;
 	}
@@ -969,10 +969,10 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 	{
 		pGPacket->m_bResend = TRUE;
 
-		if(pRestore)
+		if(restore.m_pPacket)
 		{
-			pRestore->m_DataLen = savedDataLen;
-			pRestore->m_Pos = savedPos;
+			restore.m_pPacket->m_DataLen = (uint16)restore.m_DataLen;
+			restore.m_pPacket->m_Pos = (uint16)restore.m_Pos;
 		}
 		return TRUE;
 	}
@@ -1044,10 +1044,10 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 		bRet = SendFragmented(pPacket->m_Data.GetArray(), pPacket->m_DataLen,
 			pPacket->m_Data.GetSize() - pPacket->m_DataLen, idSendTo);
 
-		if(pRestore)
+		if(restore.m_pPacket)
 		{
-			pRestore->m_DataLen = savedDataLen;
-			pRestore->m_Pos = savedPos;
+			restore.m_pPacket->m_DataLen = (uint16)restore.m_DataLen;
+			restore.m_pPacket->m_Pos = (uint16)restore.m_Pos;
 		}
 
 		return bRet;
@@ -1057,10 +1057,10 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 		bRet = idSendTo->m_pDriver->SendPacket(pPacket->m_Data.GetArray(), pPacket->m_DataLen,
 			pPacket->m_Data.GetSize() - pPacket->m_DataLen, idSendTo);
 
-		if(pRestore)
+		if(restore.m_pPacket)
 		{
-			pRestore->m_DataLen = savedDataLen;
-			pRestore->m_Pos = savedPos;
+			restore.m_pPacket->m_DataLen = (uint16)restore.m_DataLen;
+			restore.m_pPacket->m_Pos = (uint16)restore.m_Pos;
 		}
 
 		return bRet;
@@ -1068,14 +1068,19 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 }
 
 
-// Wave 5: the original keeps this in ebx and pSender in ebp (ours the other way round) and the diff is
-// register allocation only up to the CRC block; the structure matches. Caching pSender fields in locals,
-// `pThis` locals and the ResetWrite/tail-duplication idioms of ReallySendPacket did not move it.
+// Wave 6: aligned 147 -> 14. HandleNetMgrPacket takes (pSender, pPacket); `trailer` is a uint16 set by `x = 4; if(crc)
+// x = 6;` (a ternary compiles branch-free), the third frame case is `else if(frame > m_IncomingFrame)` (the
+// original repeats the compare) and the local path tests `HandleUnknownPacket(..) || HandleNetMgrPacket(..)` (one
+// shared return). These also fixed the this/pSender registers. Left: the final `trailer` and m_DataLen registers
+// (the original loads the flags into al and keeps trailer in ecx; ours the other way round). Tried: if/else and
+// `+= 2` forms, `trailer > m_DataLen`, `m_DataLen = m_DataLen - trailer`, a dataLen local, a separate local for the
+// first trailer, int16/WORD types; `? 2 : 0` in the non-guaranteed branch gets the registers right but compiles
+// to `and ecx, 2`.
 // STUB: LITHTECH 0x00464870
 LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOOL bMaybeDrop)
 {
-	uint32 frame, trailer;
-	uint16 dataLen;
+	uint32 frame;
+	uint16 dataLen, trailer;
 	GPacket *pGPacket;
 
 	if(g_CV_DropRate > 0.0001f && bMaybeDrop)
@@ -1108,10 +1113,7 @@ LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOO
 		NetDebugOut2(pSender, 4, "Got packet %d from connection %p (packet ID %d, length %d).",
 			pSender->m_nPacketsReceived, pSender, pPacket->m_Data[0] & PACKETID_MASK, pPacket->m_DataLen);
 
-		if(HandleUnknownPacket(pSender, pPacket))
-			return FALSE;
-
-		if(HandleNetMgrPacket(pPacket, pSender))
+		if(HandleUnknownPacket(pSender, pPacket) || HandleNetMgrPacket(pSender, pPacket))
 			return FALSE;
 
 		if(pPacket->m_Data[0] & PACKETFLAG_GUARANTEED)
@@ -1133,12 +1135,14 @@ LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOO
 		}
 	}
 
-	if(HandleNetMgrPacket(pPacket, pSender))
+	if(HandleNetMgrPacket(pSender, pPacket))
 		return FALSE;
 
 	if(pPacket->m_Data[0] & PACKETFLAG_GUARANTEED)
 	{
-		trailer = (pSender->m_ConnFlags & CONNFLAG_CRC) ? 6 : 4;
+		trailer = 4;
+		if(pSender->m_ConnFlags & CONNFLAG_CRC)
+			trailer = 6;
 		if(pPacket->m_DataLen < trailer)
 			return FALSE;
 
@@ -1153,7 +1157,7 @@ LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOO
 			NetDebugOut2(pSender, 1, "Ignoring duplicate packet %d/%d", frame, pSender->m_IncomingFrame);
 			return FALSE;
 		}
-		else
+		else if(frame > pSender->m_IncomingFrame)
 		{
 			if(frame > pSender->m_IncomingFrame + 256)
 				NetDebugOut2(pSender, 1, "Warning! Suspicious frame count %d on msg ID %d", frame, pPacket->m_Data[0]);
@@ -1183,20 +1187,24 @@ LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOO
 		if(HandleUnknownPacket(pSender, pPacket))
 			return FALSE;
 
-		trailer = (pSender->m_ConnFlags & CONNFLAG_CRC) ? 6 : 4;
+		trailer = 4;
+		if(pSender->m_ConnFlags & CONNFLAG_CRC)
+			trailer = 6;
 	}
 	else
 	{
 		NetDebugOut2(pSender, 4, "Got packet from %p (packet ID %d, length %d).",
 			pSender, pPacket->m_Data[0] & PACKETID_MASK, pPacket->m_DataLen);
 
-		trailer = (pSender->m_ConnFlags & CONNFLAG_CRC) ? 2 : 0;
+		trailer = 0;
+		if(pSender->m_ConnFlags & CONNFLAG_CRC)
+			trailer = 2;
 	}
 
 	if(pPacket->m_DataLen < trailer)
 		return FALSE;
 
-	pPacket->m_DataLen -= (uint16)trailer;
+	pPacket->m_DataLen -= trailer;
 	++pSender->m_nPacketsReceived;
 	return TRUE;
 }
@@ -1331,15 +1339,31 @@ void CNetMgr::RemoveConnFragments(CBaseConn *pConn)
 }
 
 
-// Wave 5: ResetWrite() brought it from 1776 to 1680 bytes; the original has a 0x4c-byte frame (ours 0x2c), i.e.
-// 0x20 bytes more of locals or temporaries (a CPacketRef or two) than we declare.
+// Bytes left to read in a packet: an inline helper in the original (each use is one more pending inline site
+// in HandleNetMgrPacket). Its real name is unknown and packet.h is frozen, so it lives here.
+inline uint32 GetPacketBytesLeft(CPacket *pPacket)
+{
+	return pPacket->m_DataLen - pPacket->m_Pos;
+}
+
+// Wave 6: matching size and inlining (1584 bytes, aligned 69): the parameters are (pSender, pPacket) (the
+// exe pushes them in that order; HandleReceivedPacket too), naks[] has 16 slots (0x4c frame), cReply stays at
+// function scope (its constructor's zero store is hoisted to the top and VC6 folds its destructor away on every
+// path that never assigns it, but each destructor is still a pending inline site), the ping history shifts with
+// an inline memcpy, and the bytes-left tests go through an inline helper (three more pending sites; without it
+// PINGREPLY/GROUP/FRAGMENT inline ReadType where the original calls it). Left: x87 order of `m_Ping +=
+// m_PingTimes[i]` (the original loads m_PingTimes[i] and adds m_Ping from memory, as if m_Ping were referenced
+// first; memmove instead of memcpy fixes it but is a call), the memcpy's load order, register naming in the
+// DISCONNECT/GROUP blocks and the FRAGMENT `Invalid fragment count` return, which VC6 cross-jumps into the final
+// else's NetDebugOut2 call where the original keeps its own tail. Tried: a switch (85), the final else as a
+// trailing statement (changes inlining), int/int32/uint16 helper return types (worse).
 // STUB: LITHTECH 0x00464fb0
-LTBOOL CNetMgr::HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender)
+LTBOOL CNetMgr::HandleNetMgrPacket(CBaseConn *pSender, CPacket *pPacket)
 {
 	CPacketRef cReply;
 	uint8 subID, fragInfo, fragIndex;
 	uint16 pingID, subLen;
-	uint32 ackFrame, naks[MAX_NAKS], nNaks, i, nPings, frameNum;
+	uint32 ackFrame, naks[MAX_NAKS*2], nNaks, i, nPings, frameNum;
 	GPacket *pGPacket;
 	CFragmentGroup *pGroup;
 
@@ -1369,7 +1393,7 @@ LTBOOL CNetMgr::HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender)
 		FreeGPacketsAbove(&pSender->m_RecvQueue, pSender->m_HighestFrame);
 
 		nNaks = 0;
-		while((uint32)(pPacket->m_DataLen - pPacket->m_Pos) >= 4)
+		while(GetPacketBytesLeft(pPacket) >= 4)
 		{
 			naks[nNaks] = pPacket->ReadType((uint32*)0);
 			if(++nNaks >= MAX_NAKS)
@@ -1417,8 +1441,7 @@ LTBOOL CNetMgr::HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender)
 		if(pingID != pSender->m_PingID)
 			return TRUE;
 
-		pSender->m_PingTimes[0] = pSender->m_PingTimes[1];
-		pSender->m_PingTimes[1] = pSender->m_PingTimes[2];
+		memcpy(&pSender->m_PingTimes[0], &pSender->m_PingTimes[1], sizeof(float) * 2);
 		pSender->m_PingTimes[2] = (float)pSender->m_PingCounter.EndMS() * 0.001f;
 
 		nPings = 0;
@@ -1436,10 +1459,10 @@ LTBOOL CNetMgr::HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender)
 	}
 	else if(subID == NMPACKET_GROUP)
 	{
-		while((uint32)(pPacket->m_DataLen - pPacket->m_Pos) >= 2)
+		while(GetPacketBytesLeft(pPacket) >= 2)
 		{
 			subLen = pPacket->ReadType((uint16*)0);
-			if((int)subLen <= (int)(pPacket->m_DataLen - pPacket->m_Pos))
+			if((int)subLen <= (int)GetPacketBytesLeft(pPacket))
 			{
 				pGPacket = AllocGPacket(subLen);
 				pPacket->ReadRaw(pGPacket->m_pData, subLen);

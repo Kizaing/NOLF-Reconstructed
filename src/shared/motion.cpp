@@ -15,6 +15,10 @@
 // so the source is probably `dr += a * (timeIntegral * 0.5f)`); the same early-inline/late-out-of-line pattern holds for
 // the rest of the function (see the call lines of `build.py diff`).  inline_ballast `pending` at that statement
 // (1..12 calls) and `cost` ballast (4..32) did not reproduce it; the missing budget accounting is unknown.
+// Wave 6 phase 2: `dr += a * (timeIntegral * 0.5f)` directly compiles the same; `dr = v * dt + ...` and the orient
+// block in an inline helper are worse (the helper refuses all three ctors). Ballast before the orient block: 7+ units
+// make the orient ctor go out of line but also move the friction block's *=, /= out of line (worse); 3 free pending
+// sites at the end do the same plus inline the last +=. No single position reproduces the exe's pattern.
 // STUB: LITHTECH 0x0045c600
 LTBOOL CalcMotion(MotionState *pState)
 {

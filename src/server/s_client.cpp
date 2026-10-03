@@ -274,8 +274,11 @@ void sm_SendAllLightAnims(CServerMgr *pServerMgr, Client *pClient)
 // Wave 5: the code is identical except the frame: the original has ONE new slot (the CPacketRef temp, a
 // `push ecx`) and keeps the loop counter i in the dead home of the pServerMgr argument ([esp+0x14], stored right
 // after pServerMgr is loaded into edi); ours takes two new slots (sub esp,8). Same dead-argument-slot reuse as
-// se_InitModelObject (pModel/pFile live in the pObject/pStruct homes). Declaration order and a pChange++
-// loop don't change it.
+// se_InitModelObject (pModel/pFile live in the pObject/pStruct homes). Declaration order doesn't change it.
+// Wave 6: pChange set before the loop and stepped with i (aligned 8 -> 6) gets the one-slot frame, but i goes
+// into pClient's home ([esp+0x1c]) instead of pServerMgr's, and `push ebp`/`lea ebp,[ebx+0xc]` move to the
+// prologue (the original does them after the loop guard). Tried: int i, ++i, a while loop, i declared in the for
+// or after the first statement, `pChange = arr + i`, both inits in the for, a pServerMgr copy: no better.
 void sm_SendChangedLightAnims(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacket *pPacket;
@@ -284,10 +287,9 @@ void sm_SendChangedLightAnims(CServerMgr *pServerMgr, Client *pClient)
 
 	pPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
 
-	for (i=0; i < pClient->m_nLightAnimChanges; i++)
+	pChange = pClient->m_LightAnimChanges;
+	for (i=0; i < pClient->m_nLightAnimChanges; i++, pChange++)
 	{
-		pChange = &pClient->m_LightAnimChanges[i];
-
 		iLightAnim = pChange->m_iLightAnim;
 		if (iLightAnim < pServerMgr->m_World.m_LightAnims.GetSize())
 		{
@@ -466,7 +468,9 @@ inline void sm_SendPreloadModelMsgToClient(CServerMgr *pServerMgr, Client *pClie
 // STUB: LITHTECH 0x00470230
 // Wave 5: only register differences in the sound-list loop (pCur->m_pNext into edx not eax, the file id
 // through eax not ecx). inline_scan p1/p2/b8/b16 over every statement finds no improvement; tried a UsedFile
-// local, a nested if for GetFile(): no change.
+// local, a nested if for GetFile(): no change. Wave 6: nested IsTouched/GetFile ifs, a UsedFile local in the
+// condition, a uint16 file id local, m_pFile, Jupiter's in-loop declarations of pSoundData/pCur, reversed
+// local declarations: all exactly 24 aligned (the register choice ignores these).
 LTRESULT sm_TellClientToPreloadStuff(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacketRef cPacket;
@@ -1547,6 +1551,12 @@ inline LTBOOL IsClientInTrouble(Client *pClient)
 
 // Sends the client everything it needs to see this frame.
 // STUB: LITHTECH 0x00472510
+// Wave 6: LTMIN/LTMAX for the bandwidth clamps (the original's x87 compare order): aligned 332 -> 321. The main
+// difference is one inline decision: the original inlines AddObjectIdToSentList inside the force-update loop's
+// sm_AddObjectChangeInfo (dalloc/dfree inline), we call it out of line; ~24 units of direct if(0) ballast at the
+// top fix it (90 aligned, but 2112 bytes). The original frame is 0xc bytes larger (0x3a8), pClient is in ebx
+// (ours edi), and `GetRate() / (float)g_CV_SendBandwidth` is fild + fdivp in the original (fidiv here; a
+// separate `/=` statement doesn't change it).
 void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 {
 	UpdateInfo updateInfo;
@@ -1589,8 +1599,7 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 			if (fScale > 0.75f)
 			{
 				fScale += 0.25f;
-				if (fScale > 2.0f)
-					fScale = 2.0f;
+				fScale = LTMIN(fScale, 2.0f);
 
 				fScale = 2.0f - fScale;
 				fRatio *= fScale * fScale;
@@ -1598,8 +1607,7 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 		}
 
 		fTarget = fRatio * pClient->m_Unknown128;
-		if (fTarget < 2.0f)
-			fTarget = 2.0f;
+		fTarget = LTMAX(2.0f, fTarget);
 
 		fRate = pClient->m_Timer.GetUpdateRate();
 		if (fTarget > fRate)

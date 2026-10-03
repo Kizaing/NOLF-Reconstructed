@@ -184,6 +184,15 @@ static inline void AddSize(uint32 *pSize, uint32 nBytes)
 // ----------------------------------------------------------------------- //
 
 // STUB: LITHTECH 0x004745c0
+// Wave 6: GetMessageImpl() for ic_WriteCompWorldPos/ic_WriteCompRot: aligned 848 -> 510 (SIZE 3696 vs 4032).
+// Remaining: the original inlines scale.z's WriteType(float) (we call it out of line) and, at the end, the
+// 0xFFFF and hidden-piece WriteTypes one level deeper. About 8 units of direct if(0) ballast at the top (raising
+// this function's own budget) fixes every inline decision (272 aligned, 1247 vs 1248 instructions); the rest is
+// then registers (pObj reloaded into ebx/edi in the original), the light radius `push 0`, the hasChildModels
+// byte (original: `and 0x400` early, `setne` at the store) and the ic_EncodeCompRotation push order. The real
+// source of those 8 units is unknown. Tried: every single AddSize -> direct `if (pSize)` (and 175 of the 276
+// pairs): 510 or worse; VEC_INIT for vObjectVelocity.Init() (848; fixes the scale.z decision but starves the
+// end), GetPos() for the position, GetMessageImpl()-> for the virtual writes, LTMAX for the light radius.
 LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pObj, ObjInfo *pInfo,
 	CPacket *pPacket, uint32 *pSize)
 {
@@ -454,7 +463,7 @@ LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pOb
 			if (pPacket)
 			{
 				ic_EncodeCompPos(&compPos, &pObj->m_Pos, &pServerMgr->m_World);
-				ic_WriteCompWorldPos(&pPacket->m_Message, &compPos);
+				ic_WriteCompWorldPos(pPacket->GetMessageImpl(), &compPos);
 				pPacket->m_Message.WriteCompVector(vObjectVelocity);
 			}
 
@@ -476,7 +485,7 @@ LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pOb
 			if (pPacket)
 			{
 				ic_EncodeCompRotation(&pObj->m_Rotation, &compRot);
-				ic_WriteCompRot(&pPacket->m_Message, &compRot);
+				ic_WriteCompRot(pPacket->GetMessageImpl(), &compRot);
 			}
 
 			AddSize(pSize, 6);
@@ -693,7 +702,9 @@ CServerEvent* CreateServerEvent(CServerMgr *pServerMgr, int type)
 // Fills the packet with the sound track's update info.
 // ----------------------------------------------------------------------- //
 
-// STUB: LITHTECH 0x004759c0
+// Matched in wave 6 with Jupiter's GetStartTime() and GetMessageImpl() (two more pending inline sites, which keep
+// the volume/pitch WriteTypes out of line) and the fade time clamped with LTCLAMP into a uint8 local.
+// FUNCTION: LITHTECH 0x004759c0
 void FillSoundTrackPacketFromInfo(CServerMgr *pServerMgr, CSoundTrack *pSoundTrack, ObjInfo *pInfo,
 	Client *pClient, CPacket *pPacket)
 {
@@ -798,7 +809,7 @@ void FillSoundTrackPacketFromInfo(CServerMgr *pServerMgr, CSoundTrack *pSoundTra
 
 		if (wFlags & PLAYSOUND_TIMESYNC)
 		{
-			dwOffsetTime = (uint16)((1000.0 * (pServerMgr->m_GameTime - pSoundTrack->m_fStartTime)) + 0.5);
+			dwOffsetTime = (uint16)((1000.0 * (pServerMgr->m_GameTime - pSoundTrack->GetStartTime())) + 0.5);
 			if (dwOffsetTime < 255)
 			{
 				pPacket->WriteType((uint8)dwOffsetTime);
@@ -819,18 +830,14 @@ void FillSoundTrackPacketFromInfo(CServerMgr *pServerMgr, CSoundTrack *pSoundTra
 
 	// Position info.
 	if (pInfo->m_ChangeFlags & CF_POSITION)
-		ic_WriteCompPos(&pPacket->m_Message, &pSoundTrack->m_vPosition, &pServerMgr->m_World);
+		ic_WriteCompPos(pPacket->GetMessageImpl(), &pSoundTrack->m_vPosition, &pServerMgr->m_World);
 
 	// The sound was told to fade out.
 	if (pInfo->m_ChangeFlags & CF_SOUNDINFO)
 	{
 		fFadeTime = pSoundTrack->m_Unknown5C * 10.0f;
-		if (fFadeTime < 0.0f)
-			fFadeTime = 0.0f;
-		else if (fFadeTime > 255.0f)
-			fFadeTime = 255.0f;
-
-		pPacket->WriteType((uint8)fFadeTime);
+		uint8 nFadeTime = (uint8)LTCLAMP(fFadeTime, 0.0f, 255.0f);
+		pPacket->WriteType(nFadeTime);
 	}
 }
 

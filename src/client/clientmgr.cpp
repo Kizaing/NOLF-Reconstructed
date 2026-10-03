@@ -508,12 +508,10 @@ void CClientMgr::OnExitWorld(CClientShell *pShell)
 
 
 // Starts a shell: hosts or joins a game, or runs one locally, and sends the hello message.
-// Remaining diff: register allocation only (the original keeps pShell in esi and pRequest in edi). Wave 5 tried
-// `pShell->m_ShellMode` instead of `pRequest->m_Type` in the switch and the HOST test (worse: ~980 bytes).
-// Wave 6: SAFE_STRCPY for the playback world name (697 -> 674 bytes differ). pShell declared last,
-// `new CClientShell()`, pShell declared at the new, an (int) cast on m_Type: all unchanged (besides the esi/edi
-// swap, one packet-length compare loads its two words in the other order, exe 0x36b).
-// STUB: LITHTECH 0x00410500
+// As in Jupiter, the world is started through a pWorldName local and a dResult that the start overwrites. Talon's
+// default is an error, so a local game without a world name (a recorded or played demo) fails here; the error
+// block's code doesn't show the value (LT_ERROR is a guess).
+// FUNCTION: LITHTECH 0x00410500
 LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 {
 	CClientShell *pShell;
@@ -522,6 +520,7 @@ LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 	CBaseDriver *pDriver;
 	char playbackWorldName[256];
 	CPacketRef cHello;
+	char *pWorldName;
 
 	// Kill the old server connection if there is one.
 	EndShell();
@@ -624,9 +623,10 @@ LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 			}
 
 			// Record or play back a demo.
+			pWorldName = pRequest->m_WorldName;
 			if(pRequest->m_RecordFilename[0])
 			{
-				dResult = m_DemoMgr.RecordDemo(pRequest->m_WorldName, pRequest->m_RecordFilename);
+				dResult = m_DemoMgr.RecordDemo(pWorldName, pRequest->m_RecordFilename);
 				if(dResult != LT_OK)
 				{
 					delete pShell;
@@ -655,16 +655,18 @@ LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 				return dResult;
 			}
 
-			if(pRequest->m_WorldName[0] != 0)
+			dResult = LT_ERROR;
+			if(pWorldName[0] != 0)
 			{
-				dResult = pShell->m_pServerMgr->DoStartWorld(pRequest->m_WorldName, LOADWORLD_LOADWORLDOBJECTS|LOADWORLD_RUNWORLD, m_CurTime);
-				if(dResult != LT_OK)
-				{
-					pShell->m_pServerMgr->GetErrorString(errorString, 256);
-					SetupError(LT_SERVERERROR, errorString);
-					delete pShell;
-					RETURN_ERROR_PARAM(1, CClientMgr::StartShell, LT_SERVERERROR, "error loading world");
-				}
+				dResult = pShell->m_pServerMgr->DoStartWorld(pWorldName, LOADWORLD_LOADWORLDOBJECTS|LOADWORLD_RUNWORLD, m_CurTime);
+			}
+
+			if(dResult != LT_OK)
+			{
+				pShell->m_pServerMgr->GetErrorString(errorString, 256);
+				SetupError(LT_SERVERERROR, errorString);
+				delete pShell;
+				RETURN_ERROR_PARAM(1, CClientMgr::StartShell, LT_SERVERERROR, "error loading world");
 			}
 
 			// If they asked for a playdemo, fill in the world name.

@@ -60,6 +60,9 @@ public:
 	uint32			GetPlaySoundFlags() const
 	{ return m_dwPlaySoundFlags; }
 
+	void			SetPlaySoundFlags(uint32 dwPlaySoundFlags)
+	{ m_dwPlaySoundFlags = dwPlaySoundFlags; }
+
 	void			SetSoundInstanceFlags(uint32 dwSoundInstanceFlags)
 	{ m_dwSoundInstanceFlags = dwSoundInstanceFlags; }
 

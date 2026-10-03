@@ -4,7 +4,7 @@
 // 0x00425630 pushes the sphere out of the solid polygons (10 passes), 0x004258b0 is the polygon list walker and
 // 0x004259a0 turns an object to stand on a surface (prints "SweptSphereOrient Rotation Invalid!!" on NaN).
 // Names are ours except SweptSphereOrient.
-// The geometry functions are written from the disassembly and are all still STUBs.
+// The geometry functions are written from the disassembly with the SDK vector operators the original used.
 #include <math.h>
 #include <float.h>
 #include "bdefs.h"
@@ -17,30 +17,121 @@
 // GLOBAL: LITHTECH 0x004d1808
 int g_SweptSphereHitType = -1;
 
+// The polygon's vertex positions.
+inline LTVector* PolyVert(WorldPoly *pPoly, uint32 i) { return ((SPolyVertex*)(pPoly + 1))[i].m_Vec; }
+
+// Sweeps the sphere against one polygon: the face first (the sphere reaches the plane with its centre inside the
+// polygon's edges), then each edge and vertex.  *pNormal is the direction the sphere is pushed away.
+// Written with the SDK operators the original calls (it calls the vector constructor 0x00412960 out of line 13 times
+// and Mag 0x0041f6a0 once, from inside an inlined Norm): direct-initialised locals (`LTVector vNormal = -(...)`,
+// `LTVector vMove = ...`, `LTVector vContact = *pStart + vMove * t - vNormal * fRadius`, `LTVector vEdge`) construct
+// in place where an assignment builds a temporary and copies it, and the vertex accessor PolyVert supplies pending
+// inline sites. Aligned mismatches 462 -> 184 (wave 6 phase 2). Remaining: the loop's vEdge constructor and
+// Dot are out of line in ours (inline in the original: we still have less budget left at the end), and the registers
+// (pPoly in esi and the vertex array in edi in the original). Writing the second v0 of the Cross argument without
+// PolyVert gives 164 (and the right call pattern up to the loop), but mixing the two forms in one statement looks
+// arbitrary; ending with free pending sites, `if(0)` budget ballast and statement variants of the loop didn't help.
+// Defined before SweptSphereToEdge/Point, in the exe's order (that costs 9 aligned mismatches against defining it
+// after them, but the link order needs it).
+// STUB: LITHTECH 0x00424970
+LTBOOL SweptSphereToPoly(LTVector *pStart, LTVector *pEnd, float fRadius, WorldPoly *pPoly, float *pT,
+	LTVector *pNormal)
+{
+	LTVector *pPrev, *pCur;
+	float fStartDist, fEndDist, t;
+	LTBOOL bHit;
+	uint32 i;
+
+	g_SweptSphereHitType = -1;
+
+	LTVector vNormal = -((*PolyVert(pPoly, 1) - *PolyVert(pPoly, 0)).Cross(*PolyVert(pPoly, 2) - *PolyVert(pPoly, 0)));
+	vNormal.Norm();
+
+	fStartDist = vNormal.Dot(*pStart - *PolyVert(pPoly, 0));
+	fEndDist = vNormal.Dot(*pEnd - *PolyVert(pPoly, 0));
+
+	// The sphere's centre goes from at least a radius in front of the plane to within a radius of it.
+	if(fStartDist >= fRadius && !(fEndDist > fRadius))
+	{
+		if(fStartDist - fEndDist != 0.0f)
+		{
+			t = (fStartDist - fRadius) / (fStartDist - fEndDist);
+			LTVector vMove = *pEnd - *pStart;
+			LTVector vContact = *pStart + vMove * t - vNormal * fRadius;
+
+			pPrev = PolyVert(pPoly, pPoly->m_nVertices - 1);
+			for(i=0; i < pPoly->m_nVertices; i++)
+			{
+				pCur = PolyVert(pPoly, i);
+				LTVector vEdge = *pCur - *pPrev;
+				if(vEdge.Cross(vContact - *pPrev).Dot(vNormal) > 0.0f)
+					goto Edges;
+
+				pPrev = pCur;
+			}
+
+			*pT = t;
+			*pNormal = vNormal;
+			g_SweptSphereHitType = 0;
+			return LTTRUE;
+		}
+	}
+
+Edges:
+	if(fStartDist < 0.0f)
+		return LTFALSE;
+
+	*pT = 1.0f;
+	bHit = LTFALSE;
+	pPrev = PolyVert(pPoly, pPoly->m_nVertices - 1);
+	for(i=0; i < pPoly->m_nVertices; i++)
+	{
+		pCur = PolyVert(pPoly, i);
+
+		if(SweptSphereToEdge(pStart, pEnd, fRadius, pPrev, pCur, &t, &vNormal) && t < *pT)
+		{
+			*pT = t;
+			*pNormal = vNormal;
+			bHit = LTTRUE;
+			g_SweptSphereHitType = 1;
+		}
+
+		if(SweptSphereToPoint(pStart, pEnd, fRadius, pPrev, &t, &vNormal) && t < *pT)
+		{
+			*pT = t;
+			*pNormal = vNormal;
+			bHit = LTTRUE;
+			g_SweptSphereHitType = 2;
+		}
+
+		pPrev = pCur;
+	}
+
+	return bHit;
+}
+
 // Sphere moving from pStart to pEnd against the line segment pV0 - pV1: the fraction of the move (*pT) and the
 // direction from the segment to the sphere's centre at the hit (pNormal).
 // The quadratic is |vP + vMove t|^2 - (vDir . (vP + vMove t))^2 = r^2 (a cylinder around the edge's line), then the
 // hit must lie within the segment (0 <= s <= length).
-// Not matching: the original calls the vector constructor (0x00412960) out of line for vDir and vP and the
-// Dot/operator*/operator-/Norm copies (0x0041f6d0/0x0041f770/0x0041f740/0x0041f820) for the normal, while our
-// budget inlines all of them. With `inline void __ballast()` of 12 `if(0) x = 0;` statements called before the first
-// statement the call pattern, the prologue and the first 0xc5 bytes match exactly and 73 of 308 instruction lines
-// still differ (so the original has about 12 more units of inline cost at the top, or less budget). What remains:
-// the original keeps t on the FPU stack through the range tests (`fld st(0); fstp [pT]`, `fld 0; fcomp st(1)`) where
-// we reload it from memory, the stack slot of the second by-value vector temporary (esp+0x38 against esp+0x20),
-// and the x87 order of vDir.Dot(vP) (y, z, x).
+// Wave 6 phase 2: direct-initialised operator locals (`LTVector vMove = *pEnd - *pStart;` ...) and the edge length
+// computed twice (`fLen = vEdge.Mag(); vDir = vEdge * (1.0f / vEdge.Mag());`, which VC6 merges) give the
+// original's first 0xc5 bytes and constructor calls: 226 -> 76 aligned mismatches. Remaining: the original computes
+// 1.0f / fLen from the stored fLen (ours keeps it on the FPU), keeps t on the FPU stack through the range tests
+// (`fld st(0); fstp [pT]`) where we go through memory, and calls Dot/operator* out of line at the end (we inline them:
+// we still have more budget there). Tried: the Dot/MagSqr forms of a, b, A, B, C (32 combinations), Dist, a named
+// 1/fLen, `vDir *= ...`.
 // STUB: LITHTECH 0x00425000
 LTBOOL SweptSphereToEdge(LTVector *pStart, LTVector *pEnd, float fRadius, LTVector *pV0, LTVector *pV1,
 	float *pT, LTVector *pNormal)
 {
-	LTVector vMove, vEdge, vDir, vP, vRel;
-	float fLen, a, b, A, B, C, fDisc, fInv, t, t1, t2, s;
+	float a, b, A, B, C, fDisc, fInv, t, t1, t2, s;
 
-	vMove = *pEnd - *pStart;
-	vEdge = *pV1 - *pV0;
-	fLen = vEdge.Mag();
-	vDir = vEdge * (1.0f / fLen);
-	vP = *pStart - *pV0;
+	LTVector vMove = *pEnd - *pStart;
+	LTVector vEdge = *pV1 - *pV0;
+	float fLen = vEdge.Mag();
+	LTVector vDir = vEdge * (1.0f / vEdge.Mag());
+	LTVector vP = *pStart - *pV0;
 
 	a = vDir.Dot(vMove);
 	b = vDir.Dot(vP);
@@ -76,7 +167,7 @@ LTBOOL SweptSphereToEdge(LTVector *pStart, LTVector *pEnd, float fRadius, LTVect
 		s = a * t + b;
 		if(0.0f <= s && s <= fLen)
 		{
-			vRel = vMove * t + vP;
+			LTVector vRel = vMove * t + vP;
 			*pNormal = vRel - vDir * vRel.Dot(vDir);
 			pNormal->Norm(1.0f);
 			return LTTRUE;
@@ -145,113 +236,14 @@ LTBOOL SweptSphereToPoint(LTVector *pStart, LTVector *pEnd, float fRadius, LTVec
 	return LTFALSE;
 }
 
-// Sweeps the sphere against one polygon: the face first (the sphere reaches the plane with its centre inside the
-// polygon's edges), then each edge and vertex.  *pNormal is the direction the sphere is pushed away.
-// Not matching: the original calls the vector constructor (0x00412960), Mag (0x0041f6a0) and the operators out of line
-// from the first statement on (its plane normal is (v1 - v0).Cross(v2 - v0): the second operand is the by-value
-// argument and goes through the constructor, the first stays on the FPU stack; then it is negated through the
-// constructor again and normalised inline after an out-of-line Mag) but inlines the Dot with the normal and the Cross
-// of the edge test at the end, while we inline the early ones and call the late ones. That is the greedy inline budget
-// seen from the other side: the original's early expansions get small shares, so it has many more inline call
-// sites pending after them than our source. Free pending calls after the last statement (an empty inline
-// function called 16 times, not shipped) take the aligned-instruction mismatches from 465 to 302 of about 425.
-// The structure after the face test (edge and vertex loop, the hit-type global) matches.
-// STUB: LITHTECH 0x00424970
-LTBOOL SweptSphereToPoly(LTVector *pStart, LTVector *pEnd, float fRadius, WorldPoly *pPoly, float *pT,
-	LTVector *pNormal)
-{
-	SPolyVertex *pVert;
-	LTVector *pPrev, *pCur;
-	LTVector vNormal, vContact, vTo, vEdge, vCross;
-	float fStartDist, fEndDist, t, fMag;
-	LTBOOL bHit;
-	uint32 i, nVerts;
-
-	g_SweptSphereHitType = -1;
-
-	pVert = (SPolyVertex*)(pPoly + 1);
-	nVerts = pPoly->m_nVertices;
-
-	vNormal = -((*pVert[1].m_Vec - *pVert[0].m_Vec).Cross(*pVert[2].m_Vec - *pVert[0].m_Vec));
-	fMag = vNormal.Mag();
-	if(fMag != 0.0f)
-	{
-		fMag = 1.0f / fMag;
-		vNormal.x *= fMag;
-		vNormal.y *= fMag;
-		vNormal.z *= fMag;
-	}
-
-	fStartDist = (*pStart - *pVert[0].m_Vec).Dot(vNormal);
-	fEndDist = (*pEnd - *pVert[0].m_Vec).Dot(vNormal);
-
-	// The sphere's centre goes from at least a radius in front of the plane to within a radius of it.
-	if(fStartDist >= fRadius && !(fEndDist > fRadius))
-	{
-		if(fStartDist - fEndDist != 0.0f)
-		{
-			t = (fStartDist - fRadius) / (fStartDist - fEndDist);
-			vContact = (*pStart + (*pEnd - *pStart) * t) - vNormal * fRadius;
-
-			pPrev = pVert[nVerts - 1].m_Vec;
-			for(i=0; i < nVerts; i++)
-			{
-				pCur = pVert[i].m_Vec;
-				vEdge = *pCur - *pPrev;
-				vTo = vContact - *pPrev;
-				vCross = vEdge.Cross(vTo);
-				if(vNormal.Dot(vCross) > 0.0f)
-					goto Edges;
-
-				pPrev = pCur;
-			}
-
-			*pT = t;
-			*pNormal = vNormal;
-			g_SweptSphereHitType = 0;
-			return LTTRUE;
-		}
-	}
-
-Edges:
-	if(fStartDist < 0.0f)
-		return LTFALSE;
-
-	*pT = 1.0f;
-	bHit = LTFALSE;
-	pPrev = pVert[nVerts - 1].m_Vec;
-	for(i=0; i < nVerts; i++)
-	{
-		pCur = pVert[i].m_Vec;
-
-		if(SweptSphereToEdge(pStart, pEnd, fRadius, pPrev, pCur, &t, &vContact) && t < *pT)
-		{
-			*pT = t;
-			*pNormal = vContact;
-			bHit = LTTRUE;
-			g_SweptSphereHitType = 1;
-		}
-
-		if(SweptSphereToPoint(pStart, pEnd, fRadius, pPrev, &t, &vContact) && t < *pT)
-		{
-			*pT = t;
-			*pNormal = vContact;
-			bHit = LTTRUE;
-			g_SweptSphereHitType = 2;
-		}
-
-		pPrev = pCur;
-	}
-
-	return bHit;
-}
-
 // Pushes the sphere at pPos out of the solid polygons it overlaps (a plane and the point inside the polygon).
 // Each push uses up one of 10 passes; returns the passes left (0 if it could not get free).
-// Not matching, but close in shape: the loop head is `do { if(!(nPasses > 0)) break; ... goto Again; ... } while(1)`
-// (a `while` is inverted and loses the first test), the plane test is pPlane->DistTo(*pPos) (the by-value copy is of
-// *pPos, the plane normal is read in place). The original keeps pPos in ebx and the plane in edx; ours uses edi/ecx.
-// The return type is uint32 (the callers test eax, not ax) with a uint16 counter (`and eax,0xffff` at the end).
+// Not matching. The edge test is (vEdge x vNormal) . vTo with the normal's by-value copy hoisted out of the loop (the
+// earlier (vEdge x vTo) . vNormal had the opposite sign). The loop head is `do { if(!(nPasses > 0)) break; ... goto
+// Again; ... } while(1)`. Remaining (107 aligned mismatches, was 100 with the wrong-signed test): the original's
+// polygon loop is the inverted for (count tested before and at the bottom) where ours tests at the top, its inner
+// loop's break goes straight to the next polygon (ours tests j < nVerts first), and it keeps pPos in ebx and the
+// polygon in esi. A `while` head, `goto NextPoly` out of the inner loop and `if(j != nVerts)` were worse.
 // STUB: LITHTECH 0x00425630
 uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, int nPolies)
 {
@@ -260,9 +252,8 @@ uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, in
 	uint32 j, nVerts;
 	WorldPoly *pPoly;
 	LTPlane *pPlane;
-	SPolyVertex *pVert;
 	LTVector *pPrev, *pCur;
-	LTVector vProj, vNormal, vEdge, vTo, vCross, vPush;
+	LTVector vNormal, vEdge, vTo, vCross;
 	float fDist;
 
 	nPasses = 10;
@@ -281,30 +272,30 @@ uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, in
 			if(!(fDist < fRadius + 0.1f))
 				continue;
 
-			vProj = *pPos - pPlane->m_Normal * fDist;
-			pVert = (SPolyVertex*)(pPoly + 1);
+			// Is the point on the plane inside the polygon's edges?
+			LTVector vProj = *pPos - pPlane->m_Normal * fDist;
 			nVerts = pPoly->m_nVertices;
 			vNormal = pPlane->m_Normal;
 			for(j=0; j < nVerts; j++)
 			{
 				if(j)
-					pPrev = pVert[j - 1].m_Vec;
+					pPrev = PolyVert(pPoly, j - 1);
 				else
-					pPrev = pVert[nVerts - 1].m_Vec;
-				pCur = pVert[j].m_Vec;
+					pPrev = PolyVert(pPoly, nVerts - 1);
+				pCur = PolyVert(pPoly, j);
 
 				vEdge = *pCur - *pPrev;
 				vTo = vProj - *pPrev;
-				vCross = vEdge.Cross(vTo);
-				if(vCross.Dot(vNormal) < -0.001f)
+				vCross = vEdge.Cross(vNormal);
+				if(vCross.Dot(vTo) < -0.001f)
 					break;
 			}
 
 			if(j < nVerts)
 				continue;
 
-			vPush = pPoly->GetPlane()->m_Normal * (fRadius - fDist + 0.2f);
-			*pPos += vPush;
+			// Push it out of the plane and start over.
+			*pPos += pPoly->GetPlane()->m_Normal * (fRadius - fDist + 0.2f);
 			nPasses--;
 			goto Again;
 		}
@@ -353,60 +344,42 @@ LTBOOL SweptSphereToPolys(LTVector *pStart, LTVector *pEnd, float fRadius, World
 
 // Turns the object to stand on the surface with this normal: rotates its orientation, velocity and acceleration
 // around the axis from its up vector to the normal.  Returns 0 when the angle is NaN.
-// STUB: LITHTECH 0x004259a0
-// Remaining difference: 579/816 bytes. The original's frame is 0x8c: math, fMag, vAxis, a by-value copy of the normal,
-// fAngle, vUp, three vectors+rotation for the GetRotationVectors/AlignRotation/RotateAroundAxis helpers, and 16 bytes
-// (a LTRotation?) at F+0x54 that nothing here uses; the first GetRotationVectors writes vRight/vForward to the
-// two outermost slots (F+0x74, F+0x80), later ones to F+0x30/0x3c/0x48. The axis (up x -normal) is computed with
-// the three negated normal components loaded first (fchs) and nz multiplied in place; (-*pNormal).Cross(vUp),
-// VEC_CROSS with a VEC_NEGATE local and vUp.Cross(-n) all schedule differently.
+// The vectors are built with the SDK operators (vUp.Cross(-*pNormal), Norm, Mag, vF * fMag) and the locals are all
+// declared at the top: declaring the LTRotations in the middle adds inline constructor sites that push the Norm's Mag
+// out of line.
+// FUNCTION: LITHTECH 0x004259a0
 LTBOOL SweptSphereOrient(LTVector *pNormal, LTObject *pObj)
 {
-	LTVector vForward, vRight;
-	LTRotation rot, rotUnused;
-	LTVector vR2, vU2, vF2, vUp;
-	float fAngle;
-	LTVector vAxis;
-	float fMag;
 	ILTMath math;
+	LTVector vRight, vUp, vForward, vR, vU, vF;
+	LTRotation rVel, rAccel;
+	float fMag;
 
 	math.GetRotationVectors(pObj->m_Rotation, vRight, vUp, vForward);
 
-	vAxis = (-*pNormal).Cross(vUp);
-	{
-		float fLen = VEC_MAG(vAxis);
-		if(fLen != 0.0f)
-		{
-			fLen = 1.0f / fLen;
-			vAxis.x *= fLen;
-			vAxis.y *= fLen;
-			vAxis.z *= fLen;
-		}
-	}
+	// Turn around the axis from the up vector to the normal.
+	LTVector vAxis = vUp.Cross(-*pNormal);
+	vAxis.Norm();
 
-	fAngle = (float)acos(vUp.Dot(*pNormal));
+	float fAngle = (float)acos(vUp.Dot(*pNormal));
 	if(_isnan(fAngle))
 		return LTFALSE;
 
-	math.AlignRotation(rot, pObj->m_Velocity, vUp);
-	math.RotateAroundAxis(rot, vAxis, fAngle);
-	fMag = VEC_MAG(pObj->m_Velocity);
-	math.GetRotationVectors(rot, vR2, vU2, vF2);
-	pObj->m_Velocity.x = vF2.x * fMag;
-	pObj->m_Velocity.y = vF2.y * fMag;
-	pObj->m_Velocity.z = vF2.z * fMag;
+	math.AlignRotation(rVel, pObj->m_Velocity, vUp);
+	math.RotateAroundAxis(rVel, vAxis, fAngle);
+	fMag = pObj->m_Velocity.Mag();
+	math.GetRotationVectors(rVel, vR, vU, vF);
+	pObj->m_Velocity = vF * fMag;
 
-	math.AlignRotation(rot, pObj->m_Acceleration, vUp);
-	math.RotateAroundAxis(rot, vAxis, fAngle);
-	fMag = VEC_MAG(pObj->m_Acceleration);
-	math.GetRotationVectors(rot, vR2, vU2, vF2);
-	pObj->m_Acceleration.x = vF2.x * fMag;
-	pObj->m_Acceleration.y = vF2.y * fMag;
-	pObj->m_Acceleration.z = vF2.z * fMag;
+	math.AlignRotation(rAccel, pObj->m_Acceleration, vUp);
+	math.RotateAroundAxis(rAccel, vAxis, fAngle);
+	fMag = pObj->m_Acceleration.Mag();
+	math.GetRotationVectors(rAccel, vR, vU, vF);
+	pObj->m_Acceleration = vF * fMag;
 
 	math.RotateAroundAxis(pObj->m_Rotation, vAxis, fAngle);
-	math.GetRotationVectors(pObj->m_Rotation, vR2, vU2, vF2);
-	if(_isnan(vU2.x) || _isnan(vU2.y) || _isnan(vU2.z))
+	math.GetRotationVectors(pObj->m_Rotation, vR, vU, vF);
+	if(_isnan(vU.x) || _isnan(vU.y) || _isnan(vU.z))
 		dsi_ConsolePrint("SweptSphereOrient Rotation Invalid!!  Axis = %f %f %f, Theta", vAxis.x, vAxis.y, vAxis.z, fAngle);
 
 	return LTTRUE;

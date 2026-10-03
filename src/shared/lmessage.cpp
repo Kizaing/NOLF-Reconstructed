@@ -248,6 +248,9 @@ LTRESULT LMessageImpl::ReadCompRotationFL(LTRotation &rot)
 // and `theByte` in the loop block. Left: the original reuses the dead pMsg argument slot for `len`/`theByte`
 // (frame is a single `push ecx`; ours needs `sub esp,8`) and stores m_Pos before loading the vtable for Release.
 // The pragma is not shipped: WriteMessage needs depth 2 (CMoArray::operator[] -> Get) in the same unit.
+// Wave 6: 5 free inline calls after the WriteType (or before the final Release) also give 192 bytes (aligned 18:
+// the dead-argument slot for len/theByte and the m_Pos store order remain). A function-scope CPacketRef (`->`
+// sites, its destructor) or ReadByte() supply at most 3 of them and change nothing.
 // STUB: LITHTECH 0x00445cc0
 LTRESULT LMessageImpl::ReadMessageFL(ILTMessage* &pMsg)
 {

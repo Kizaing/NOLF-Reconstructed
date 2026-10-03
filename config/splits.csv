@@ -1,2 +1,3 @@
 # Function starts that Ghidra merged into the preceding extent. Sync to Ghidra, then delete rows.
 addr,name,evidence
+0041bb90,SetupBoxPoints,inline helper copy after SetupMoveBox (jmp target after 16-byte nop padding; DoesBoxIntersectBSP expands the same code)

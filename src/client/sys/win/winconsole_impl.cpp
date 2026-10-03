@@ -644,15 +644,18 @@ void CConsole::FreeBackground()
 }
 
 
-// Builds the monochrome console font from the "ConsoleFont" bitmap resource.
-// Builds the console font from the console font bitmap resource (a 16x16 character sheet).
-// Same logic; register allocation differs (the original keeps this in ebx, the stream in ebp) and the
-// frame is 4 bytes larger here.
+// Builds the console font from the console font bitmap resource (a 16x16 character sheet of 8-bit palettized pixels).
+// Remaining diff (107 aligned, was 163 and SIZE): only register assignment. Ours is a cyclic permutation of the
+// original's callee-saved registers (ours ebp/edi/esi/ebx = original ebx/ebp/edi/esi: this, the stream, the DC,
+// charHeight...). Wave 6 phase 2 fixed the BPP_8P test (the original rejects anything but palettized), the
+// m_FullFontHeight/m_FontHeight store order, bResult cleared just before pcx_Create2 and `if(*pSrc) ...; pSrc++`.
+// Tried without effect: pSrc[x], array-subscript forms of pDest/pSrc/pRowStart, `*pDest = bits; pDest++`,
+// `(hDC = GetDC()) != LTNULL`, a separate index for the width fill, `iRow << 4`, a statement hill-climb.
 // STUB: LITHTECH 0x004212f0
 LTBOOL CConsole::InitFont()
 {
 	LoadedBitmap bitmap;
-	LTBOOL bResult = LTFALSE;
+	LTBOOL bResult;
 	LTCommandVar *pVar;
 	uint32 resID;
 	HRSRC hResource;
@@ -695,7 +698,8 @@ LTBOOL CConsole::InitFont()
 	pStream->Write(pResData, SizeofResource(LTNULL, hResource));
 	pStream->SeekTo(0);
 
-	if(pcx_Create2(pStream, &bitmap) && bitmap.m_Format.m_eType == BPP_8)
+	bResult = LTFALSE;
+	if(pcx_Create2(pStream, &bitmap) && bitmap.m_Format.m_eType == BPP_8P)
 	{
 		hDC = GetDC(m_hWnd);
 		if(hDC)
@@ -706,8 +710,8 @@ LTBOOL CConsole::InitFont()
 			m_pFontBitmapData = new uint32[charHeight * 256];
 			if(m_pFontBitmapData)
 			{
-				m_FontHeight = (uint16)charHeight;
 				m_FullFontHeight = (uint16)charHeight;
+				m_FontHeight = (uint16)charHeight;
 				for(iChar=0; iChar < NUM_CONSOLE_CHARACTERS; iChar++)
 					m_CharWidths[iChar] = (uint16)charWidth;
 
@@ -725,10 +729,11 @@ LTBOOL CConsole::InitFont()
 							mask = 1;
 							for(x=0; x < charWidth; x++)
 							{
-								if(*pSrc++)
+								if(*pSrc)
 									bits |= mask;
 
 								mask += mask;
+								pSrc++;
 							}
 
 							*pDest++ = bits;

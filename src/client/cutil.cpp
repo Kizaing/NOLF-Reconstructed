@@ -612,7 +612,8 @@ void cm_ScaleObject(CClientMgr *pClientMgr, LTObject *pObject, LTVector *pNewSca
 
 
 // FUNCTION: LITHTECH 0x004266d0
-static void cm_WarnLargeDims(LTObject *pObject, float fRadius)
+// Extern, not static: a static helper is emitted after its first caller (cm_MoveObject), the exe has it here.
+void cm_WarnLargeDims(LTObject *pObject, float fRadius)
 {
 	if (g_DebugLevel >= 1)
 	{
@@ -698,9 +699,9 @@ void cm_MoveObject(CClientMgr *pClientMgr, LTObject *pObject, LTVector *pNewPos,
 }
 
 
-// Register allocation differs (the original keeps pClientMgr in edi and recomputes
-// &m_ClientTree). Tried: a MoveAbstract local before Setup, a pMgr copy, reordering Setup/Rotate/Insert.
-// STUB: LITHTECH 0x00426940
+// FUNCTION: LITHTECH 0x00426940
+// One InsertObject after the if/else (VC6 duplicates it into both branches); writing it in each branch
+// CSEs &m_WorldTree into a register.
 void cm_RotateObject(CClientMgr *pClientMgr, LTObject *pObject, LTRotation *pNewRot)
 {
 	MoveState theState;
@@ -714,13 +715,13 @@ void cm_RotateObject(CClientMgr *pClientMgr, LTObject *pObject, LTRotation *pNew
 			// and stuff.
 			theState.Setup(&pClientMgr->m_World.m_WorldTree, pClientMgr->m_MoveAbstract, pObject, pObject->m_BPriority);
 			RotateWorldModel(&theState, pNewRot, LTFALSE);
-			pClientMgr->m_World.m_WorldTree.InsertObject(pObject, 0);
 		}
 		else
 		{
 			pObject->m_Rotation = *pNewRot;
-			pClientMgr->m_World.m_WorldTree.InsertObject(pObject, 0);
 		}
+
+		pClientMgr->m_World.m_WorldTree.InsertObject(pObject, 0);
 	}
 	else
 	{

@@ -868,6 +868,9 @@ int df_GetRawInfo(HLTFileTree *hTree, const char *pName, char* sFileName, unsign
 // push seekOffset) only the pData load differs: the original loads it into edi before comparing g_pDeFileLastRezItm
 // (so that compare uses eax); ours loads it at the merged call. Tried: operand order of both compares, a BYTE* local for
 // pData before/after the seek offset, no seekOffset local (reloads m_SeekOffset, worse).
+// Wave 6 also tried: a ternary / `if(...) seekOffset = -1;` with one Read call (19 bytes differ, still 6 aligned),
+// m_SeekOffset read before EnterCriticalSection, an inverted condition, unbraced bodies, a CRezItm* local,
+// Jupiter/DosFileStream's `if(sizeRead == size) {...} else {memset...}` (worse).
 // STUB: LITHTECH 0x004273e0 ?Read@RezFileStream@@UAEKPAXK@Z
 // FUNCTION: LITHTECH 0x00427ac0 ?AllocVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00427b30 ?AllocVoid@?$ObjectBank@VRezFileStream@@VLCriticalSection@@@@UAEPAXXZ

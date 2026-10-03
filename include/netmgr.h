@@ -327,7 +327,7 @@ public:
 	LTBOOL			SendFragmented(void *pData, uint32 dataLen, uint32 extra, CBaseConn *pConn);
 	LTBOOL			ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo);
 	LTBOOL			HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOOL bMaybeDrop);
-	LTBOOL			HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender);
+	LTBOOL			HandleNetMgrPacket(CBaseConn *pSender, CPacket *pPacket);
 	LTBOOL			HandleUnknownPacket(CBaseConn *pSender, CPacket *pPacket);
 
 	CFragmentGroup*	FindFragmentGroup(uint32 frameNum, CBaseConn *pConn);

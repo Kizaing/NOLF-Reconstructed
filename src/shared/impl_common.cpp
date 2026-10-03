@@ -436,36 +436,16 @@ void ic_WriteCompRotation(ILTMessage *pMsg, LTRotation *pRot)
 	ic_WriteCompRot(pMsg, &compRot);
 }
 
-// STUB: LITHTECH 0x0043e140
-// Inline budget: the original places the super-compressed branch after the return and calls
-// more of the LTVector inlines (Mag, operator-, the 2nd Cross) out of line.
-// Wave 5: swapping the branch order (`if (bytes[0] < 0)` first) is worse (938 bytes).
-void ic_ReadCompRotation(ILTMessage *pMsg, LTRotation *pRot)
+// Jupiter's CCompress::UncompressRotation. Inlined into ic_ReadCompRotation, one level deeper than the reads:
+// that nesting is why its Norm/Cross calls go out of line, and VC6 threads the two bytes[0] tests so the
+// super-compressed branch lands after the return.
+inline void ic_UncompressRotation(char *bytes, LTRotation *pRot)
 {
-	char bytes[6];
 	LTMatrix mat;
 	LTVector right, up, forward;
 	LTBOOL bFlip;
 
-	bytes[0] = (char)pMsg->ReadByte();
-	bytes[1] = (char)pMsg->ReadByte();
-	bytes[2] = (char)pMsg->ReadByte();
-
-	if(bytes[0] >= 0)
-	{
-		bytes[3] = (char)pMsg->ReadByte();
-		bytes[4] = (char)pMsg->ReadByte();
-		bytes[5] = (char)pMsg->ReadByte();
-
-		forward.y = (bytes[0] / 63.0f) - 1.0f;
-		forward.x = (bytes[1] / 63.0f) - 1.0f;
-		forward.z = (float)bytes[2] / 127.0f;
-
-		up.x = (float)bytes[3] / 127.0f;
-		up.y = (float)bytes[4] / 127.0f;
-		up.z = (float)bytes[5] / 127.0f;
-	}
-	else
+	if(bytes[0] < 0)
 	{
 		bytes[0] = -bytes[0];
 
@@ -486,6 +466,16 @@ void ic_ReadCompRotation(ILTMessage *pMsg, LTRotation *pRot)
 			up = -up;
 		}
 	}
+	else
+	{
+		forward.y = (bytes[0] / 63.0f) - 1.0f;
+		forward.x = (bytes[1] / 63.0f) - 1.0f;
+		forward.z = (float)bytes[2] / 127.0f;
+
+		up.x = (float)bytes[3] / 127.0f;
+		up.y = (float)bytes[4] / 127.0f;
+		up.z = (float)bytes[5] / 127.0f;
+	}
 
 	// Fixup.
 	right = forward.Cross(up);
@@ -496,6 +486,25 @@ void ic_ReadCompRotation(ILTMessage *pMsg, LTRotation *pRot)
 
 	Mat_SetBasisVectors(&mat, &right, &up, &forward);
 	quat_ConvertFromMatrix((float*)pRot, mat.m);
+}
+
+// FUNCTION: LITHTECH 0x0043e140
+void ic_ReadCompRotation(ILTMessage *pMsg, LTRotation *pRot)
+{
+	CompRot compRot;
+
+	compRot.m_Bytes[0] = (char)pMsg->ReadByte();
+	compRot.m_Bytes[1] = (char)pMsg->ReadByte();
+	compRot.m_Bytes[2] = (char)pMsg->ReadByte();
+
+	if(compRot.m_Bytes[0] >= 0)
+	{
+		compRot.m_Bytes[3] = (char)pMsg->ReadByte();
+		compRot.m_Bytes[4] = (char)pMsg->ReadByte();
+		compRot.m_Bytes[5] = (char)pMsg->ReadByte();
+	}
+
+	ic_UncompressRotation(compRot.m_Bytes, pRot);
 }
 
 // FUNCTION: LITHTECH 0x0043e540 ?SetBasisVectors@LTMatrix@@QAEXPAV?$_CVector@M@@00@Z
@@ -627,7 +636,7 @@ void ic_FreeString(HSTRING hString)
 }
 
 // FUNCTION: LITHTECH 0x0043eaa0
-LTBOOL ic_FindFileInList(IC_FileEntry *pList, char *pName)
+static LTBOOL ic_FindFileInList(IC_FileEntry *pList, char *pName)
 {
 	IC_FileEntry *pCur;
 

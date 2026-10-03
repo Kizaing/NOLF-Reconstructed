@@ -912,10 +912,9 @@ CSoundInstance *CSoundMgr::FindSoundInstance(HLTSOUND hSound, LTBOOL bClientSoun
 	return LTNULL;
 }
 
-// Logic matches; low stack slots differ: the original has dwFrameTime as a named slot at +0x28 (next to dwCurTime) and its
-// spill/temp pool starts at +0x14, ours puts dwFrameTime in the pool at +0x1c; plus the last loop (the inlined
-// CMoArray append with a byte local at +0x1f) is allocated differently. Declaration order of the locals has no effect.
-// STUB: LITHTECH 0x00493b50
+// The flag clear after the done-sound write goes through Set/GetPlaySoundFlags: those two pending inline sites keep
+// WriteType's CMoArray::Insert2 out of line, as in the original.
+// FUNCTION: LITHTECH 0x00493b50
 LTRESULT CSoundMgr::Update()
 {
 	uint32 dwIndex, dwSearchIndex;
@@ -1150,7 +1149,7 @@ LTRESULT CSoundMgr::Update()
 				pSoundInstance->GetHSoundDE() != (HLTSOUND)INVALID_OBJECTID)
 			{
 				m_SoundUpdatePacket.WriteType((uint16)pSoundInstance->GetHSoundDE());
-				pSoundInstance->m_dwPlaySoundFlags &= ~(PLAYSOUND_TIME | PLAYSOUND_TIMESYNC | PLAYSOUND_ATTACHED);
+				pSoundInstance->SetPlaySoundFlags(pSoundInstance->GetPlaySoundFlags() & ~(PLAYSOUND_TIME | PLAYSOUND_TIMESYNC | PLAYSOUND_ATTACHED));
 			}
 		}
 	}

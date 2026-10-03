@@ -99,6 +99,9 @@ LTBOOL CModelRayIntersect::Setup()
 
 // STUB: LITHTECH 0x0045b170
 // The original keeps aPieces in its argument slot and doesn't duplicate the piece loop test.
+// Wave 6 phase 2 (no change, 33 aligned): nested `if(!hidden){...}` instead of continue, if/else for iPiece,
+// iPiece = i then override, a while loop, swapped NULL/NumPieces stores, m_Pieces.GetSize(), a pRay local,
+// ++iRay; `iPiece = i; if(aPieces) ...` is worse (36).
 LTBOOL CModelRayIntersect::Intersect(HMODELPIECE *aPieces, uint32 nPieceCount, ILTModel::LTRayResult *aRays, uint32 nRayCount)
 {
 	ModelPiece *pPiece;
@@ -161,12 +164,10 @@ LTBOOL CModelRayIntersect::SetupArrays(PieceLOD *pLOD)
 
 
 // Skins the LOD's vertices with the model's node transforms.
-// STUB: LITHTECH 0x0045b3b0
+// FUNCTION: LITHTECH 0x0045b3b0
 // The SDK's MatVMul_Add (ltmatrix.h) into a float[4] gives the original's frame and x87 term order, and the
-// homogeneous divide reuses vOut[3]. Remaining diff (2 aligned, 4 bytes): the x row's first product loads
-// pVec[0] before m[0][0] (`fld [ecx-0x14]; fmul [eax]`), ours the other way round. Tried a pMat local, a
-// NewVertexWeight reference, `&pVec[0]`, `pTransforms + n`, pointer-increment loops (worse), other vOut
-// initialisation orders and memset (worse).
+// homogeneous divide reuses vOut[3]. The vertex pointer comes from GetArray() + i: `&pLOD->m_Verts[i]` flips the
+// operand order of the x row's m[0][0]*pVec[0] product.
 void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 {
 	LTMatrix *pTransforms;
@@ -181,7 +182,7 @@ void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 
 	for(i=0; i < pLOD->m_Verts.GetSize(); i++)
 	{
-		pVert = &pLOD->m_Verts[i];
+		pVert = pLOD->m_Verts.GetArray() + i;
 
 		vOut[0] = vOut[1] = vOut[2] = vOut[3] = 0.0f;
 		for(iWeight=0; iWeight < pVert->m_nWeights; iWeight++)
@@ -228,11 +229,16 @@ void CModelRayIntersect::SetupTris(PieceLOD *pLOD)
 // LTVector(x,y,z) constructor out of line in the first Cross and the operator-, Cross out of line for vQ and
 // Dot out of line for t (0x00412960, 0x0043eb30, 0x0041f6d0) but inlines the normal's Cross, Mag and *=;
 // our inline budget gives all-or-nothing, so the call pattern isn't reproduced yet.
+// Wave 6 phase 2: the normal is vNormal.Norm() (exe: fsqrt, `test ah,0x44` == 0 test, fdivr 1.0, in-place multiplies;
+// same code as the hand-written form when inlined). "Early out, late in" means the triangle test sits one inline level
+// deeper: with the Moller-Trumbore part (up to t) in an inline helper `RayIntersectTri(pTri, pRay, t)` the out-of-line
+// set becomes ctor, ctor, Dot, Cross, Dot, Dot (exe: ctor, ctor, Cross, Dot), i.e. the helper's share is ~5-7 units
+// too small; the whole loop body in a helper gives ctor, Cross, Norm (worse). Not adopted.
 void CModelRayIntersect::IntersectRay(ILTModel::LTRayResult *pRay)
 {
 	RayTri *pTri;
 	LTVector vP, vT, vQ, vNormal;
-	float fInvDet, u, v, t, fMag;
+	float fInvDet, u, v, t;
 	uint32 i;
 
 	for(i=0; i < m_nTris; i++)
@@ -259,12 +265,7 @@ void CModelRayIntersect::IntersectRay(ILTModel::LTRayResult *pRay)
 			pRay->m_bIntersect = LTTRUE;
 
 			vNormal = pTri->m_vEdge2.Cross(pTri->m_vEdge1);
-			fMag = vNormal.Mag();
-			if(fMag != 0.0f)
-			{
-				fMag = 1.0f / fMag;
-				vNormal *= fMag;
-			}
+			vNormal.Norm();
 
 			pRay->m_vNormal = vNormal;
 			pRay->m_nPiece = m_iPiece;

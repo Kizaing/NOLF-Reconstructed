@@ -42,17 +42,19 @@ struct PolyClipBuffer
 // The function static's destructor (registered with atexit).
 // FUNCTION: LITHTECH 0x004172c0 _$E2
 
-// Same size as the original (944) and the same shape: the sphere test (VEC_SUB written z, y, x as the original's
-// loads show), `pIn` copied before the plane loop, vertices addressed as pIn[iPrev]/pIn[i] and reloaded each time,
+// Same size as the original (944) and the same shape: the sphere test (VEC_DISTSQR; the same code as a VEC_SUB
+// written z, y, x), the new vertex VEC_LERP (the same code as the three hand-written lines), `pIn` copied before the plane loop, vertices addressed as pIn[iPrev]/pIn[i] and reloaded each time,
 // the plane loop run on a walking pointer to the plane's dist (`cmp ptr, &g_BoxFindPlanes[6].m_Dist`), the min/max
 // loop as `for (; nIn > 0; nIn--, pIn++)`. What differs is the register assignment: the original keeps pPoly in esi,
 // pOut in ebp, the plane index in ebx and pNew in edx, with nIn spilled to [esp+0x10]; ours has pOut in ebx and
 // the plane index in edi. The order of the local declarations has no effect (VC6 assigns slots by use).
+// Wave 6 phase 2: DistSqr/MagSqr/operator forms of the sphere test and an operator lerp are worse (163-386 aligned
+// mismatches against 133).
 // STUB: LITHTECH 0x00416f10 ?PolyTouchesBox@@YAIPAUWorldPoly@@PAX1@Z
 LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 {
 	static PolyClipBuffer s_Buf;
-	LTVector *pMin, *pMax, vDiff, *pNew, **pIn, **pOut, **pOutStart;
+	LTVector *pMin, *pMax, *pNew, **pIn, **pOut, **pOutStart;
 	float fRadius, sign, prevDist, curDist, t;
 	int nIn, nNewVerts, iPlane, axis, i, iPrev;
 	float *pDist;
@@ -69,10 +71,7 @@ LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 
 	// Quick sphere test.
 	fRadius = g_BoxFindRadius + pPoly->m_Radius;
-	vDiff.z = g_BoxFindCenter.z - pPoly->m_Center.z;
-	vDiff.y = g_BoxFindCenter.y - pPoly->m_Center.y;
-	vDiff.x = g_BoxFindCenter.x - pPoly->m_Center.x;
-	if (VEC_MAGSQR(vDiff) > fRadius * fRadius)
+	if (VEC_DISTSQR(g_BoxFindCenter, pPoly->m_Center) > fRadius * fRadius)
 		return LTFALSE;
 
 	// Clip the poly into the box's planes.
@@ -110,9 +109,7 @@ LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 			{
 				t = prevDist / (prevDist - curDist);
 				pNew = &s_Buf.m_NewVerts[nNewVerts++];
-				pNew->x = pIn[iPrev]->x + (pIn[i]->x - pIn[iPrev]->x) * t;
-				pNew->y = pIn[iPrev]->y + (pIn[i]->y - pIn[iPrev]->y) * t;
-				pNew->z = pIn[iPrev]->z + (pIn[i]->z - pIn[iPrev]->z) * t;
+				VEC_LERP(*pNew, *pIn[iPrev], *pIn[i], t);
 				*pOut++ = pNew;
 			}
 

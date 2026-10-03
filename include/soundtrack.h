@@ -42,8 +42,21 @@ public:
 
 	float			GetTimeLeft()				{ return m_fTimeLeft; }
 	float			GetDuration()				{ return m_fDuration; }
+	float			GetStartTime()				{ return m_fStartTime; }
 	void			SetRemove(LTBOOL bRemove)	{ m_bRemove = bRemove; }
 	LTBOOL			GetRemove()					{ return m_bRemove; }
+
+	// Jupiter soundtrack.cpp (inlined in CServerSoundMgr::IsSoundDone): sounds without data never end.
+	LTBOOL			IsDone()
+	{
+		if (!m_pSoundData)
+			return LTFALSE;
+
+		if (GetTimeLeft() > 0.0f)
+			return LTFALSE;
+
+		return LTTRUE;
+	}
 
 	// A client is done with the sound (inlined in s_client/s_net; Jupiter soundtrack.cpp).
 	void			Release(uint8 *pnClientSoundFlags)

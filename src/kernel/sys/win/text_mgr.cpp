@@ -437,6 +437,7 @@ inline void tmgr_RasterizeText_T(
 
 
 // One byte differs: the 16-bit foreground+background loop addresses [ecx+eax] where the original has [eax+ecx].
+// Phase 2 also tried: `!= 0`, the inverted test (7), `*pSrcPos++` in the test (50), a ternary store (61).
 // Tried without effect: declaration order of the template's locals, order of `++pSrcPos; ++destPos;` (worse), order of
 // the two pointer initialisations (worse), `while(xCounter--)`, `pSrcPos += srcX`, `srcX + ptr`, `!= 0`.
 // STUB: LITHTECH 0x0049bae0

@@ -93,6 +93,16 @@ class FileIDInfo;
 // What the world loader gets (16 bytes; servermgr.cpp has the same).
 struct WorldLoadInfo
 {
+				WorldLoadInfo()	{ Clear(); }
+
+	void		Clear()
+	{
+		m_pStream = LTNULL;
+		m_pUser = LTNULL;
+		m_ProgressFn = LTNULL;
+		m_pUser2 = LTNULL;
+	}
+
 	ILTStream	*m_pStream;					// 0x00
 	void		*m_pUser;					// 0x04
 	void		(*m_ProgressFn)(void *pUser);	// 0x08
@@ -115,23 +125,7 @@ static inline CONCOLOR ShellColor(uint32 r, uint32 g, uint32 b)
 CONCOLOR g_ShellMsgColor = ShellColor(0, 255, 0);
 
 
-// FUNCTION: LITHTECH 0x00416120
-static void AddAllObjectsToBSP(CClientShell *pShell, LTList *pList)
-{
-	LTLink *pCur, *pListHead;
-	LTObject *pObj;
-	WorldTree *pWorldTree;
-
-	pWorldTree = &pShell->m_pClientMgr->m_World.m_WorldTree;
-
-	pListHead = &pList->m_Head;
-	for (pCur=pListHead->m_pNext; pCur != pListHead; pCur=pCur->m_pNext)
-	{
-		pObj = (LTObject*)pCur->m_pData;
-
-		pWorldTree->InsertObject(pObj, 0);
-	}
-}
+static void AddAllObjectsToBSP(CClientShell *pShell, LTList *pList);
 
 
 // FUNCTION: LITHTECH 0x00416270
@@ -470,8 +464,9 @@ LTRESULT CClientShell::Update()
 
 
 // Runs the surface effects (ILTClient::AddSurfaceEffect) and recalculates the texture
-// coordinates of their polies.
-// STUB: LITHTECH 0x004154f0
+// coordinates of their polies. pSurface and pBsp only cover the effect call: afterwards the original rereads
+// pInst->m_pSurface and pInst->m_pBsp.
+// FUNCTION: LITHTECH 0x004154f0
 static void UpdateSurfaceEffects(CClientShell *pShell)
 {
 	CClientMgr *pClientMgr;
@@ -489,7 +484,6 @@ static void UpdateSurfaceEffects(CClientShell *pShell)
 	{
 		pSurface = pInst->m_pSurface;
 		pBsp = pInst->m_pBsp;
-
 		data.O = pSurface->O;
 		data.P = pSurface->P;
 		data.Q = pSurface->Q;
@@ -498,17 +492,18 @@ static void UpdateSurfaceEffects(CClientShell *pShell)
 		data.m_pInternalSurface = pSurface;
 		pInst->m_pEffect->UpdateEffect(&data, pInst->m_pData);
 
+		pSurface = pInst->m_pSurface;
 		pSurface->O = data.O;
 		pSurface->P = data.P;
 		pSurface->Q = data.Q;
 
-		fPOffset = data.P.Dot(data.O);
-		fQOffset = data.Q.Dot(data.O);
+		fPOffset = data.O.Dot(data.P);
+		fQOffset = data.O.Dot(data.Q);
 
 		iPoly = pSurface->m_iFirstPoly;
 		while (iPoly != 0xFFFF)
 		{
-			pPoly = pBsp->m_Polies[iPoly];
+			pPoly = pInst->m_pBsp->m_Polies[iPoly];
 
 			pVert = (SPolyVertex*)(pPoly + 1);
 			pEnd = &pVert[pPoly->GetNumVertices()];
@@ -562,8 +557,9 @@ void CClientShell::RemoveAllObjects()
 }
 
 
+// Extern: a static callback would be emitted after DoLoadWorld, which takes its address.
 // FUNCTION: LITHTECH 0x004157a0
-static void cs_WorldLoadProgress(void *pUser)
+void cs_WorldLoadProgress(void *pUser)
 {
 	cm_ShowLoadProgress((CClientMgr*)pUser);
 }
@@ -572,7 +568,10 @@ static void cs_WorldLoadProgress(void *pUser)
 void cs_UnloadWorld(CClientShell *pShell);
 static void SetWorldPolyTexturePointers(CClientMgr *pClientMgr, MainWorld *pWorld);
 
-// STUB: LITHTECH 0x004157b0
+// The packet carries the info string's CRC before the world file's. WorldLoadInfo is cleared again (memset, as in
+// CServerMgr::LoadWorld) right before the load, and the load failure is the else branch (the original puts it at the
+// end of the function).
+// FUNCTION: LITHTECH 0x004157b0
 LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 {
 	int i;
@@ -581,16 +580,11 @@ LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 	FileIdentifier *pIdent;
 	const char *pWorldName;
 	char *pInfoString;
-	uint32 worldVersion, fileCRC, fileSize, infoCRC, checkVal;
+	uint32 worldVersion, fileCRC, infoCRC;
 	LTBOOL bFlushUnusedTextures;
 	MainWorld *pServerWorld;
 	MainWorld *pWorld;
 	WorldLoadInfo loadInfo;
-
-	loadInfo.m_pStream = LTNULL;
-	loadInfo.m_pUser = LTNULL;
-	loadInfo.m_ProgressFn = LTNULL;
-	loadInfo.m_pUser2 = LTNULL;
 
 	// Cleanup...
 	cs_UnloadWorld(this);
@@ -610,8 +604,8 @@ LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 
 	worldVersion = pPacket->ReadType((uint32*)0);
 	pInfoString = pPacket->ReadString();
-	fileCRC = pPacket->ReadType((uint32*)0);
 	infoCRC = pPacket->ReadType((uint32*)0);
+	fileCRC = pPacket->ReadType((uint32*)0);
 
 	if (worldVersion != 0)
 	{
@@ -630,9 +624,8 @@ LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 	}
 
 	// If we're local and it's the same world, don't reload all the textures.
-	if (pIdent != m_pLastWorld)
-		bFlushUnusedTextures = LTTRUE;
-	else
+	bFlushUnusedTextures = LTTRUE;
+	if (pIdent == m_pLastWorld)
 		bFlushUnusedTextures = LTFALSE;
 
 	pServerWorld = g_pServerWorld;
@@ -654,6 +647,8 @@ LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 	}
 	else
 	{
+		uint32 checkVal;
+
 		// Notify the client shell so they can put up a bitmap.
 		if (m_pClientMgr->m_pClientShell)
 			m_pClientMgr->m_pClientShell->PreLoadWorld((char*)pWorldName);
@@ -689,18 +684,21 @@ LTRESULT CClientShell::DoLoadWorld(CPacket *pPacket, LTBOOL bLocal)
 
 		pStream->SeekTo(0);
 
+		memset(&loadInfo, 0, sizeof(loadInfo));
 		loadInfo.m_pStream = pStream;
 		loadInfo.m_pUser = (void*)m_pClientMgr->m_Unknown12e8;
 		loadInfo.m_ProgressFn = cs_WorldLoadProgress;
 		loadInfo.m_pUser2 = m_pClientMgr;
-		if (pWorld->Load(&loadInfo) != LT_OK)
+		if (pWorld->Load(&loadInfo) == LT_OK)
+		{
+			pWorld->m_pWorldStream = pStream;
+			pWorld->LoadObjects(pStream);
+		}
+		else
 		{
 			m_pClientMgr->SetupError(LT_INVALIDWORLDFILE, pWorldName);
 			RETURN_ERROR_PARAM(1, CClientShell::DoLoadWorld, LT_INVALIDWORLDFILE, pWorldName);
 		}
-
-		pWorld->m_pWorldStream = pStream;
-		pWorld->LoadObjects(pStream);
 	}
 
 	// Try to bind to the worlds.
@@ -806,6 +804,25 @@ static void SetPolyTexturePointers(CClientMgr *pClientMgr, WorldBsp *pBsp)
 			ref.m_pFilename = "textures\\default_texture.dtx";
 			pSurface->m_pTexture = cm_AddSharedTexture(pClientMgr, &ref);
 		}
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x00416120
+static void AddAllObjectsToBSP(CClientShell *pShell, LTList *pList)
+{
+	LTLink *pCur, *pListHead;
+	LTObject *pObj;
+	WorldTree *pWorldTree;
+
+	pWorldTree = &pShell->m_pClientMgr->m_World.m_WorldTree;
+
+	pListHead = &pList->m_Head;
+	for (pCur=pListHead->m_pNext; pCur != pListHead; pCur=pCur->m_pNext)
+	{
+		pObj = (LTObject*)pCur->m_pData;
+
+		pWorldTree->InsertObject(pObj, 0);
 	}
 }
 

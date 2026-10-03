@@ -534,6 +534,23 @@ inline LTBOOL IsWorldModel(LTObject *pObj1, LTObject *pObj2)
 
 // Close in size; the sphere-physics box is unrolled per axis in the original and the inline
 // budget differs (IsWorldModel/DoObjectsIntersect/Mag/MagSqr are called out of line there).
+// Wave 6 phase 2 (decoded from the exe; a rewrite along these lines is kept in the stream's notes, not here):
+// - VC6 inlines an `inline` function defined LATER in the file (toy-checked), and its out-of-line copy then sits at
+//   its definition. That is the original's shape: GetMovementBox (0x45fb80), DoSolidBBoxCollision (0x45f460) and
+//   MaybeCollide (0x460cb0) are `inline` (Jupiter has GetMovementBox/MaybeCollide inline too). Loop 1 inlines
+//   MaybeCollide (calling IsWorldModel(pTestObj) 0x45e960, DoObjectsIntersect 0x45e990, the operator-/+ 0x41f740/
+//   0x41f710, DoSolidBBoxCollision and DoSolidWMCollision out of line), loop 2 calls it; the first GetMovementBox
+//   (right after m_UnknownDC = 5) is inlined, the one at the end of loop 2 is not.
+// - The sphere block declares `SphereMoveInfo sphereInfo` inside the block (the `??_H` array-ctor call 0x401000 is
+//   there), copies m_vStartPos from *pState->m_pStartPos and writes the three axes out (no loop); the custom-object
+//   loop sets objectArray.m_nObjects = 0 and uses pState->m_pStartPos->DistSqr(pTestObj->GetPos()) (operator- inline,
+//   ctor 0x412960 and MagSqr 0x438f72 out of line).
+// - With that rewrite every helper is inlined (MaybeCollide/GetMovementBox lose their copies: ERROR). The exe's call
+//   pattern appears with ~90 units of code-free ballast at the top (k90: only IsWorldModel(pTestObj) still inline,
+//   aligned 586 vs ~1220 without); adding 10 `if(0)` statements directly to the function cancels most of it, so the
+//   original's own size (inline budget = ~2x own size) is ~20+ units smaller than this source. Moving the sphere box
+//   into an inline helper moves part of the way (1101). DoSolidWMCollision's copy is only compiled in the exe's order
+//   (frame 0xc0, 1712 bytes, aligned 204) when DAPC calls it out of line, i.e. once this structure is right.
 // STUB: LITHTECH 0x0045ddf0
 void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, const LTVector &destPos)
 {
@@ -1044,7 +1061,9 @@ LTBOOL DoSolidBBoxCollision(MoveState *pState, LTObject *pTestObj, LTVector &sta
 
 // Finds where the mover ends up when it's pushed out of the blocker along the
 // movement from *pStartPos to *pDestPos.
-// STUB: LITHTECH 0x0045f640
+// FUNCTION: LITHTECH 0x0045f640
+// The move box is built with Init(LTMIN(..), ..) (arguments evaluated z first, kept on the x87 stack), not VEC_MIN, and
+// both branches end in one `return newPos;` with `newPos += *pDestPos` on the sliding-off path.
 LTVector GetPushawayPos(LTObject *pMover, LTObject *pBlocker, LTVector *pStartPos, LTVector *pDestPos,
 	int32 *pPushPlane, float *pPlaneDist)
 {
@@ -1058,8 +1077,8 @@ LTVector GetPushawayPos(LTObject *pMover, LTObject *pBlocker, LTVector *pStartPo
 	LTVector destMin = *pDestPos - pMover->m_Dims;
 	LTVector destMax = *pDestPos + pMover->m_Dims;
 
-	VEC_MIN(moveMin, startMin, destMin);
-	VEC_MAX(moveMax, startMax, destMax);
+	moveMin.Init(LTMIN(startMin.x, destMin.x), LTMIN(startMin.y, destMin.y), LTMIN(startMin.z, destMin.z));
+	moveMax.Init(LTMAX(startMax.x, destMax.x), LTMAX(startMax.y, destMax.y), LTMAX(startMax.z, destMax.z));
 
 	// Find the smallest dimension we can move the mover back on.
 	GetSmallestPushaway(moveMin, moveMax, startMin, startMax,
@@ -1102,7 +1121,7 @@ LTVector GetPushawayPos(LTObject *pMover, LTObject *pBlocker, LTVector *pStartPo
 	if(!(pMover->m_Flags & FLAG_NOSLIDING))
 	{
 		// Move it back.
-		return *pDestPos + pushAmount;
+		newPos = *pDestPos + pushAmount;
 	}
 	else
 	{
@@ -1120,8 +1139,10 @@ LTVector GetPushawayPos(LTObject *pMover, LTObject *pBlocker, LTVector *pStartPo
 			newPos.Init();
 		}
 
-		return *pDestPos + newPos;
+		newPos += *pDestPos;
 	}
+
+	return newPos;
 }
 
 
@@ -1506,6 +1527,10 @@ void GetBoxIntersection(LTVector *pMin1, LTVector *pMax1, LTVector *pMin2, LTVec
 // Register allocation: pObject/pArray get ebx/esi here, edi/ebx in the original (orig: esi holds the 0x400/server-flag
 // temporaries); the vCenter tail also differs (orig keeps the (vMax-vMin) temps in [esp+0x10..0x30] and calls nothing).
 // Tried: pArray before pObject, declaration order swaps, a local MoveState *pState (worse).
+// Wave 6 phase 2: the exe's tail keeps (vMax - vMin) * 0.5f in a stack temp that is copied as operator+'s by-value
+// argument and subtracts *m_pStartPos straight from memory (ours copies *m_pStartPos instead). No change (84) from:
+// the whole distance as one expression, Jupiter's pTreeObj->GetObjType() test before the cast, a named half vector,
+// VEC_SUB/VEC_MAGSQR, VEC_DISTSQR and DistSqr (85-88, or 400 bytes), vCenter -= start.
 // STUB: LITHTECH 0x00461260
 void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser)
 {
@@ -1886,6 +1911,11 @@ void RotateWorldModel(MoveState *pState, LTRotation *pRotation, LTBOOL bDoCollis
 // Inline budget: the original calls Mag() (inside dir.Norm()) and the LTVector(x,y,z) constructor (for
 // pTestObj->m_Velocity = pos2 - pos1) out of line.  Pending-call experiments reproduce the Mag call (extra inline
 // sites after Norm) but not the single ctor call without also moving the ctors in the min/max loop.
+// Wave 6 phase 2: it MATCHES (all three calls, size 1264) with Jupiter's `pTestObj->GetDims()` in the min/max loop
+// (2 pending sites after Norm; tested with a file-local accessor) plus 6-9 units of code-free inline cost anywhere
+// before Norm (ballast at the top, before the solid test or before `dir = pos1 - pos2` all match; 3-5 units give
+// DIFF 47 aligned, 10+ worse). Ballast inside IsWorldModel matches with 4-6 units; IsWorldModel written as nested
+// ifs / explicit object types gives only the 3-5 unit result (47). The real source of the cost is still unknown.
 // STUB: LITHTECH 0x00461ff0
 void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj)
 {
@@ -1994,17 +2024,14 @@ void CollideWorldModelCB(WorldTreeObj *pObj, void *pUser)
 
 
 // Gets the attachment's world transform.
-// The inlined quat_Mul emits out[QX] terms in a different order: the exe sums a[QX]*b[QW], a[QW]*b[QX], a[QY]*b[QZ]
-// (then - a[QZ]*b[QY]); ours, like the matched out-of-line quat_Mul at 0x004178b0, a[QW]*b[QX], a[QY]*b[QZ],
-// a[QX]*b[QW]. Only out[QX] differs (6 instructions). Wave 6 tried: quat_Mul straight into rRot or into a local,
-// a local LTRotation for the product, the rotation first, a LTRotation*/LTransform* local, m_Pos for GetPos().
-// STUB: LITHTECH 0x00462510
+// The rotation's ConvertToMatrix (not quat_ConvertToMatrix on m_Quat) fixes the inlined quat_Mul's out[QX] term order.
+// FUNCTION: LITHTECH 0x00462510
 void GetAttachmentTransform(LTObject *pParent, Attachment *pAttachment, LTVector &vPos, LTRotation &rRot)
 {
 	LTMatrix mat;
 
 	vPos = pAttachment->m_Offset.m_Pos;
-	quat_ConvertToMatrix(pParent->m_Rotation.m_Quat, mat.m);
+	pParent->m_Rotation.ConvertToMatrix(mat);
 	mat.Apply3x3(vPos);
 	vPos += pParent->GetPos();
 

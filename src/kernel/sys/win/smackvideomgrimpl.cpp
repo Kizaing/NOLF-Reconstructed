@@ -229,7 +229,10 @@ LTRESULT SmackVideoInst::Init(const char *pFilename, uint32 flags, LTBOOL bTextu
 // CreateSurface block into the GetDisplayMode one and sends the `jl`s to the last block's epilogue. Wave 6 tried (no
 // change or worse): the NOT_INITIALIZED error as an else branch, an early `if(!m_smk || ...)` return, the
 // GetDisplayMode test nested as `== DD_OK`, the 565 test inverted, a goto past the convert path, a do{}while(0)
-// RETURN_ERROR_PARAM. No compiler option changes the merge direction (README, wave 6).
+// RETURN_ERROR_PARAM. No compiler option changes the merge direction (README, wave 6). Phase 2 also tried (no change):
+// the 565 error as an else branch, the final NOT_INITIALIZED as an else with `return LT_OK` after it, an unbraced
+// GetDisplayMode test; nesting the convert path's second CreateSurface in the first's success branch, or giving the
+// 565 path its own Clear and return, both give 544 bytes (more merging, 108+ aligned).
 LTRESULT SmackVideoInst::InitScreen()
 {
 	LPDIRECTDRAW7 pDD;
@@ -465,10 +468,9 @@ LTBOOL SmackVideoInst::IsAtLastFrame()
 }
 
 
-// STUB: LITHTECH 0x0049de90
-// Remaining diff (116 bytes): the original's srcDesc and destDesc stack slots are swapped relative to ours (the first
-// Lock reuses ddsd's slot at +0x40); no permutation of the four block locals (all 23 tried) changes it, and making
-// ddsd a function-scope variable that also serves as srcDesc is much worse (704 bytes).
+// The conversion reads the Smacker surface in its own pixel format (srcFormat, from srcDesc) and writes the screen
+// format; each pointer is stored with its format before the pitch.
+// FUNCTION: LITHTECH 0x0049de90
 LTRESULT SmackVideoInst::UpdateOnScreen()
 {
 	LPDIRECTDRAWSURFACE7 pBackBuffer, pDisplaySurface;
@@ -501,7 +503,7 @@ LTRESULT SmackVideoInst::UpdateOnScreen()
 	if(m_bConvert)
 	{
 		DDSURFACEDESC2 destDesc;
-		PFormat destFormat;
+		PFormat srcFormat;
 		FMConvertRequest request;
 		DDSURFACEDESC2 srcDesc;
 
@@ -522,14 +524,15 @@ LTRESULT SmackVideoInst::UpdateOnScreen()
 			RETURN_ERROR_PARAM(2, SmackVideoInst::UpdateOnScreen, LT_NOTINITIALIZED, "Unable to lock conversion surface.");
 		}
 
-		DDPFToPFormat(&destDesc.ddpfPixelFormat, &destFormat);
+		DDPFToPFormat(&srcDesc.ddpfPixelFormat, &srcFormat);
 
 		request.m_pSrc = (uint8*)srcDesc.lpSurface;
+		request.m_pSrcFormat = &srcFormat;
 		request.m_SrcPitch = srcDesc.lPitch;
-		request.m_pSrcFormat = &m_ScreenFormat;
 		request.m_pDest = (uint8*)destDesc.lpSurface;
+		request.m_pDestFormat = &m_ScreenFormat;
 		request.m_DestPitch = destDesc.lPitch;
-		request.m_pDestFormat = &destFormat;
+
 		request.m_Width = m_smk->Width;
 		request.m_Height = m_smk->Height;
 

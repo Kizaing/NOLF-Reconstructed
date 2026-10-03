@@ -237,16 +237,17 @@ void ps_UpdateParticles(LTParticleSystem *pSystem, LTFLOAT t)
 }
 
 
-// Temporaries and FPU scheduling differ (0x18-byte frame in the original; the original keeps halfBox in FPU registers
-// instead of a spilled local). Tried compound forms (`+=`, `*= 0.5f`), operand orders and a single sum: size 288 reachable
-// but never the same schedule.
-// STUB: LITHTECH 0x00469ea0
+// The original copies the box size into halfBox (vSize, then a separate copy) before halving it: that copy is what
+// keeps the halved components in FPU registers (Jupiter's single `(max - min) * 0.5f` spills them).
+// FUNCTION: LITHTECH 0x00469ea0
 void ps_UpdateParticleBoundingBox(LTParticleSystem *pSystem)
 {
-	LTVector halfBox = (pSystem->m_MaxPos - pSystem->m_MinPos) * 0.5f;
+	LTVector vSize = pSystem->m_MaxPos - pSystem->m_MinPos;
+	LTVector halfBox = vSize;
+	halfBox *= 0.5f;
 
 	pSystem->m_SystemCenter = pSystem->m_MinPos + halfBox;
-	pSystem->m_SystemCenter = pSystem->GetPos() + pSystem->m_SystemCenter;
+	pSystem->m_SystemCenter += pSystem->GetPos();
 
 	pSystem->m_SystemRadius = halfBox.Mag();
 }

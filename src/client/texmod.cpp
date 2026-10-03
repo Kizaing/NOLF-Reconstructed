@@ -46,8 +46,7 @@ CLTTexMod::CLTTexMod(CClientMgr *pClientMgr)
 }
 
 
-// STUB: LITHTECH 0x0049adc0
-// The original masks the old reference count before adding (bitfield code differs). See ReleaseTextureHandle.
+// FUNCTION: LITHTECH 0x0049adc0
 LTRESULT CLTTexMod::GetTextureHandle(char *pFilename, HTEXTURE &hTexture, const uint32 flags)
 {
 	FN_NAME(LTTexMod::GetTextureHandle);
@@ -109,7 +108,7 @@ LTRESULT CLTTexMod::GetTextureHandle(char *pFilename, HTEXTURE &hTexture, const 
 				{
 					pNewData->m_Flags |= DTX_NOSYSCACHE;
 					hTexture->m_pEngineData = pNewData;
-					ST_REFS(hTexture) = hTexture->GetRefCount() + 1;
+					hTexture->SetRefCount(hTexture->GetRefCount() + 1);
 					return LT_OK;
 				}
 
@@ -128,6 +127,31 @@ LTRESULT CLTTexMod::GetTextureHandle(char *pFilename, HTEXTURE &hTexture, const 
 }
 
 
+static LTBOOL texmod_IsValidTexture(SharedTexture *pTexture);
+
+
+// STUB: LITHTECH 0x0049b0c0
+// GetTextureHandle matches with SetRefCount(GetRefCount() + 1) (xor-on-memory with two reads); the same idiom here
+// gives the right size, but the original reads m_RefCount once, merges (old & 0x7fff) - 1 in registers, stores the
+// word and tests the merged value (15 aligned). Tried: the ST_REFS bitfield view (folds the mask into a lea, 11
+// aligned but 16 bytes short), single-expression merges, a uint16 inline setter, a count local, `!(m_RefCount & mask)`.
+LTRESULT CLTTexMod::ReleaseTextureHandle(const HTEXTURE hTexture)
+{
+	FN_NAME(LTTexMod::ReleaseTextureHandle);
+
+	CHECK_PARAMS2(texmod_IsValidTexture(hTexture));
+
+	hTexture->SetRefCount(hTexture->GetRefCount() - 1);
+	if(hTexture->GetRefCount() == 0)
+	{
+		if(hTexture->m_pEngineData)
+			dtx_Destroy((TextureData*)hTexture->m_pEngineData);
+	}
+
+	return LT_OK;
+}
+
+
 // Is this a texture handle from GetTextureHandle?
 // FUNCTION: LITHTECH 0x0049b150
 static LTBOOL texmod_IsValidTexture(SharedTexture *pTexture)
@@ -142,27 +166,6 @@ static LTBOOL texmod_IsValidTexture(SharedTexture *pTexture)
 	}
 
 	return LTFALSE;
-}
-
-
-// STUB: LITHTECH 0x0049b0c0
-// As GetTextureHandle: the reference count decrement. The original computes (old & 0x7fff) - 1 unsimplified, merges it
-// into the old word (xor/and/xor) and tests the merged value; the ST_REFS bitfield view folds the mask into a lea, and
-// SetRefCount/GetRefCount give an xor-on-memory read-modify-write. Locals, casts and `& 0x7fff` forms all compile the same.
-LTRESULT CLTTexMod::ReleaseTextureHandle(const HTEXTURE hTexture)
-{
-	FN_NAME(LTTexMod::ReleaseTextureHandle);
-
-	CHECK_PARAMS2(texmod_IsValidTexture(hTexture));
-
-	ST_REFS(hTexture) = hTexture->GetRefCount() - 1;
-	if(ST_REFS(hTexture) == 0)
-	{
-		if(hTexture->m_pEngineData)
-			dtx_Destroy((TextureData*)hTexture->m_pEngineData);
-	}
-
-	return LT_OK;
 }
 
 
@@ -200,7 +203,9 @@ LTRESULT CLTTexMod::GetTextureInfo(const HTEXTURE hTexture, TextureInfo &info)
 // gives the original's layout and leaves the two LT_INVALIDPARAMS blocks merged only from the call on (README, wave 6).
 // Remaining diff (8 aligned): in the alpha-mask branch the original loads &pData, stores, then loads &lPitch after
 // `pop edi`; we load both references first. Tried `!= LTNULL`, a TextureMipData local, swapping the two stores, a
-// plain `if` instead of `else if`, `lockType == TLOCK_BUMPMAP &&`.
+// plain `if` instead of `else if`, `lockType == TLOCK_BUMPMAP &&`. Phase 2: a nested `if(!m_AlphaMask) ERR` (36), a
+// TextureMipData pointer local, casts on the two stores, an empty `else if(lockType != TLOCK_BUMPMAP)`, the two stores
+// swapped (496 bytes): still 8.
 LTRESULT CLTTexMod::LockTexture(const HTEXTURE hTexture, const LTRect *pRect,
 	const uint32 lockType, uint8* &pData, long &lPitch)
 {

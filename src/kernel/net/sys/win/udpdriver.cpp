@@ -178,6 +178,16 @@ int tcp_RecvFrom(CUDPDriver *pDriver, SOCKET theSocket, void *pData, int dataLen
 // CUDPDriver code.
 // ----------------------------------------------------------------- //
 
+// An inline virtual in the original: the exe has it between SelectService and ??_GCUDPDriver, where VC6 puts the
+// inline virtuals already defined when the constructor needs the vtable.
+// FUNCTION: LITHTECH 0x004979c0 ?GetPacketOverhead@CUDPDriver@@UAEKXZ
+inline uint32 CUDPDriver::GetPacketOverhead()
+{
+	// IP and UDP headers.
+	return 28;
+}
+
+
 // FUNCTION: LITHTECH 0x00497900
 CUDPDriver::CUDPDriver()
 {
@@ -192,14 +202,6 @@ CUDPDriver::CUDPDriver()
 }
 
 // FUNCTION: LITHTECH 0x004979b0 ?SelectService@CUDPDriver@@UAEKPAUHNETSERVICE_t@@@Z
-
-
-// FUNCTION: LITHTECH 0x004979c0
-uint32 CUDPDriver::GetPacketOverhead()
-{
-	// IP and UDP headers.
-	return 28;
-}
 
 
 // FUNCTION: LITHTECH 0x004979d0 ??_GCUDPDriver@@UAEPAXI@Z
@@ -357,6 +359,8 @@ LTRESULT CUDPDriver::GetServiceList(NetService* &pListHead)
 // (cmp [m_nArgs], ebp) where the original reloads (test eax, eax). In the original ebp's zero is only used before
 // the loop (the bind check, the SetupLocalSockaddr argument); after it every zero is `push 0` / `test`.
 // `if(parse.m_nArgs != 0 && parse.m_nArgs > 0)` makes the first compare a load+test but doesn't fix the rest.
+// Wave 6 tried: `for(;;){ if(!parse.Parse()) break; ...}`, storing setsockopt's result, separate bind checks (worse),
+// hillclimb (no move helps).
 // STUB: LITHTECH 0x00497d20
 LTRESULT CUDPDriver::StartQuery(char *pInfo)
 {
@@ -510,23 +514,24 @@ char* tcp_GetLastError()
 #pragma warning(default : 4715)
 
 
-// Wave 5: inline_scan p1/p2 (a free inline call after any statement) and inline_ballast (up to 64 units before the
-// first ReadType) don't turn it into a MATCH; the original calls the first ReadType<uint8> (subID) out of line
-// and inlines the later ones, ours inlines all of them. ResetWrite() replaces `m_DataLen = m_Pos = 1` (the
-// original stores m_Pos first through one reload of the packet).
+// Wave 6: both packets are CPacketRefs declared before tempQuery (the original releases them after tempQuery's
+// destructor, and each `->` is a pending inline site: the first ReadType<uint8> now stays out of line), subID is a
+// uint32 (compared as an int) and SendTo takes `&m_Queries[i].m_Addr` (the original recomputes it after the
+// calls). Aligned 166 -> 9: the original doesn't keep 0 in ebx across the receive loop (ours re-zeroes ebx after
+// the send loop for the CPacketRef null tests and the ReadType dummy argument).
 // STUB: LITHTECH 0x00498240
 LTRESULT CUDPDriver::UpdateQuery()
 {
+	CPacketRef cQueryPacket, cPacket;
 	CUDPQuery tempQuery;
 	CUDPQuery *pQuery;
-	CPacket *pQueryPacket, *pPacket;
 	sockaddr_in addr;
-	uint8 queryIndex, subID;
+	uint8 queryIndex;
+	uint32 subID;
 	char *pInfo;
 	uint32 i;
 	int nBytes, index;
 
-	pQueryPacket = LTNULL;
 	queryIndex = 0;
 
 	if(!m_QuerySocket)
@@ -535,16 +540,16 @@ LTRESULT CUDPDriver::UpdateQuery()
 	// Send out the queries every second.
 	if(time_GetTime() - m_LastQueryTime >= 1.0f)
 	{
-		pQueryPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
-		pQueryPacket->m_Data[0] = 0;
+		cQueryPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+		cQueryPacket->m_Data[0] = 0;
 
 		for(i=0; i < m_Queries; i++)
 		{
 			pQuery = &m_Queries[i];
 
-			pQueryPacket->ResetWrite();
-			pQueryPacket->WriteType((uint8)TCPSUB_QUERY);
-			pQueryPacket->WriteRaw(&m_pNetMgr->m_guidApp, sizeof(LTGUID));
+			cQueryPacket->ResetWrite();
+			cQueryPacket->WriteType((uint8)TCPSUB_QUERY);
+			cQueryPacket->WriteRaw(m_pNetMgr->GetAppGuid(), sizeof(LTGUID));
 
 			if(pQuery->m_iTime == 0xFF)
 			{
@@ -557,27 +562,27 @@ LTRESULT CUDPDriver::UpdateQuery()
 				pQuery->m_SendTimes[queryIndex] = time_GetTime();
 			}
 
-			pQueryPacket->WriteType(queryIndex);
-			SendTo(m_QuerySocket, pQueryPacket->m_Data.GetArray(), pQueryPacket->m_DataLen, &pQuery->m_Addr);
+			cQueryPacket->WriteType(queryIndex);
+			SendTo(m_QuerySocket, cQueryPacket->m_Data.GetArray(), cQueryPacket->m_DataLen, &m_Queries[i].m_Addr);
 		}
 
 		m_LastQueryTime = time_GetTime();
 	}
 
 	// Read the responses.
-	pPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
-	while((nBytes = tcp_RecvFrom(this, m_QuerySocket, pPacket->m_Data.GetArray(), pPacket->m_Data.GetSize(), &addr)) != -1)
+	cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+	while((nBytes = tcp_RecvFrom(this, m_QuerySocket, cPacket->m_Data.GetArray(), cPacket->m_Data.GetSize(), &addr)) != -1)
 	{
-		pPacket->m_DataLen = (uint16)nBytes;
-		pPacket->m_Pos = 1;
+		cPacket->m_DataLen = (uint16)nBytes;
+		cPacket->m_Pos = 1;
 
-		subID = pPacket->ReadType((uint8*)0);
-		if((pPacket->m_ErrorFlags & PACKETERR_READOVERFLOW) || subID != TCPSUB_QUERYRESPONSE)
+		subID = cPacket->ReadType((uint8*)0);
+		if((cPacket->m_ErrorFlags & PACKETERR_READOVERFLOW) || subID != TCPSUB_QUERYRESPONSE)
 			continue;
 
-		pInfo = pPacket->ReadString();
-		queryIndex = pPacket->ReadType((uint8*)0);
-		if(pPacket->m_ErrorFlags & PACKETERR_READOVERFLOW)
+		pInfo = cPacket->ReadString();
+		queryIndex = cPacket->ReadType((uint8*)0);
+		if(cPacket->m_ErrorFlags & PACKETERR_READOVERFLOW)
 			continue;
 
 		index = FindAddrInList(&addr, m_Queries);
@@ -625,10 +630,6 @@ LTRESULT CUDPDriver::UpdateQuery()
 			}
 		}
 	}
-
-	pPacket->Release();
-	if(pQueryPacket)
-		pQueryPacket->Release();
 
 	return LT_OK;
 }
@@ -840,13 +841,18 @@ LTRESULT CUDPDriver::JoinSession(NetSession *pSession)
 }
 
 
-// Inlines CPacket::ReadType/WriteType where the original calls the out-of-line copies (inline budget).
+// Wave 6: SIZE 236 -> 88 aligned (1424 bytes vs 1408). The connect-request replies are block-scoped CPacketRefs
+// (their `->` uses are the pending sites that keep the accepted reply's WriteType and AddHead's InsertBefore out
+// of line, as in the original; 7 free calls in the accept block do the same). The QUERY reply as a CPacketRef too
+// is 95. Left: the reject path's `SendTo; Release; return` tail, which the original cross-jumps into the QUERY
+// reply's identical tail (ours loads the Release vtable into eax there, the QUERY tail into edx, so they don't
+// merge), and register order in the conn-request/disconnect IP prints. The InsertBefore STANDIN stays until this
+// matches.
 // STUB: LITHTECH 0x00498cb0
 void CUDPDriver::HandleDriverPacket(CPacket *pPacket, sockaddr_in *pSender)
 {
 	uint8 subPacketID, queryIndex;
 	LTGUID guid;
-	CPacket *pReply;
 	CUDPConn *pConn;
 	LTBOOL bWrongGUID;
 	int i;
@@ -880,7 +886,7 @@ void CUDPDriver::HandleDriverPacket(CPacket *pPacket, sockaddr_in *pSender)
 
 			queryIndex = pPacket->ReadType((uint8*)0);
 
-			pReply = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
+			CPacket *pReply = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
 			pReply->m_Data[0] = 0;
 			pReply->WriteType((uint8)TCPSUB_QUERYRESPONSE);
 			pReply->WriteString(m_pSessionName ? m_pSessionName : g_EmptyString);
@@ -923,17 +929,17 @@ void CUDPDriver::HandleDriverPacket(CPacket *pPacket, sockaddr_in *pSender)
 					m_Connections.AddHead(pConn, &pConn->m_Link);
 
 					// Tell them they're in.
-					pReply = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
-					pReply->m_Data[0] = 0;
-					pReply->WriteType((uint8)TCPSUB_CONNECTACCEPTED);
+					CPacketRef cReply;
+					cReply = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+					cReply->m_Data[0] = 0;
+					cReply->WriteType((uint8)TCPSUB_CONNECTACCEPTED);
 					for(i=0; i < 5; i++)
 					{
-						SendTo(m_Socket, pReply->m_Data.GetArray(), pReply->m_DataLen, pSender);
+						SendTo(m_Socket, cReply->m_Data.GetArray(), cReply->m_DataLen, pSender);
 					}
 
 					pConn->m_bConnected = TRUE;
 					m_pNetMgr->ResendGuaranteed(pConn);
-					pReply->Release();
 					return;
 				}
 				else
@@ -942,15 +948,15 @@ void CUDPDriver::HandleDriverPacket(CPacket *pPacket, sockaddr_in *pSender)
 				}
 			}
 
-			pReply = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
-			pReply->m_Data[0] = 0;
+			CPacketRef cReply;
+			cReply = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+			cReply->m_Data[0] = 0;
 			if(bWrongGUID)
-				pReply->WriteType((uint8)TCPSUB_NOTSAMEGUID);
+				cReply->WriteType((uint8)TCPSUB_NOTSAMEGUID);
 			else
-				pReply->WriteType((uint8)TCPSUB_CONNECTREJECTED);
+				cReply->WriteType((uint8)TCPSUB_CONNECTREJECTED);
 
-			SendTo(m_Socket, pReply->m_Data.GetArray(), pReply->m_DataLen, pSender);
-			pReply->Release();
+			SendTo(m_Socket, cReply->m_Data.GetArray(), cReply->m_DataLen, pSender);
 			return;
 		}
 	}
@@ -1148,14 +1154,15 @@ LTBOOL CUDPDriver::GetLocalIpAddress(char* sBuffer, uint32 dwBufferSize, uint16 
 }
 
 
-// Inlines CPacket::WriteType where the original calls the out-of-line copies (inline budget).
-// STUB: LITHTECH 0x004995f0 ?JoinSession@CUDPDriver@@QAEKPAUsockaddr_in@@@Z
+// The request and reply are CPacketRefs (their destructors fold away on the early returns; each `->` is a
+// pending inline site, which keeps the early WriteTypes out of line), and addrStr is 128 bytes (the frame).
+// FUNCTION: LITHTECH 0x004995f0 ?JoinSession@CUDPDriver@@QAEKPAUsockaddr_in@@@Z
 LTRESULT CUDPDriver::JoinSession(sockaddr_in *pAddr)
 {
 	sockaddr_in addr, localAddr, fromAddr, sockName;
-	char addrStr[100];
+	char addrStr[128];
 	SOCKET theSocket;
-	CPacket *pRequest, *pReply;
+	CPacketRef cRequest, cReply;
 	CUDPConn *pConn;
 	DWORD startTime, lastSendTime, curTime;
 	int nBytes, nameLen, status;
@@ -1184,13 +1191,13 @@ LTRESULT CUDPDriver::JoinSession(sockaddr_in *pAddr)
 	if(g_CV_IPDebug)
 		dsi_ConsolePrint("Joining on port %d", ntohs(localAddr.sin_port));
 
-	pRequest = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
-	pRequest->m_Data[0] = 0;
-	pRequest->WriteType((uint8)TCPSUB_CONNECTREQUEST);
-	pRequest->WriteType((uint8)0);
-	pRequest->WriteRaw(&m_pNetMgr->m_guidApp, sizeof(LTGUID));
+	cRequest = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
+	cRequest->m_Data[0] = 0;
+	cRequest->WriteType((uint8)TCPSUB_CONNECTREQUEST);
+	cRequest->WriteType((uint8)0);
+	cRequest->WriteRaw(&m_pNetMgr->m_guidApp, sizeof(LTGUID));
 
-	pReply = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
+	cReply = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
 
 	startTime = timeGetTime();
 	lastSendTime = startTime - 300;
@@ -1211,24 +1218,24 @@ LTRESULT CUDPDriver::JoinSession(sockaddr_in *pAddr)
 					ntohs(addr.sin_port));
 			}
 
-			SendTo(theSocket, pRequest->m_Data.GetArray(), pRequest->m_DataLen, &addr);
+			SendTo(theSocket, cRequest->m_Data.GetArray(), cRequest->m_DataLen, &addr);
 			lastSendTime = curTime;
 		}
 
-		nBytes = tcp_RecvFrom(this, theSocket, pReply->m_Data.GetArray(), pReply->m_Data.GetSize(), &fromAddr);
+		nBytes = tcp_RecvFrom(this, theSocket, cReply->m_Data.GetArray(), cReply->m_Data.GetSize(), &fromAddr);
 		if(nBytes == -1 || nBytes == 0)
 			continue;
 
 		if(g_CV_IPDebug)
-			dsi_ConsolePrint("IP: Got PacketID %d (len %d) while connecting", pReply->m_Data[0], nBytes);
+			dsi_ConsolePrint("IP: Got PacketID %d (len %d) while connecting", cReply->m_Data[0], nBytes);
 
-		pReply->m_DataLen = (uint16)nBytes;
-		pReply->m_Pos = 1;
-		if(pReply->m_Data[0] != 0)
+		cReply->m_DataLen = (uint16)nBytes;
+		cReply->m_Pos = 1;
+		if(cReply->m_Data[0] != 0)
 			continue;
 
-		subID = pReply->ReadType((uint8*)0);
-		if(pReply->m_ErrorFlags & PACKETERR_READOVERFLOW)
+		subID = cReply->ReadType((uint8*)0);
+		if(cReply->m_ErrorFlags & PACKETERR_READOVERFLOW)
 			continue;
 
 		if(subID == TCPSUB_CONNECTACCEPTED)
@@ -1250,7 +1257,7 @@ LTRESULT CUDPDriver::JoinSession(sockaddr_in *pAddr)
 					ntohs(fromAddr.sin_port));
 			}
 
-			if(pReply->m_ErrorFlags & PACKETERR_READOVERFLOW)
+			if(cReply->m_ErrorFlags & PACKETERR_READOVERFLOW)
 				continue;
 
 			pConn = new CUDPConn;
@@ -1288,8 +1295,6 @@ LTRESULT CUDPDriver::JoinSession(sockaddr_in *pAddr)
 				}
 			}
 
-			pReply->Release();
-			pRequest->Release();
 			return LT_OK;
 		}
 		else if(subID == TCPSUB_CONNECTREJECTED)
@@ -1306,8 +1311,6 @@ LTRESULT CUDPDriver::JoinSession(sockaddr_in *pAddr)
 
 			closesocket(theSocket);
 			GENERATE_ERROR(2, TCPDriver::JoinSession, LT_REJECTED, addrStr);
-			pReply->Release();
-			pRequest->Release();
 			return LT_REJECTED;
 		}
 		else if(subID == TCPSUB_NOTSAMEGUID)
@@ -1324,16 +1327,12 @@ LTRESULT CUDPDriver::JoinSession(sockaddr_in *pAddr)
 
 			closesocket(theSocket);
 			GENERATE_ERROR(2, TCPDriver::JoinSession, LT_NOTSAMEGUID, addrStr);
-			pReply->Release();
-			pRequest->Release();
 			return LT_NOTSAMEGUID;
 		}
 	}
 	while(curTime - startTime < 10000);
 
 	GENERATE_ERROR(2, TCPDriver::JoinSession, LT_TIMEOUT, addrStr);
-	pReply->Release();
-	pRequest->Release();
 	return LT_TIMEOUT;
 }
 

@@ -294,9 +294,9 @@ inline LTRESULT ReadObjectSubPacket(CClientShell *pShell, CPacket *pPacket, uint
 	InternalObjectSetup objectSetup;
 	AnimInfoSet animSet;
 
-	pObject = LTNULL;
 	cSFXData = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
 	objectSetup.m_pSetup = &createStruct;
+	pObject = LTNULL;
 
 	if(flags & CF_NEWOBJECT)
 	{
@@ -375,6 +375,9 @@ inline LTRESULT ReadObjectSubPacket(CClientShell *pShell, CPacket *pPacket, uint
 // Inline budget: the original reads the second change flag byte out of line (ours inlines it) and
 // expands CPacketRef's temporary destructor inline; ours does the opposite. Wave 5: inline_scan p1/p2 gets at
 // best 566 bytes (a free call after the SoundSubPacket objectID read), never a MATCH.
+// Wave 6: Jupiter's per-branch `if(dResult != LT_OK) return dResult;` and ReadObjectSubPacket's pObject store
+// after the packet_Get (the original's store order) take it from 148 to 99 aligned (ignoring stack offsets);
+// the two inline decisions above (and the 4-byte frame difference from the inlined ReadType) remain.
 // STUB: LITHTECH 0x0048ada0
 LTRESULT OnUpdatePacket(CClientShell *pShell, CPacket *pPacket)
 {
@@ -417,6 +420,8 @@ LTRESULT OnUpdatePacket(CClientShell *pShell, CPacket *pPacket)
 			if(subType == UPDATESUB_PLAYSOUND)
 			{
 				dResult = ReadPlaySound(pShell, pPacket);
+				if(dResult != LT_OK)
+					return dResult;
 			}
 			else if(subType == UPDATESUB_SOUNDTRACK)
 			{
@@ -425,19 +430,20 @@ LTRESULT OnUpdatePacket(CClientShell *pShell, CPacket *pPacket)
 				// Object identification.
 				objectID = pPacket->ReadType((uint16*)0);
 				dResult = ReadSoundSubPacket(pShell, pPacket, objectID, flags);
+				if(dResult != LT_OK)
+					return dResult;
 			}
 			else if(subType == UPDATESUB_OBJECTREMOVES)
 			{
 				dResult = ReadObjectRemoves(pShell, pPacket);
+				if(dResult != LT_OK)
+					return dResult;
 			}
 			else
 			{
 				pShell->m_pClientMgr->SetupError(LT_INVALIDSERVERPACKET);
 				RETURN_ERROR(1, OnUpdatePacket, LT_INVALIDSERVERPACKET);
 			}
-
-			if(dResult != LT_OK)
-				return dResult;
 		}
 	}
 
@@ -780,14 +786,16 @@ static void ReadAnimInfoSet(CClientShell *pShell, CPacket *pPacket, AnimInfoSet 
 
 
 // A new object's type, filenames and special effect data.
-// The original keeps one shared tail for the object types; ours duplicates it per branch. The original keeps
-// objectType in dl and converts it with `xor ax,ax; mov al,dl` for the m_ObjectType store; ours spills it and
-// reloads with movzx, so the tail is not the only difference.
+// Wave 6: longSFXMark is a uint8 (Jupiter's type; the original tests it with `and al, 0x80`): SIZE 144 -> DIFF 61
+// aligned, same size and shared tail. Left: register allocation. The original loads pStruct into ebx once and
+// the m_CreateFlags word once before the 0x20 test (ours reloads pStruct from the stack in the else branch), and
+// keeps the constant 2 in edi only from the FILE_SERVERFILE store on (ours puts it in ebx from the start).
+// Tried: if/else bodies swapped or braced, a ternary (1008 bytes), hillclimb (no move helps).
 // STUB: LITHTECH 0x0048bfe0
 static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct, CPacket *pSFXData)
 {
-	uint8 objectType;
-	LTBOOL bSFXMessage, longSFXMark;
+	LTBOOL bSFXMessage;
+	uint8 objectType, longSFXMark;
 	int i;
 
 	objectType = pPacket->ReadType((uint8*)0);
@@ -1242,6 +1250,8 @@ LTRESULT OnServerGameTime(CClientShell *pShell, CPacket *pPacket)
 // original pushes &m_Message, then loads the shell, then reloads messageID).
 // Wave 6 tried: locals for the client shell or the client manager (before SetupPacketMessage too, worse), inline
 // accessors for both, GetMessageImpl(), an HMESSAGEREAD cast, uint32/int/uint16 messageID (worse).
+// Phase 2 also tried: `messageID = 0;` before the if, an inline helper for the last-byte read, an inline bytes-left
+// helper, a pMsg local before/after SetupPacketMessage, a (uint8) cast in the call: all unchanged or worse.
 LTRESULT OnMessagePacket(CClientShell *pShell, CPacket *pPacket)
 {
 	uint8 messageID;

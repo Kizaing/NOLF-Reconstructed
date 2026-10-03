@@ -160,6 +160,9 @@ char* SMoveAbstract::GetObjectClassName(LTObject *pObject)
 
 // Register allocation: VC6 keeps 0 in esi here and splits the CountAdder add (orig: immediate zeros, `add [ecx],eax`).
 // Moving MoveState before the counter makes the size match but worsens the diff.
+// Wave 6 phase 2: the exe also adds with `add [ecx],eax` and folds the pops into one `add esp,0x90` (no esi saved);
+// CPhysicsLT::MoveObject's matched CountAdder uses load/add/store. MoveState first: 208 bytes, 40 aligned; counter
+// before ++g_nMoveObjectCalls: 38; a WorldTree* local, an inner block, postincrement: no change.
 // STUB: LITHTECH 0x0048f130
 void FullMoveObject(CServerMgr *pServerMgr, LTObject *pObj, const LTVector *pP1, uint32 flags)
 {

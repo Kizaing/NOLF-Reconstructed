@@ -410,58 +410,15 @@ void cm_RemoveModelObjects(CClientMgr *pClientMgr, Model *pModel, FileIdentifier
 
 LTRESULT cm_AddSharedTexture2(CClientMgr *pClientMgr, FileRef *pRef, SharedTexture *&pTexture);	// 0x00426010
 
-// Sets a model skin from a .dtx or the current frame of a .spr.
-// FUNCTION: LITHTECH 0x0048a2b0
-LTRESULT ModelSetTexture(CClientMgr *pClientMgr, FileRef *pRef, ModelInstance *&pInstance, uint32 index)
-{
-	int len;
-	char endChars[4];
-	const char *pName;
-	LTRESULT dResult;
-
-	pInstance->m_pSprites[index] = LTNULL;
-
-	pName = cf_GetFilename(pClientMgr->m_hFileMgr, pRef);
-	len = strlen(pName);
-
-	if (len > 3)
-	{
-		endChars[0] = pName[len-3];
-		endChars[1] = pName[len-2];
-		endChars[2] = pName[len-1];
-		endChars[3] = 0;
-
-		if (du_UpperStrcmp(endChars, "DTX"))
-		{
-			return cm_AddSharedTexture2(pClientMgr, pRef, pInstance->m_pSkins[index]);
-		}
-		else if (du_UpperStrcmp(endChars, "SPR"))
-		{
-			dResult = LoadSprite(pClientMgr, pRef, &pInstance->m_pSprites[index]);
-			if (dResult != LT_OK)
-				return dResult;
-
-			spr_InitTracker((SpriteTracker*)pInstance->m_SpriteTrackers[index], pInstance->m_pSprites[index]);
-			if (((SpriteTracker*)pInstance->m_SpriteTrackers[index])->m_pCurFrame)
-			{
-				pRef->m_pFilename = ((SpriteTracker*)pInstance->m_SpriteTrackers[index])->m_pCurFrame->m_pTex->m_pFile->m_Filename;
-				return cm_AddSharedTexture2(pClientMgr, pRef, pInstance->m_pSkins[index]);
-			}
-		}
-	}
-
-	return LT_ERROR;
-}
-
+LTRESULT ModelSetTexture(CClientMgr *pClientMgr, FileRef *pRef, ModelInstance *&pInstance, uint32 index);
 
 // ------------------------------------------------------------------ //
 // Static functions to implement the table functions.
 // ------------------------------------------------------------------ //
 
-// STUB: LITHTECH 0x0048a100
-// The original keeps the object in its (address-taken) argument slot (ModelSetTexture takes ModelInstance *&) and
-// reloads it every iteration; we cache it in edi/ebp and strength-reduce the pSkins pointer. Making the parameter itself a
-// ModelInstance*, passing (ModelInstance*&)pObject, or dropping the local did not stop the caching.
+// ModelSetTexture is defined after this function (as in the exe): when VC6 has already compiled it, it knows the
+// callee never writes through its ModelInstance *& and caches pModelInstance in a register.
+// FUNCTION: LITHTECH 0x0048a100
 LTRESULT ModelExtraInit(CClientMgr *pClientMgr, LTObject *pObject,
 	InternalObjectSetup *pSetup, LTBOOL bLocalFromServer)
 {
@@ -531,6 +488,50 @@ LTRESULT ModelExtraInit(CClientMgr *pClientMgr, LTObject *pObject,
 	}
 
 	return LT_OK;
+}
+
+
+// Sets a model skin from a .dtx or the current frame of a .spr.
+// FUNCTION: LITHTECH 0x0048a2b0
+LTRESULT ModelSetTexture(CClientMgr *pClientMgr, FileRef *pRef, ModelInstance *&pInstance, uint32 index)
+{
+	int len;
+	char endChars[4];
+	const char *pName;
+	LTRESULT dResult;
+
+	pInstance->m_pSprites[index] = LTNULL;
+
+	pName = cf_GetFilename(pClientMgr->m_hFileMgr, pRef);
+	len = strlen(pName);
+
+	if (len > 3)
+	{
+		endChars[0] = pName[len-3];
+		endChars[1] = pName[len-2];
+		endChars[2] = pName[len-1];
+		endChars[3] = 0;
+
+		if (du_UpperStrcmp(endChars, "DTX"))
+		{
+			return cm_AddSharedTexture2(pClientMgr, pRef, pInstance->m_pSkins[index]);
+		}
+		else if (du_UpperStrcmp(endChars, "SPR"))
+		{
+			dResult = LoadSprite(pClientMgr, pRef, &pInstance->m_pSprites[index]);
+			if (dResult != LT_OK)
+				return dResult;
+
+			spr_InitTracker((SpriteTracker*)pInstance->m_SpriteTrackers[index], pInstance->m_pSprites[index]);
+			if (((SpriteTracker*)pInstance->m_SpriteTrackers[index])->m_pCurFrame)
+			{
+				pRef->m_pFilename = ((SpriteTracker*)pInstance->m_SpriteTrackers[index])->m_pCurFrame->m_pTex->m_pFile->m_Filename;
+				return cm_AddSharedTexture2(pClientMgr, pRef, pInstance->m_pSkins[index]);
+			}
+		}
+	}
+
+	return LT_ERROR;
 }
 
 

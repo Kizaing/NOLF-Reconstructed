@@ -31,7 +31,8 @@ struct WorldPoly
 	float		m_Radius;		// 0x24 bounding sphere radius (w_CalcBoundingSpheres)
 	LTPlane		*m_pPlane;		// 0x28
 	void		*m_pSurface;	// 0x2c Surface* (de_world.h)
-	uint8		m_Pad30[0x44 - 0x30];
+	uint8		m_Pad30[0x38 - 0x30];
+	LTVector	m_Unknown38;	// 0x38 read from the world file (w_LoadWorldBsp)
 	uint16		m_iNextSurfacePoly;	// 0x44 next poly on the same Surface (0xFFFF ends)
 	uint8		m_Pad46[0x4c - 0x46];
 	uint8		m_LMWidth;		// 0x4c lightmap size in samples

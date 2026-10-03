@@ -104,6 +104,7 @@ void sm_SaveInterlinks(CServerMgr *pServerMgr, LTObject *pObject, ILTStream *pSt
 // STUB: LITHTECH 0x00438fb0
 // Register allocation: the original keeps the world-model loop counter in memory and pObjects in ebx.
 // Wave 5: moving every local declaration to every other position (156 compiles) found no improvement over 674.
+// Wave 6: a statement hill-climb (156 candidates) found nothing either (31 aligned; ebx/ebp swapped for pObjects).
 void sm_SaveObjects(CServerMgr *pServerMgr, ILTStream *pStream, ObjectList *pList, uint32 dwParam,
 	uint32 flags)
 {
@@ -695,6 +696,11 @@ LTRESULT sm_RestoreObjects(CServerMgr *pServerMgr, ILTStream *pStream, uint32 dw
 #define OBJECTCREATED_SAVEGAME	0x40400000
 
 // STUB: LITHTECH 0x00439f40
+// Wave 6 findings (155 aligned): the original frame is 0x50 bytes larger (0x938). It has a function-scope
+// CPacketRef at [esp+0x70], zeroed at entry and released before ~LTObject on every return (declared after
+// tempObj), and a second block of zero-initialised words ([esp+0x2c..0x30], [0x78..0x84]) besides the MoveState
+// at 0xa0; inside the inlined createStruct.Clear() it calls LTRotation::Init (0x402ed0) out of line where we
+// inline it. An unused CPacketRef/MoveState local alone doesn't reproduce it (154).
 LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObject **ppObj,
 	uint32 dwParam)
 {

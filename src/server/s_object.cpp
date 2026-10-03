@@ -136,6 +136,112 @@ void sm_FreeAllModels(CServerMgr *pServerMgr)
 	}
 }
 
+// Updates the object's physics (Jupiter's PhysicsUpdateObject).
+inline void PhysicsUpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
+{
+	const LTVector P0 = pObj->GetPos();
+	LTVector vAcceleration = pObj->m_Acceleration;
+	float dt = pServerMgr->m_FrameTime;
+	ContainerPhysics cPhysics;
+	MotionState *pState;
+	LTLink *pCur, *pListHead;
+	InterLink *pLink;
+	LTVector dr;
+	LTBOOL bMoved;
+	int32 nActualContainers;
+
+	// If physics is disabled, drop out early.
+	if (!(pObj->m_InternalFlags & IFLAG_APPLYPHYSICS))
+		return;
+
+	pState = pServerMgr->GetMotionState();
+	pState->m_dt = dt;
+	pState->m_pObj = pObj;
+
+	// If the object is a container, find what other objects are in contact with it and affect
+	// their physics.
+	if (!(pObj->m_Flags & FLAG_CONTAINER) && pObj->sd->m_Links.m_pNext != &pObj->sd->m_Links)
+	{
+		cPhysics.m_Acceleration = pObj->m_Acceleration;
+		cPhysics.m_Velocity = pObj->m_Velocity;
+		cPhysics.m_Flags = pObj->m_Flags;
+		cPhysics.m_hObject = (HOBJECT)pObj;
+
+		// Let each container modify the physics.
+		nActualContainers = 0;
+		pListHead = &pObj->sd->m_Links;
+		for (pCur=pListHead->m_pNext; pCur != pListHead;)
+		{
+			pLink = (InterLink*)pCur->m_pData;
+			pCur = pCur->m_pNext;
+
+			if (pLink->m_Type == LINKTYPE_CONTAINER && (pLink->m_pOwner->m_Flags & FLAG_CONTAINER))
+			{
+				pLink->m_pOwner->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &cPhysics, 0.0f);
+				nActualContainers++;
+			}
+		}
+
+		pState->m_Flags = cPhysics.m_Flags;
+		pState->m_pVelocity = &cPhysics.m_Velocity;
+		pState->m_pAcceleration = &cPhysics.m_Acceleration;
+		bMoved = CalcMotion(pState);
+
+		pObj->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &pState->m_Offset, 0.0f);
+		dr = pState->m_Offset;
+
+		// Don't let this flag clear when in a container.
+		if (nActualContainers)
+			pObj->m_InternalFlags |= IFLAG_APPLYPHYSICS;
+	}
+	else
+	{
+		pState->m_pAcceleration = &pObj->m_Acceleration;
+		pState->m_pVelocity = &pObj->m_Velocity;
+		pState->m_Flags = pObj->m_Flags;
+		bMoved = CalcMotion(pState);
+
+		if (!(pObj->m_Flags & FLAG_CONTAINER))
+			pObj->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &pState->m_Offset, 0.0f);
+
+		dr = pState->m_Offset;
+	}
+
+	if (!bMoved)
+		return;
+
+	// Call MoveObject() for it automatically if tried to move at all.
+	if (dr.MagSqr() > 0.001f)
+	{
+		const LTVector P1 = pObj->GetPos() + dr;
+
+		FullMoveObject(pServerMgr, pObj, &P1, MO_DETACHSTANDING | MO_MOVESTANDINGONS);
+
+		// Remove it if it's outside.
+		if ((pObj->m_Flags & FLAG_REMOVEIFOUTSIDE) && pServerMgr->m_World.m_bLoaded &&
+			(pObj->GetPos().x < pServerMgr->m_World.m_BoxMin.x ||
+			pObj->GetPos().y < pServerMgr->m_World.m_BoxMin.y ||
+			pObj->GetPos().z < pServerMgr->m_World.m_BoxMin.z ||
+			pObj->GetPos().x > pServerMgr->m_World.m_BoxMax.x ||
+			pObj->GetPos().y > pServerMgr->m_World.m_BoxMax.y ||
+			pObj->GetPos().z > pServerMgr->m_World.m_BoxMax.z))
+		{
+			AddObjectToRemoveList(pServerMgr, pObj);
+			return;
+		}
+
+		// If it's still in the world, set its change flags..
+		if (pObj->m_InternalFlags & IFLAG_INWORLD)
+		{
+			if ((pObj->GetPos() - P0).MagSqr() > 0.001f)
+				SetObjectChangeFlags(pServerMgr, pObj, CF_POSITION);
+		}
+	}
+
+	pObj->m_Acceleration = vAcceleration;
+}
+
+
 // Updates the object (called once per frame): the model's trackers, the update countdown and the
 // object's physics.
 // STUB: LITHTECH 0x00477120
@@ -148,6 +254,13 @@ void sm_FreeAllModels(CServerMgr *pServerMgr)
 // is right (1056/1088) and the ctor call appears only when cPhysics lives in the nested helper (then it sits
 // after the IFLAG_APPLYPHYSICS test instead of before it); any ballast then makes the whole helper
 // out-of-line (size 208). So the cost is a top-level inline of ~96 units whose source is still unknown.
+// Wave 6: the physics block as one inline PhysicsUpdateObject (no GetPhysicsVector, all its locals declared
+// at its top) plus GetPos() for the six remove-if-outside compares: aligned 183 -> 102, SIZE 1040, and every
+// out-of-line site of the original is out of line except the ContainerPhysics ctor (still inlined; its call
+// is what keeps `dt` in a stack slot in the original). 8 units of direct if(0) ballast inside the helper make
+// everything but the frame/ebx-ebp choice match (77 aligned, ctor still inline); 16 push the whole helper out of
+// line. Tried: an IsOutsideWorld inline (Jupiter's), dt as a helper parameter, dead stores (VEC_INIT(dr),
+// bMoved = FALSE: dead stores add no cost), dr.Init(), Dot for the second MagSqr: none better.
 void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 {
 	uint32 nFrameTimeMS;
@@ -185,108 +298,7 @@ void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 	}
 
 	// Update the object's physics.
-	{
-		const LTVector P0 = pObj->GetPos();
-		LTVector vAcceleration = pObj->m_Acceleration;
-		float dt = pServerMgr->m_FrameTime;
-		ContainerPhysics cPhysics;
-		MotionState *pState;
-		LTLink *pCur, *pListHead;
-		InterLink *pLink;
-		LTVector dr;
-		LTBOOL bMoved;
-		int32 nActualContainers;
-
-		// If physics is disabled, drop out early.
-		if (!(pObj->m_InternalFlags & IFLAG_APPLYPHYSICS))
-			return;
-
-		pState = pServerMgr->GetMotionState();
-		pState->m_dt = dt;
-		pState->m_pObj = pObj;
-
-		// If the object is a container, find what other objects are in contact with it and affect
-		// their physics.
-		if (!(pObj->m_Flags & FLAG_CONTAINER) && pObj->sd->m_Links.m_pNext != &pObj->sd->m_Links)
-		{
-			cPhysics.m_Acceleration = pObj->m_Acceleration;
-			cPhysics.m_Velocity = pObj->m_Velocity;
-			cPhysics.m_Flags = pObj->m_Flags;
-			cPhysics.m_hObject = (HOBJECT)pObj;
-
-			// Let each container modify the physics.
-			nActualContainers = 0;
-			pListHead = &pObj->sd->m_Links;
-			for (pCur=pListHead->m_pNext; pCur != pListHead;)
-			{
-				pLink = (InterLink*)pCur->m_pData;
-				pCur = pCur->m_pNext;
-
-				if (pLink->m_Type == LINKTYPE_CONTAINER && (pLink->m_pOwner->m_Flags & FLAG_CONTAINER))
-				{
-					pLink->m_pOwner->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &cPhysics, 0.0f);
-					nActualContainers++;
-				}
-			}
-
-			pState->m_Flags = cPhysics.m_Flags;
-			pState->m_pVelocity = &cPhysics.m_Velocity;
-			pState->m_pAcceleration = &cPhysics.m_Acceleration;
-			bMoved = CalcMotion(pState);
-
-			pObj->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &pState->m_Offset, 0.0f);
-			dr = pState->m_Offset;
-
-			// Don't let this flag clear when in a container.
-			if (nActualContainers)
-				pObj->m_InternalFlags |= IFLAG_APPLYPHYSICS;
-		}
-		else
-		{
-			pState->m_pAcceleration = &pObj->m_Acceleration;
-			pState->m_pVelocity = &pObj->m_Velocity;
-			pState->m_Flags = pObj->m_Flags;
-			bMoved = CalcMotion(pState);
-
-			if (!(pObj->m_Flags & FLAG_CONTAINER))
-				pObj->sd->m_pObject->EngineMessageFn(MID_AFFECTPHYSICS, &pState->m_Offset, 0.0f);
-
-			dr = pState->m_Offset;
-		}
-
-		if (!bMoved)
-			return;
-
-		// Call MoveObject() for it automatically if tried to move at all.
-		if (dr.MagSqr() > 0.001f)
-		{
-			const LTVector P1 = pObj->GetPos() + dr;
-
-			FullMoveObject(pServerMgr, pObj, &P1, MO_DETACHSTANDING | MO_MOVESTANDINGONS);
-
-			// Remove it if it's outside.
-			if ((pObj->m_Flags & FLAG_REMOVEIFOUTSIDE) && pServerMgr->m_World.m_bLoaded &&
-				(pObj->m_Pos.x < pServerMgr->m_World.m_BoxMin.x ||
-				pObj->m_Pos.y < pServerMgr->m_World.m_BoxMin.y ||
-				pObj->m_Pos.z < pServerMgr->m_World.m_BoxMin.z ||
-				pObj->m_Pos.x > pServerMgr->m_World.m_BoxMax.x ||
-				pObj->m_Pos.y > pServerMgr->m_World.m_BoxMax.y ||
-				pObj->m_Pos.z > pServerMgr->m_World.m_BoxMax.z))
-			{
-				AddObjectToRemoveList(pServerMgr, pObj);
-				return;
-			}
-
-			// If it's still in the world, set its change flags..
-			if (pObj->m_InternalFlags & IFLAG_INWORLD)
-			{
-				if ((pObj->GetPos() - P0).MagSqr() > 0.001f)
-					SetObjectChangeFlags(pServerMgr, pObj, CF_POSITION);
-			}
-		}
-
-		pObj->m_Acceleration = vAcceleration;
-	}
+	PhysicsUpdateObject(pServerMgr, pObj);
 }
 
 

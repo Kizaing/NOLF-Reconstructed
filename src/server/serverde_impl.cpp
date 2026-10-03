@@ -1801,18 +1801,16 @@ LTRESULT si_GetPropRotation(char *pPropName, LTRotation *pRet)
 	return LT_NOTFOUND;
 }
 
-// Differs: the original copies the euler angles through a 16-byte float array on the stack like
-// si_GetPropRotation, but only z goes through it (x and y come straight from the property on the FPU stack);
-// every array/struct form tried (float[4] with element or struct copies, LTVector temp, LTRotation temp) lets VC6
-// forward all three and drops the 16-byte frame.
-// STUB: LITHTECH 0x0047f160
+// The property data is copied as a whole LTRotation (the 16-byte frame; VC6 forwards x and y but not z)
+// and the angles come out through LTVector::Init.
+// FUNCTION: LITHTECH 0x0047f160
 LTRESULT si_GetPropRotationEuler(char *pPropName, LTVector *pAngles)
 {
 	PropEntry *pProp = _FindProp(pPropName);
 	if (pProp && pProp->m_Type == PT_ROTATION)
 	{
-		LTVector angles = *(LTVector*)pProp->m_Data;
-		*pAngles = angles;
+		LTRotation rot = *(LTRotation*)pProp->m_Data;
+		pAngles->Init(rot.m_Quat[0], rot.m_Quat[1], rot.m_Quat[2]);
 		return LT_OK;
 	}
 

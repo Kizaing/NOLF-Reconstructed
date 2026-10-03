@@ -768,13 +768,9 @@ LTRESULT ClientCommonLT::GetPolyTextureFlags(HPOLY hPoly, uint32 *pFlags)
 	}
 }
 
-// STUB: LITHTECH 0x00405680
-// Register allocation: the original keeps the vertex count in edx and the output pointer in esi (ours: the reverse).
-// Local order, loop forms (while / break) and a vertex-array pointer local did not change it.
-// Wave 6: the ternary in GetNumVertices is where it starts: ours hoists one `xor esi,esi` above the compare, the
-// original zero-extends separately in each arm into edx. Writing the count inline with a (uint16) sum gets closest
-// (17 aligned vs 22) but isn't the original; also tried an if/else, `+=` form, the inverted test, an early
-// RETURN_ERROR for a null poly (worse), break in the loop, GetNumVertices() at each use (SIZE).
+// The output pointer is advanced per vertex (`*pVertexList = ...; pVertexList++`): indexing it gave the reverse
+// register assignment for the vertex count and the output pointer.
+// FUNCTION: LITHTECH 0x00405680
 LTRESULT ClientCommonLT::GetPolyInfo(HPOLY hPoly, LTPlane **ppPlane, LTVector *pVertexList,
 	uint32 nVertexListMaxSize, uint32 *pnNumVertices)
 {
@@ -797,7 +793,8 @@ LTRESULT ClientCommonLT::GetPolyInfo(HPOLY hPoly, LTPlane **ppPlane, LTVector *p
 		{
 			for(i=0; i < nVertices && i < nVertexListMaxSize; i++)
 			{
-				pVertexList[i] = *((SPolyVertex*)(pPoly + 1))[i].m_Vec;
+				*pVertexList = *((SPolyVertex*)(pPoly + 1))[i].m_Vec;
+				pVertexList++;
 			}
 		}
 
@@ -4124,7 +4121,8 @@ void ci_SetObjectRotation(HLOCALOBJ hObj, LTRotation *pRotation)
 // (Not matching: x87 scheduling of the pOut stores differs (52 bytes): the original copies the `vRight * wx` temporary
 // into *pOut only after the vUp products are issued.) Tried vTemp locals, compound `*=`/`+=` forms, one big expression.
 // Wave 6 tried: m_Pos instead of GetPos(), an LTVector* alias for pOut (worse), pOut->operator=(...), the first two
-// terms in one expression (SIZE), a statement hill-climb: still 5 aligned mismatches.
+// terms in one expression (SIZE), a statement hill-climb: still 5 aligned mismatches. (Phase 2: not revisited beyond
+// re-reading the schedule; the copy of the `vRight * wx` temporary into *pOut is pure scheduling.)
 LTRESULT ci_Get3DCameraPt(HLOCALOBJ hCamera, int sx, int sy, LTVector *pOut)
 {
 	CameraInstance *pCamera = (CameraInstance*)hCamera;

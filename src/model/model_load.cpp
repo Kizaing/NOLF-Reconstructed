@@ -498,43 +498,6 @@ LTBOOL Model::LoadWeightSets(ILTStream &file)
 }
 
 
-// FUNCTION: LITHTECH 0x00457090
-LTBOOL Model::LoadHeader(ILTStream &file, ModelAllocations &allocs)
-{
-	if(!FindSection(file, "Header"))
-		return LTFALSE;
-
-	file >> m_FileVersion;
-	if(m_FileVersion != 9 && m_FileVersion != 10 && m_FileVersion != 11 && m_FileVersion != 12)
-		return LTFALSE;
-
-	return allocs.Load(file) != 0;
-}
-
-
-// FUNCTION: LITHTECH 0x00457100
-LTRESULT Model::InitAllocations(ILTStream &file, LAlloc *pDelegate)
-{
-	ModelAllocations allocs;
-	uint32 allocSize;
-
-	if(!LoadHeader(file, allocs))
-		return LT_INVALIDFILE;
-
-	if(allocs.CalcAllocationSize(allocSize))
-	{
-		if(!m_BlockAlloc.Init(pDelegate, allocSize))
-			return LT_OUTOFMEMORY;
-
-		m_pAlloc = &m_BlockAlloc;
-		m_StringList.SetAlloc(&m_BlockAlloc);
-		g_ModelMemory += m_BlockAlloc.GetBlockSize();
-	}
-
-	return LT_OK;
-}
-
-
 // STUB: LITHTECH 0x00456390
 // Written to instantiate the same STLport code (0x004571a0-0x00459170); the control flow is not matched.
 // Wave 5 findings (3472 vs 3328 bytes):
@@ -915,6 +878,43 @@ Error:
 	Term(LTFALSE);
 	return err;
 }
+
+// FUNCTION: LITHTECH 0x00457090
+LTBOOL Model::LoadHeader(ILTStream &file, ModelAllocations &allocs)
+{
+	if(!FindSection(file, "Header"))
+		return LTFALSE;
+
+	file >> m_FileVersion;
+	if(m_FileVersion != 9 && m_FileVersion != 10 && m_FileVersion != 11 && m_FileVersion != 12)
+		return LTFALSE;
+
+	return allocs.Load(file) != 0;
+}
+
+
+// FUNCTION: LITHTECH 0x00457100
+LTRESULT Model::InitAllocations(ILTStream &file, LAlloc *pDelegate)
+{
+	ModelAllocations allocs;
+	uint32 allocSize;
+
+	if(!LoadHeader(file, allocs))
+		return LT_INVALIDFILE;
+
+	if(allocs.CalcAllocationSize(allocSize))
+	{
+		if(!m_BlockAlloc.Init(pDelegate, allocSize))
+			return LT_OUTOFMEMORY;
+
+		m_pAlloc = &m_BlockAlloc;
+		m_StringList.SetAlloc(&m_BlockAlloc);
+		g_ModelMemory += m_BlockAlloc.GetBlockSize();
+	}
+
+	return LT_OK;
+}
+
 
 // ------------------------------------------------------------------------ //
 // Template and inline instances this file kept (0x004571a0-0x00459170).

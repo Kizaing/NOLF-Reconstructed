@@ -76,7 +76,9 @@ void r_UnloadSystemTexture(TextureData *pTexture)
 // pops cm_AddSharedTexture's arguments (we pop first). Tried: type store before/after the pointer store, no pLinked temp,
 // comma expression, an else-chain: none moves the store across the pop.
 // Wave 6 tried: dropping the block's own `return LT_OK` (and an explicit else return), pointer store first with and
-// without pLinked, an early `if(!pStream) RETURN_ERROR_PARAM` (much worse).
+// without pLinked, an early `if(!pStream) RETURN_ERROR_PARAM` (much worse). Phase 2: the type store written before
+// the call (VC6 sinks it to the same place), the call result stored directly, an inverted `if(!ParseFind) return`,
+// an explicit `else return LT_OK`: unchanged (3 aligned).
 LTRESULT r_LoadSystemTexture(SharedTexture *pSharedTexture, TextureData **ppTextureData, LTBOOL bBind)
 {
 	LThreadMessage unused;	// An unused local whose constructor was folded with LThreadMessage's.

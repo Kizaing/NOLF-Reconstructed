@@ -63,7 +63,7 @@ class StaticLight : public WorldTreeObj
 public:
 					StaticLight() : WorldTreeObj(WTObj_Light)
 					{
-						m_Link.m_pPrev = m_Link.m_pNext = &m_Link;
+						dl_TieOff(&m_Link);
 						m_Link.m_pData = this;
 					}
 
@@ -82,7 +82,7 @@ public:
 	LTVector		m_OuterColor;		// 0x94
 };
 
-LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnknown,
+LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgress,
 	WorldBsp **ppBsp, uint32 *pLoadTicks, uint32 *pPrecalcTicks, LTBOOL bUsePlaneTypes);	// 0x00428ac0
 void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTable);			// 0x00429fa0
 void w_InitLightTable(CLightTable *pTable, char *pInfoString, LTVector *pMin, LTVector *pMax, LTVector *pAmbient);	// 0x00429f10
@@ -417,12 +417,9 @@ void MainWorld::Clear()
 }
 
 
-// Wave 5: reading pStream before the progress-fn check and the `if (n) do {...} while` loop shape moved this from
-// 1118 to 690 differing bytes (ours is now 1312 bytes, the original 1280). All that is left is a register
-// difference: from the inlined m_WorldModels.SetSize the original keeps &m_WorldModels in ebp across SetSize,
-// SetArray and the loop (so the constant 0 is an immediate there), while ours spends ebp on a zero register
-// and addresses the array off `this`. A local pointer/reference to m_WorldModels did not change anything.
-// STUB: LITHTECH 0x004285c0
+// Jupiter's WorldData accessors (OriginalBSP() twice, SetValidBsp) are the three inline sites after SetSizeInit2 that
+// keep its _DeleteAndDestroyArray out of line; the for loop gives the original's unsigned `jbe` head test.
+// FUNCTION: LITHTECH 0x004285c0
 LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 {
 	ILTStream *pStream;
@@ -482,18 +479,13 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 
 	// Read the world models.
 	STREAM_READ(nWorldModels);
-	if (!m_WorldModels.SetSize(nWorldModels))
+	if (!m_WorldModels.SetSizeInit2(nWorldModels, LTNULL))
 	{
 		Term();
 		return LoadWorld_Error;
 	}
 
-	SetArray(m_WorldModels, (WorldData*)LTNULL);
-
-	i = 0;
-	if (nWorldModels)
-	{
-	do
+	for (i=0; i < nWorldModels; i++)
 	{
 		pWorldModel = m_WorldModels[i] = new WorldData;
 		if (!pWorldModel)
@@ -505,7 +497,7 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 		STREAM_READ(nextPos);
 		pStream->GetPos(&startPos);
 
-		dResult = w_LoadWorldBsp(pInfo, this, LTNULL, &pWorldModel->m_pOriginalBsp, &loadTicks, &precalcTicks, LTTRUE);
+		dResult = w_LoadWorldBsp(pInfo, this, LTFALSE, &pWorldModel->m_pOriginalBsp, &loadTicks, &precalcTicks, LTTRUE);
 		if (dResult != LoadWorld_Ok)
 		{
 			Term();
@@ -513,10 +505,10 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 		}
 
 		// Moving world models get a second copy to transform.
-		if (pWorldModel->m_pOriginalBsp->m_WorldInfoFlags & WIF_MOVEABLE)
+		if (pWorldModel->OriginalBSP()->m_WorldInfoFlags & WIF_MOVEABLE)
 		{
 			pStream->SeekTo(startPos);
-			dResult = w_LoadWorldBsp(pInfo, this, LTNULL, &pWorldModel->m_pWorldBsp, &loadTicks, &precalcTicks, LTFALSE);
+			dResult = w_LoadWorldBsp(pInfo, this, LTFALSE, &pWorldModel->m_pWorldBsp, &loadTicks, &precalcTicks, LTFALSE);
 			if (dResult != LoadWorld_Ok)
 			{
 				Term();
@@ -528,16 +520,14 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 			m_WorldFlags |= WORLD_HASVISBSP;
 
 		pWorldModel->m_Flags |= WD_ORIGINALBSPALLOCED | WD_WORLDBSPALLOCED;
-		pWorldModel->m_pValidBsp = pWorldModel->m_pWorldBsp ? pWorldModel->m_pWorldBsp : pWorldModel->m_pOriginalBsp;
+		pWorldModel->SetValidBsp();
 
-		pWorldModel->m_pOriginalBsp->m_Index = (uint16)i;
+		pWorldModel->OriginalBSP()->m_Index = (uint16)i;
 		if (pWorldModel->m_pWorldBsp)
 			pWorldModel->m_pWorldBsp->m_Index = (uint16)i;
 
 		pInfo->m_ProgressFn(pInfo->m_ProgressParam);
 		pStream->SeekTo(nextPos);
-		i++;
-	} while (i < nWorldModels);
 	}
 
 	// Precalculate stuff.
@@ -578,10 +568,26 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 }
 
 
+// Calls the progress function between the sections of a world model.
+inline void w_LoadProgress(WorldLoadInfo *pInfo, LTBOOL bProgress)
+{
+	if (bProgress)
+		pInfo->m_ProgressFn(pInfo->m_ProgressParam);
+}
+
 // Loads one world model's BSP (Jupiter WorldBsp::Load). See out/loader/spec_talon_dat70.md for
-// the format. The original also times itself with two counters (pLoadTicks/pPrecalcTicks).
+// the format. bProgress calls pInfo's progress function between the sections (arguments 5 and 6 are unused).
+// Wave 6 phase 2 rewrote it from the exe's call sequence (1332 -> 296 aligned mismatches, 125 ignoring stack
+// offsets): 12-byte STREAM_READs of the vectors, the 4-byte poly size alignment, dead colour reads into locals,
+// the error block inside `if (ErrorStatus() != LT_OK)`, an `int j` for the node sides, a pointer local for the
+// light anim refs, the w_LoadProgress inline (its 11 sites plus the 3 `>>` of a point keep m_PolyAnimRefs.SetSize's
+// _DeleteAndDestroyArray out of line, as in the exe). Left: the exe's frame is 4 bytes bigger (one more scalar
+// slot; most stack offsets are off by 4), the bitfield stores of Surface::m_Flags (29 bits) and the lightmap plane
+// bits of WorldPoly::m_Flags (xor/and/xor through memory), the x87 order of the two Dot products, register
+// choices around the progress calls and the terrain section memory sum, and the PBlockTable failure's
+// `return LoadWorld_InvalidFile` is not tail-merged into the error block.
 // STUB: LITHTECH 0x00428ac0
-LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnknown,
+LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgress,
 	WorldBsp **ppBsp, uint32 *pLoadTicks, uint32 *pPrecalcTicks, LTBOOL bUsePlaneTypes)
 {
 	ILTStream *pStream;
@@ -597,15 +603,18 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 	SurfaceEffectInst *pInst;
 	SurfaceData surfaceData;
 	ConParse parse;
-	uint32 i, j, k, dummy, polyDataSize, polyPos, iCurLeafPoly, iCurListData, iCurAnimRef;
+	uint32 i, k, dummy, polyDataSize, polyPos, iCurLeafPoly, iCurListData, iCurAnimRef;
 	uint32 nPoints, nPlanes, nSurfaces, nPolies, nLeafs, nVerts, visListSize, nPolyAnimRefs;
-	uint32 textureNameLen, curNamePos, startPos, index, nSections, surfaceFlags;
-	uint8 nBaseVerts, nExtraVerts, bHasEffect;
-	uint16 nLists, listIndex, iWorld, iPoly, pointIndex;
+	uint32 textureNameLen, curNamePos, startPos, surfaceIndex, planeIndex, nSections, surfaceFlags;
+	uint32 nLeafPolies, polyIndex, portalDummy;
+	uint8 nBaseVerts, nExtraVerts, bHasEffect, colorR, colorG, colorB;
+	uint16 tempWord, lmWidth, lmHeight, nAnimRefs, pointIndex, iLeaf;
 	int32 sideIndex;
+	int j;
 	void *pEffectData;
+	uint32 *pAnimRef;
 	LTVector O, P, Q;
-	char effectName[128], effectParam[256], portalName[256];
+	char effectName[128], effectParam[256], portalName[128];
 
 	pStream = pInfo->m_pStream;
 	*ppBsp = LTNULL;
@@ -613,8 +622,14 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 	pBsp = new WorldBsp;
 
 	// Header.
-	for (i=0; i < 8; i++)
-		STREAM_READ(dummy);
+	STREAM_READ(dummy);
+	STREAM_READ(dummy);
+	STREAM_READ(dummy);
+	STREAM_READ(dummy);
+	STREAM_READ(dummy);
+	STREAM_READ(dummy);
+	STREAM_READ(dummy);
+	STREAM_READ(dummy);
 
 	STREAM_READ(pBsp->m_WorldInfoFlags);
 	STREAM_READ(pBsp->m_MaxTreeDepth);
@@ -633,7 +648,11 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 	STREAM_READ(pBsp->m_nLeafPolies);
 	STREAM_READ(nPolyAnimRefs);
 
-	*pStream >> pBsp->m_MinBox >> pBsp->m_MaxBox >> pBsp->m_WorldTranslation;
+	STREAM_READ(pBsp->m_MinBox);
+	STREAM_READ(pBsp->m_MaxBox);
+	STREAM_READ(pBsp->m_WorldTranslation);
+
+	w_LoadProgress(pInfo, bProgress);
 
 	// Texture names.
 	STREAM_READ(textureNameLen);
@@ -653,14 +672,18 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 		while (pBsp->m_TextureNameData[curNamePos-1] != 0);
 	}
 
+	w_LoadProgress(pInfo, bProgress);
+
 	// Size the poly data.
-	pStream->GetPos(&startPos);
 	polyDataSize = 0;
+	pStream->GetPos(&startPos);
 	for (i=0; i < nPolies; i++)
 	{
 		STREAM_READ(nBaseVerts);
 		STREAM_READ(nExtraVerts);
-		polyDataSize += sizeof(WorldPoly) + 8 + ((uint32)nBaseVerts + nExtraVerts) * sizeof(SPolyVertex);
+		polyDataSize += sizeof(WorldPoly) + ((uint32)nBaseVerts + nExtraVerts) * sizeof(SPolyVertex);
+		if (polyDataSize & 3)
+			polyDataSize += 4 - (polyDataSize & 3);
 	}
 	pStream->SeekTo(startPos);
 
@@ -680,18 +703,21 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 	if (!pBsp->m_PolyAnimRefs.SetSize(nPolyAnimRefs))
 		goto Error;
 
-	pBsp->m_MemoryUse = sizeof(WorldBsp) + polyDataSize + visListSize + textureNameLen +
+	pBsp->m_MemoryUse = sizeof(WorldBsp) + polyDataSize +
 		nPoints * sizeof(LTVector) + pBsp->m_nNodes * sizeof(Node) + nPolies * sizeof(WorldPoly*) +
 		nLeafs * sizeof(Leaf) + nPlanes * sizeof(LTPlane) + nSurfaces * sizeof(Surface) +
 		pBsp->m_nLeafPolies * sizeof(WorldPoly*) + pBsp->m_nLeafLists * sizeof(LeafList) +
-		pBsp->m_nTextures * sizeof(char*) + pBsp->m_PolyAnimRefs.GetSize() * sizeof(uint32);
+		pBsp->m_nTextures * sizeof(char*) + pBsp->m_PolyAnimRefs.GetSize() * sizeof(uint32) +
+		textureNameLen + visListSize;
 
 	pBsp->m_nPoints = nPoints;
-	pBsp->m_nPlanes = nPlanes;
-	pBsp->m_nLeafs = nLeafs;
 	pBsp->m_nPolies = nPolies;
+	pBsp->m_nLeafs = nLeafs;
+	pBsp->m_nPlanes = nPlanes;
 	pBsp->m_nSurfaces = nSurfaces;
 	pBsp->m_LeafListDataSize = visListSize;
+
+	w_LoadProgress(pInfo, bProgress);
 
 	// Set up the polies.
 	polyPos = 0;
@@ -705,7 +731,9 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 		pBsp->m_Polies[i] = pPoly;
 		pPoly->m_nVertices = nBaseVerts;
 		pPoly->m_nExtraVertices = nExtraVerts;
-		polyPos += sizeof(WorldPoly) + 8 + ((uint32)nBaseVerts + nExtraVerts) * sizeof(SPolyVertex);
+		polyPos += sizeof(WorldPoly) + ((uint32)nBaseVerts + nExtraVerts) * sizeof(SPolyVertex);
+		if (polyPos & 3)
+			polyPos += 4 - (polyPos & 3);
 	}
 
 	// Leaves.
@@ -718,20 +746,23 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 		dl_TieOff(&pLeaf->m_LeafLinks);
 		pLeaf->m_LeafLists = pCurList;
 
-		STREAM_READ(nLists);
-		if (nLists == 0xFFFF)
+		STREAM_READ(tempWord);
+		if (tempWord == 0xFFFF)
 		{
-			STREAM_READ(listIndex);
-			pLeaf->m_nLeafLists = pBsp->m_Leafs[listIndex].m_nLeafLists;
-			pLeaf->m_LeafLists = pBsp->m_Leafs[listIndex].m_LeafLists;
+			// This leaf uses the lists from another leaf.
+			STREAM_READ(tempWord);
+			pLeaf->m_nLeafLists = pBsp->m_Leafs[tempWord].m_nLeafLists;
+			pLeaf->m_LeafLists = pBsp->m_Leafs[tempWord].m_LeafLists;
 		}
 		else
 		{
-			pLeaf->m_nLeafLists = nLists;
-			for (j=0; j < nLists; j++)
+			pLeaf->m_nLeafLists = tempWord;
+			for (k=0; k < pLeaf->m_nLeafLists; k++)
 			{
-				STREAM_READ(pCurList->m_PortalID);
-				STREAM_READ(pCurList->m_ListSize);
+				STREAM_READ(tempWord);
+				pCurList->m_PortalID = tempWord;
+				STREAM_READ(tempWord);
+				pCurList->m_ListSize = tempWord;
 				pCurList->m_pList = &pBsp->m_LeafListData[iCurListData];
 				pStream->Read(pCurList->m_pList, pCurList->m_ListSize);
 				iCurListData += pCurList->m_ListSize;
@@ -739,40 +770,45 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 			}
 		}
 
-		STREAM_READ(pLeaf->m_nPolies);
+		STREAM_READ(nLeafPolies);
+		pLeaf->m_nPolies = nLeafPolies;
 		pLeaf->m_Polies = &pBsp->m_LeafPolies[iCurLeafPoly];
-		for (j=0; j < pLeaf->m_nPolies; j++)
+		for (k=0; k < nLeafPolies; k++)
 		{
-			STREAM_READ(iWorld);
-			STREAM_READ(iPoly);
-			((LAPolyRef*)&pLeaf->m_Polies[j])->m_iWorld = iWorld;
-			((LAPolyRef*)&pLeaf->m_Polies[j])->m_iPoly = iPoly;
+			pStream->Read(&pLeaf->m_Polies[k], 2);
+			pStream->Read((uint8*)&pLeaf->m_Polies[k] + 2, 2);
 		}
-		iCurLeafPoly += pLeaf->m_nPolies;
 
 		STREAM_READ(pLeaf->m_Unknown28);
+		iCurLeafPoly += nLeafPolies;
 	}
+
+	w_LoadProgress(pInfo, bProgress);
 
 	// Planes.
 	for (i=0; i < nPlanes; i++)
 	{
-		*pStream >> pBsp->m_Planes[i].m_Normal;
+		STREAM_READ(pBsp->m_Planes[i].m_Normal);
 		STREAM_READ(pBsp->m_Planes[i].m_Dist);
 	}
+
+	w_LoadProgress(pInfo, bProgress);
 
 	// Surfaces.
 	for (i=0; i < nSurfaces; i++)
 	{
 		pSurface = &pBsp->m_Surfaces[i];
 
-		*pStream >> pSurface->O >> pSurface->P >> pSurface->Q;
+		STREAM_READ(pSurface->O);
+		STREAM_READ(pSurface->P);
+		STREAM_READ(pSurface->Q);
 		STREAM_READ(pSurface->m_Unknown36);
 		STREAM_READ(surfaceFlags);
-		pSurface->m_Flags = surfaceFlags & 0x1FFFFFFF;
+		pSurface->m_Flags ^= (pSurface->m_Flags ^ surfaceFlags) & 0x1FFFFFFF;
 		STREAM_READ(pSurface->m_Unknown3C);
-		STREAM_READ(pSurface->m_Color[0]);
-		STREAM_READ(pSurface->m_Color[1]);
-		STREAM_READ(pSurface->m_Color[2]);
+		STREAM_READ(colorR);
+		STREAM_READ(colorG);
+		STREAM_READ(colorB);
 		STREAM_READ(bHasEffect);
 
 		if (bHasEffect == 1)
@@ -810,10 +846,12 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 		STREAM_READ(pSurface->m_TextureFlags);
 	}
 
+	w_LoadProgress(pInfo, bProgress);
+
 	// Points.
 	for (i=0; i < nPoints; i++)
 	{
-		*pStream >> pBsp->m_Points[i];
+		*pStream >> pBsp->m_Points[i].x >> pBsp->m_Points[i].y >> pBsp->m_Points[i].z;
 	}
 
 	// Poly data.
@@ -822,35 +860,40 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 	{
 		pPoly = pBsp->m_Polies[i];
 
-		*pStream >> O;
-		STREAM_READ(pPoly->m_LMWidth);
-		STREAM_READ(pPoly->m_LMHeight);
+		*pStream >> pPoly->m_Unknown38;
+		STREAM_READ(lmWidth);
+		STREAM_READ(lmHeight);
+		pPoly->m_LMWidth = (uint8)lmWidth;
+		pPoly->m_LMHeight = (uint8)lmHeight;
 
-		STREAM_READ(index);
-		pPoly->m_nLMAnimRefs = index & 0xFFFF;
+		STREAM_READ(nAnimRefs);
+		pPoly->m_nLMAnimRefs = nAnimRefs;
 		pPoly->m_pLMAnimRefs = &pBsp->m_PolyAnimRefs.GetArray()[iCurAnimRef];
 		iCurAnimRef += pPoly->m_nLMAnimRefs;
 		if (iCurAnimRef > pBsp->m_PolyAnimRefs.GetSize())
 			goto Error;
 
-		for (j=0; j < pPoly->m_nLMAnimRefs; j++)
+		for (k=0; k < pPoly->m_nLMAnimRefs; k++)
 		{
-			pStream->Read(&pPoly->m_pLMAnimRefs[j], 2);
-			pStream->Read((uint8*)&pPoly->m_pLMAnimRefs[j] + 2, 2);
+			pAnimRef = &pPoly->m_pLMAnimRefs[k];
+			pStream->Read(pAnimRef, 2);
+			pStream->Read((uint8*)pAnimRef + 2, 2);
 		}
 
-		STREAM_READ(index);
-		if (index >= pBsp->m_nSurfaces)
+		STREAM_READ(surfaceIndex);
+		if (surfaceIndex >= pBsp->m_nSurfaces)
 			goto Error;
-		pPoly->m_pSurface = &pBsp->m_Surfaces[index];
+		pPoly->m_pSurface = &pBsp->m_Surfaces[surfaceIndex];
 
-		STREAM_READ(index);
-		if (index >= pBsp->m_nPlanes)
+		STREAM_READ(planeIndex);
+		if (planeIndex >= pBsp->m_nPlanes)
 			goto Error;
-		pPoly->m_pPlane = &pBsp->m_Planes[index];
-		pPoly->m_Flags = (pPoly->m_Flags & ~0x3800) | ((SelectLMPlaneVector(pPoly->m_pPlane->m_Normal) << 11) & 0x3800);
+		pPoly->m_pPlane = &pBsp->m_Planes[planeIndex];
+		pPoly->m_Flags ^= ((SelectLMPlaneVector(pPoly->m_pPlane->m_Normal) << 11) ^ pPoly->m_Flags) & 0x3800;
 
-		*pStream >> O >> P >> Q;
+		STREAM_READ(O);
+		STREAM_READ(P);
+		STREAM_READ(Q);
 
 		pVert = (SPolyVertex*)(pPoly + 1);
 		for (k=0; k < (uint32)pPoly->m_nVertices + pPoly->m_nExtraVertices; k++)
@@ -860,9 +903,9 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 				goto Error;
 
 			pVert[k].m_Vec = &pBsp->m_Points[pointIndex];
-			STREAM_READ(pVert[k].m_Color[0]);
-			STREAM_READ(pVert[k].m_Color[1]);
 			STREAM_READ(pVert[k].m_Color[2]);
+			STREAM_READ(pVert[k].m_Color[1]);
+			STREAM_READ(pVert[k].m_Color[0]);
 			pVert[k].m_Color[3] = 0xFF;
 
 			pVert[k].m_U = P.Dot(*pVert[k].m_Vec - O);
@@ -881,18 +924,21 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 		}
 	}
 
+	w_LoadProgress(pInfo, bProgress);
+
 	// Nodes.
 	for (i=0; i < pBsp->m_nNodes; i++)
 	{
 		pNode = &pBsp->m_Nodes[i];
 		pNode->m_Flags = 8;
 
-		STREAM_READ(index);
-		if (index >= pBsp->m_nPolies)
+		STREAM_READ(polyIndex);
+		if (polyIndex >= pBsp->m_nPolies)
 			goto Error;
-		pNode->m_pPoly = pBsp->m_Polies[index];
+		pNode->m_pPoly = pBsp->m_Polies[polyIndex];
 
-		STREAM_READ(pNode->m_iLeaf);
+		STREAM_READ(iLeaf);
+		pNode->m_iLeaf = iLeaf;
 
 		for (j=0; j < 2; j++)
 		{
@@ -905,27 +951,33 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 
 	w_SetPlaneTypes(pBsp->m_Nodes, pBsp->m_nNodes, bUsePlaneTypes);
 
+	w_LoadProgress(pInfo, bProgress);
+
 	// Portals.
 	for (i=0; i < pBsp->m_nPortals; i++)
 	{
 		pPortal = &pBsp->m_Portals[i];
 		pPortal->m_Index = (uint16)i;
 
-		pStream->ReadString(portalName, sizeof(portalName));
+		pStream->ReadString(portalName, sizeof(portalName)-1);
 		pPortal->m_pName = (char*)dalloc(strlen(portalName) + 1);
 		strcpy(pPortal->m_pName, portalName);
 
-		STREAM_READ(dummy);
-		STREAM_READ(dummy);
+		STREAM_READ(portalDummy);
+		STREAM_READ(portalDummy);
 		STREAM_READ(pPortal->m_Unknown04);
-		pStream->Read(&pPortal->m_Center, sizeof(pPortal->m_Center));
-		pStream->Read(&pPortal->m_Dims, sizeof(pPortal->m_Dims));
+		STREAM_READ(pPortal->m_Center);
+		STREAM_READ(pPortal->m_Dims);
 	}
+
+	w_LoadProgress(pInfo, bProgress);
 
 	if (!pBsp->m_PBlockTable.Load(pStream))
 		return LoadWorld_InvalidFile;
 
 	pBsp->m_MemoryUse += pBsp->m_PBlockTable.m_nBlocks * sizeof(PBlock);
+
+	w_LoadProgress(pInfo, bProgress);
 
 	STREAM_READ(sideIndex);
 	pBsp->m_RootNode = w_NodeForIndex(pBsp->m_Nodes, pBsp->m_nNodes, sideIndex);
@@ -948,17 +1000,19 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, WorldBsp *pUnkn
 
 	w_SetupSurfacePolyLists(pBsp);
 
-	if (pStream->ErrorStatus() == LT_OK)
+	if (pStream->ErrorStatus() != LT_OK)
 	{
-		pBsp->CalcBoundRadius();
-		g_WorldGeometryMemory += pBsp->m_MemoryUse;
-		*ppBsp = pBsp;
-		return LoadWorld_Ok;
+Error:;
+		delete pBsp;
+		return LoadWorld_InvalidFile;
 	}
 
-Error:;
-	delete pBsp;
-	return LoadWorld_InvalidFile;
+	w_LoadProgress(pInfo, bProgress);
+
+	pBsp->CalcBoundRadius();
+	g_WorldGeometryMemory += pBsp->m_MemoryUse;
+	*ppBsp = pBsp;
+	return LoadWorld_Ok;
 }
 
 
@@ -1094,17 +1148,23 @@ void w_InitLightTable(CLightTable *pTable, char *pInfoString, LTVector *pMin, LT
 // Goes thru the light objects in the world file and adds the static lights. Lights that
 // light objects either go into the light table ("FastLightObjects") or become StaticLights in
 // the world tree. Lights listed in a LightGroup object ("Object..." properties) are skipped.
+// Wave 6 phase 2: `bool bAddLight` (the exe tests a byte), StaticLight's link set up with dl_TieOff + m_pData
+// and propFlags declared in the property loops took it from 254 to 97 aligned mismatches (43 -> 21 ignoring
+// stack offsets). Left: stack slot assignment (most offsets differ), the std::find loop keeping end() in a
+// register, and register choices in the inlined __node_alloc deallocation at the end. Scoping objectDataLen /
+// objectPos / propType / propDataLen into the loops made it worse.
 // STUB: LITHTECH 0x00429fa0
 void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTable)
 {
 	float brightScale = 1.0f;
 	std::vector<std::string> groupedLights;
 	std::vector<std::string>::iterator itGrouped;
-	uint32 i, iProp, nObjects, nProps, startPos, objectPos, propFlags;
+	uint32 i, iProp, nObjects, nProps, startPos, objectPos;
 	uint16 objectDataLen, propDataLen;
 	uint8 propType;
 	char name[256], propData[256];
-	LTBOOL bLightObjects, bFastLightObjects, bAddLight;
+	LTBOOL bLightObjects, bFastLightObjects;
+	bool bAddLight;
 	float radius, fov;
 	LTVector color, outerColor, pos, dir, vRight, vUp, vForward;
 	StaticLight *pLight;
@@ -1124,6 +1184,7 @@ void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTabl
 			STREAM_READ(nProps);
 			for (iProp=0; iProp < nProps; iProp++)
 			{
+				uint32 propFlags;
 				pStream->ReadString(name, sizeof(name));
 				STREAM_READ(propType);
 				STREAM_READ(propFlags);
@@ -1171,11 +1232,12 @@ void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTabl
 		bLightObjects = LTTRUE;
 		VEC_INIT(dir);
 		fov = -1.0f;
-		bAddLight = LTTRUE;
+		bAddLight = true;
 
 		STREAM_READ(nProps);
 		for (iProp=0; iProp < nProps; iProp++)
 		{
+			uint32 propFlags;
 			pStream->ReadString(name, sizeof(name));
 			STREAM_READ(propType);
 			STREAM_READ(propFlags);
@@ -1193,7 +1255,7 @@ void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTabl
 				itGrouped = std::find(groupedLights.begin(), groupedLights.end(), std::string(propData));
 				if (itGrouped != groupedLights.end())
 				{
-					bAddLight = LTFALSE;
+					bAddLight = false;
 					continue;
 				}
 			}
@@ -1603,6 +1665,9 @@ LTBOOL MainWorld::InitWorldModel(WorldModelInstance *pInstance, const char *pNam
 
 // Loads the light anims (the render data at m_RenderDataPos).
 // Ours runs out of registers and spills this; the original keeps it in ebx.
+// Wave 6 phase 2: the original keeps iCurData in [esp+0x14] and `this` in ebx; ours gives iCurData ebx and spills
+// this (246 aligned, 225 ignoring stack). A 2-round statement hill-climb, `> m_LightAnimData` (operator DWORD) and
+// the counters' declaration order change nothing.
 // STUB: LITHTECH 0x0042b6e0
 LTRESULT MainWorld::LoadObjects(ILTStream *pStream)
 {

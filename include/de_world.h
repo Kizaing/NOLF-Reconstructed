@@ -356,6 +356,13 @@ struct WorldData
 	void Clear();						// 0x00428380
 	void Term();						// 0x00428390
 
+	inline void SetValidBsp()
+	{
+		m_pValidBsp = m_pWorldBsp ? m_pWorldBsp : m_pOriginalBsp;
+	}
+
+	WorldBsp*	OriginalBSP()		{return m_pOriginalBsp;}
+
 	// Combination of WD_ flags.
 	uint32			m_Flags;			// 0x00
 	// Unmodified version.  This is always valid.

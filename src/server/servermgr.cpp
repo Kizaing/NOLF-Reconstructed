@@ -290,7 +290,7 @@ void sm_FreeID(CServerMgr *pServerMgr, LTLink *pIDLink)
 
 // 3 bytes off at the end: VC6 computes &m_RefCount from eax instead of the esi copy (the original:
 // `mov esi,eax; lea ecx,[esi+4]; push ecx`, ours `add eax,4; push eax`). Wave 6: a two-round statement
-// hill-climb (180 candidates) found nothing.
+// hill-climb (180 candidates) found nothing; neither did `= LTNULL`, `= NULL`, `= SmartPtr<AuthContext>()`.
 // STUB: LITHTECH 0x004823b0
 LTBOOL CServerMgr::Init()
 {
@@ -1015,6 +1015,8 @@ void CServerMgr::ProcessLoaderMessages()
 }
 
 // Close: VC6 saves ebx/ebp later and loads updateFlags into al first (+1 byte shift).
+// Wave 6: the original pushes ebp (i) with ebx (nSteps) before the RUNNINGWORLD test and pops both after the
+// ShowGameTime block; ours keeps ebp to the inner block. Tried `== 0`, `~x & 1`, a combined `!(a || b)`: 9 aligned.
 // STUB: LITHTECH 0x00483520
 LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 {
@@ -1350,7 +1352,8 @@ void sm_LoadChildModelLinks(ILTServer *pServer, char *pWorldName)
 // Differs only in one inline decision: the original calls the pair<string,map> destructor of the outer
 // operator[] temporary out of line (0x00487400) where we inline it (the 174 differing bytes are the shifted tail).
 // 8 units of inline_scan ballast anywhere before it make it match; the source of that cost is unknown
-// (tried: nested if vs early return, a local map reference).
+// (tried: nested if vs early return, a local map reference; wave 6: size() == 0, begin() == end(),
+// g_ChildModelNone.assign(), a std::string("none") temp).
 // STUB: LITHTECH 0x00484d70
 void CServerMgr::LoadChildModelMap()
 {
@@ -1431,10 +1434,9 @@ void s_DisassociateClientsFromObjects(CServerMgr *pServerMgr)
 LTRESULT sm_UnloadModelFile(CServerMgr *pServerMgr, char *pFilename);
 
 // Unloads the models that had extra child models linked in (the links are per world).
-// Differs: the original calls _Rb_global::_M_increment (0x00457ed0) for ++it and keeps the iterator on the
-// stack where we inline the walk, and uses ebx as the zero constant. inline_scan (p1,p2,b8,b16) found no
-// matching position; the set<Model*> template COMDATs below all match.
-// STUB: LITHTECH 0x004851d0
+// The postfix it++ keeps _Rb_global::_M_increment (0x00457ed0) out of line (++it inlines it), and declaring
+// the iterator in the for statement drops the default constructor's dead store.
+// FUNCTION: LITHTECH 0x004851d0
 void sm_UncacheModels(CServerMgr *pServerMgr)
 {
 	std::set<Model*> models;
@@ -1449,8 +1451,7 @@ void sm_UncacheModels(CServerMgr *pServerMgr)
 			models.insert(pModel);
 	}
 
-	std::set<Model*>::iterator it;
-	for (it=models.begin(); it != models.end(); ++it)
+	for (std::set<Model*>::iterator it=models.begin(); it != models.end(); it++)
 		sm_UnloadModelFile(pServerMgr, (*it)->GetFilename());
 }
 
@@ -1945,6 +1946,8 @@ LTRESULT CServerMgr::CreateWorldCRC()
 // ----------------------------------------------------------------------- //
 
 // One instruction off: the original zero-extends the create flag byte (xor eax,eax first).
+// Wave 6 tried: (uint8)(x & 1), x & 1, OCS_AUTOLOAD ternary, `&= 1` after the byte store, |=, a 1-bit bitfield
+// view of m_bCreateFlag1 (uint32 and uint8): no change (7 aligned).
 // STUB: LITHTECH 0x00483dd0
 LTRESULT sm_CreateServerData(CServerMgr *pServerMgr, ObjectCreateStruct *pStruct, ClassDef *pClass,
 	LTObject *pObject, LPBASECLASS pBaseClass, ServerData **ppData)
@@ -2308,9 +2311,7 @@ LTRESULT CServerSoundMgr::GetSoundDuration(HLTSOUND hSound, LTFLOAT &fDuration)
 	return LT_OK;
 }
 
-// Close: the original keeps bDone's 0 in eax (shared with the return) and uses ecx for &bDone; separate-return,
-// else-if, shared-result-variable and merged-condition forms all tried (the stores stay immediates).
-// STUB: LITHTECH 0x00485d50
+// FUNCTION: LITHTECH 0x00485d50
 LTRESULT CServerSoundMgr::IsSoundDone(HLTSOUND hSound, LTBOOL &bDone)
 {
 	CSoundTrack *pSoundTrack;
@@ -2321,14 +2322,7 @@ LTRESULT CServerSoundMgr::IsSoundDone(HLTSOUND hSound, LTBOOL &bDone)
 		RETURN_ERROR(1, CServerMgr::IsSoundDone, LT_INVALIDPARAMS);
 	}
 
-	// Sounds without data never end.
-	if (!pSoundTrack->m_pSoundData)
-	{
-		bDone = LTFALSE;
-		return LT_OK;
-	}
-
-	bDone = (pSoundTrack->GetTimeLeft() > 0.0f) ? LTFALSE : LTTRUE;
+	bDone = pSoundTrack->IsDone();
 	return LT_OK;
 }
 
