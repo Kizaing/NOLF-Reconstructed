@@ -38,6 +38,9 @@ DATA_LO, DATA_SIZE = 0x4CF000, 0x10000
 BSS_SIZE = 0x19198 - 0x10000
 
 
+EXTRA_LINK_FLAGS = []
+
+
 def tool_env():
     env = dict(os.environ)
     env['PATH'] = MSVC + ';E:\\MSVC6\\COMMON\\MSDev98\\Bin;' + env['PATH']
@@ -70,6 +73,8 @@ class Orig:
         self.slots = {s[0]: (dll, s[1], s[2]) for dll, ss in self.dlls for s in ss}
         self.entry = pe.OPTIONAL_HEADER.AddressOfEntryPoint + IMAGE_BASE
         self.text_lo, self.text_hi = self.img.text_lo, self.img.text_hi
+        text = [s for s in pe.sections if s.Name.rstrip(b'\0') == b'.text'][0]
+        self.text_end = IMAGE_BASE + text.VirtualAddress + text.Misc_VirtualSize       # real end of code (0x4c54b5)
 
 
 def imp_symbol(entry):
@@ -78,22 +83,33 @@ def imp_symbol(entry):
 
 # ------------------------------------------------------------------------------------------ import libraries
 
-def make_import_libs(orig):
-    d = os.path.join(OUT, 'imp')
-    os.makedirs(d, exist_ok=True)
-    libs = []
+def make_idata_obj(orig):
+    """The import tables as one object of .idata$2..$6 sections holding the original's bytes, with an
+    __imp__<name> symbol at every IAT slot.
+
+    Why not import libraries (tried first, see the report): LINK lays the IAT out in an order that comes from its
+    internal pull order and hash tables, and writes the hint/name pool in pull order too. The thunk objects of a
+    LIB /DEF library, LINK's hints (0 instead of the DLL's), and the thunk COMDATs all differ from the original,
+    and the IAT order is baked into every `call [slot]` in .text. Taking the tables from the exe makes the
+    addresses right; deriving them from real import libraries is the open item."""
+    img = orig.img
+    F = coffedit
+    c = Coff()
+    parts = [('.idata$2', 0x4CD37C, 0x4CD41C, 4), ('.idata$3', 0x4CD41C, 0x4CD430, 4),
+             ('.idata$4', 0x4CD430, 0x4CD8A4, 4), ('.idata$5', 0x4C6000, 0x4C6474, 4),
+             ('.idata$6', 0x4CD8A4, 0x4CEE58, 2)]
+    for name, lo, hi, al in parts:
+        c.sections.append(Sec(name, img.read(lo, hi - lo), [], F.SCN_CNT_INIT | F.SCN_ALIGN[al] | F.SCN_MEM_READ | F.SCN_MEM_WRITE))
+    for i, s in enumerate(c.sections):
+        c.syms.append(Sym(s.name, 0, i + 1, 0, F.CLS_STATIC, F.section_aux(s.size, 0)))
+        c.syms.append(None)
     for dll, slots in orig.dlls:
-        base = os.path.splitext(dll)[0].lower()
-        lines = ['LIBRARY ' + dll, 'EXPORTS']
         for va, name, ordn, hint in slots:
-            lines.append(name if name else '@%d' % ordn)
-        with open(os.path.join(d, base + '.def'), 'w', newline='') as f:
-            f.write('\n'.join(lines) + '\n')
-        rc, out = run([LIBX, '/nologo', '/MACHINE:IX86', '/DEF:' + base + '.def', '/OUT:' + base + '.lib'], cwd=d)
-        if rc:
-            raise SystemExit('LIB failed for %s: %s' % (dll, out))
-        libs.append(os.path.join(d, base + '.lib'))
-    return libs
+            c.add_symbol(imp_symbol(name if name else '%s_ord%d' % (dll, ordn)), va - 0x4C6000, 4)
+    p = os.path.join(OUT, 'idata.obj')
+    c.save(p)
+    return p
+
 
 
 # ------------------------------------------------------------------------------------------ target objects
@@ -125,8 +141,11 @@ class Prepared:
         iv = sorted((va, va + len(self.objs[n].sections[i].data)) for n, vas in self.objvas.items() if n in self.objs
                     for i, va in enumerate(vas))
         pos, gaps = img.text_lo, []
-        for lo, hi in iv + [(img.text_hi, img.text_hi)]:
-            if lo > pos and img.read(pos, lo - pos).strip(b'\xcc\x90'):
+        end = self.orig.text_end
+        for lo, hi in iv + [(end, end)]:
+            lo = min(lo, end)
+            # INT3 padding is what LINK itself writes between sections; anything else (NOP fill, thunks, data) is kept
+            if lo > pos and img.read(pos, lo - pos).strip(b'\xcc'):
                 gaps.append((pos, lo))
             pos = max(pos, hi)
         self.gaps = gaps
@@ -141,7 +160,7 @@ class Prepared:
                 sec.flags = (sec.flags & ~0x00F00000) | coffedit.SCN_ALIGN[1]
             self.objs[name] = o
             self.objvas[name] = [lo]
-            self.objsym[name] = {k: v for k, v in info['name2va'].items() if not k.startswith('$L')}
+            self.objsym[name] = {k: v for k, v in info['name2va'].items() if not (k.startswith('$L') and len(k) >= 8)}
 
     def sections(self, name):
         """[(va, section index 1-based, size)] in object order."""
@@ -160,11 +179,13 @@ class Prepared:
             for idx, s in enumerate(o.syms):
                 if s is None or s.sec <= 0 or is_section_sym(s) or s.cls not in (coffedit.CLS_EXTERNAL, coffedit.CLS_STATIC):
                     continue
-                if s.name.startswith('$L'):
+                if s.name.startswith('$L') and s.typ != 0x20:       # mktarget's local labels ($L<hex va>)
                     continue
                 defs.append((name, idx, secva[s.sec] + s.value))
         # 2. unique external names. A name used for several VAs gets '@<va>'.
-        by_name = {}
+        by_name, first_sym = {}, {}          # first_sym: the COMDAT symbol = first symbol of the section in table order
+        for n, idx, va in sorted(defs, key=lambda x: (x[0], x[1])):
+            first_sym.setdefault((n, self.objs[n].syms[idx].sec), idx)
         for n, idx, va in defs:
             by_name.setdefault(self.objs[n].syms[idx].name, set()).add(va)
         self.leader = {}                 # (obj, section no) -> final leader name
@@ -172,12 +193,14 @@ class Prepared:
         renames = 0
         for n, idx, va in sorted(defs, key=lambda x: x[2]):
             s = self.objs[n].syms[idx]
-            is_leader = s.value == 0 and (n, s.sec) not in self.leader
+            is_leader = (n, s.sec) not in self.leader and idx == first_sym[(n, s.sec)]
             if len(by_name[s.name]) > 1:
                 s.name = '%s@%08x' % (s.name, va)
                 renames += 1
             if is_leader:
                 s.cls = coffedit.CLS_EXTERNAL
+                if not s.name.startswith(('?', '_')):       # /ORDER wants C names undecorated: LINK adds the '_'
+                    s.name = '_' + s.name
                 self.leader[(n, s.sec)] = s.name
             if s.cls == coffedit.CLS_EXTERNAL or is_leader:
                 self.text_name.setdefault(va, s.name)
@@ -237,6 +260,17 @@ class Prepared:
         os.makedirs(d, exist_ok=True)
         self.paths = {}
         for name, o in self.objs.items():
+            for va, sec in zip(self.objvas[name], o.sections):
+                if va + len(sec.data) > self.orig.text_end:      # the last extent runs to the page end: cut at the real end
+                    keep = self.orig.text_end - va
+                    assert not sec.data[keep:].strip(b'\0') and all(r[0] < keep for r in sec.relocs), name
+                    sec.data, sec.size = sec.data[:keep], keep
+                # sections that the original linker placed at an unaligned address (static initialisers, library
+                # code) get the alignment their address allows; padding is whatever the extents already contain
+                al = 16
+                while va % al:
+                    al //= 2
+                sec.flags = (sec.flags & ~0x00F00000) | coffedit.SCN_ALIGN[al]
             p = os.path.join(d, name.replace('/', '__') + '.obj')
             o.save(p)
             self.paths[name] = p
@@ -245,12 +279,30 @@ class Prepared:
             for sva, secno, size in self.sections(name):
                 order.append((sva, self.leader[(name, secno)]))
         order.sort()
+        self.leaders = order
         with open(os.path.join(OUT, 'order.txt'), 'w', newline='') as f:
             for _, n in order:
-                f.write(n + '\n')
+                f.write((n if n.startswith('?') else n[1:]) + '\n')
+        with open(os.path.join(OUT, 'leaders.json'), 'w') as f:
+            json.dump(order, f)
 
 
 # ------------------------------------------------------------------------------------------ data stand-in
+
+def make_rsrc_obj(orig):
+    """The resources: the original's .rsrc bytes (resource data entries hold RVAs, which stay valid because the
+    section lands at the same address)."""
+    sec = [x for x in orig.img.pe.sections if x.Name.rstrip(b'\0') == b'.rsrc'][0]
+    F = coffedit
+    c = Coff()
+    c.sections.append(Sec('.rsrc$01', sec.get_data()[:sec.Misc_VirtualSize], [],
+                          F.SCN_CNT_INIT | F.SCN_ALIGN[4] | F.SCN_MEM_READ))
+    c.syms.append(Sym('.rsrc$01', 0, 1, 0, F.CLS_STATIC, F.section_aux(c.sections[0].size, 0)))
+    c.syms.append(None)
+    p = os.path.join(OUT, 'rsrc.obj')
+    c.save(p)
+    return p
+
 
 def make_standin(prep):
     img = prep.orig.img
@@ -283,13 +335,18 @@ def make_standin(prep):
 
 # ------------------------------------------------------------------------------------------ link
 
-def do_link(prep, standin, implibs, mode):
-    objs = [standin] + [prep.paths[n] for _, n in prep.order]
+def do_link(prep, standin, idata, mode):
+    objs = [idata, standin, make_rsrc_obj(prep.orig)] + [prep.paths[n] for _, n in prep.order]
     entry = prep.text_name[prep.orig.entry]
+    entry = entry[1:] if entry.startswith('_') else entry       # LINK adds the decoration itself
     rsp = ['/NOLOGO', '/NODEFAULTLIB', '/OUT:' + os.path.join(OUT, 'lithtech.exe'),
            '/BASE:0x400000', '/FIXED', '/SUBSYSTEM:WINDOWS,4.0', '/ENTRY:' + entry,
-           '/OPT:NOREF', '/MAP:' + os.path.join(OUT, 'lithtech.map'), '/ORDER:@' + os.path.join(OUT, 'order.txt')]
-    rsp += ['"%s"' % o for o in objs] + ['"%s"' % l for l in implibs]
+           '/OPT:REF,NOICF', '/MAP:' + os.path.join(OUT, 'lithtech.map'), '/ORDER:@' + os.path.join(OUT, 'order.txt')]
+    # /OPT:REF drops the import libraries' unreferenced thunks (the original has few of them); /INCLUDE keeps every
+    # target function, whose callers are partly stand-in data (vtables) that carries no relocations
+    rsp += EXTRA_LINK_FLAGS
+    rsp += ['/INCLUDE:' + n for _, n in prep.leaders]
+    rsp += ['"%s"' % o for o in objs]
     with open(os.path.join(OUT, 'link.rsp'), 'w', newline='') as f:
         f.write('\n'.join(rsp) + '\n')
     return run([LINK, '@' + os.path.join(OUT, 'link.rsp')])
@@ -299,7 +356,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', default='targets')
     ap.add_argument('--stage', default='all')
+    ap.add_argument('--link-flag', action='append', default=[], help='extra LINK flag (repeatable)')
     a = ap.parse_args()
+    EXTRA_LINK_FLAGS.extend(a.link_flag)
     os.makedirs(OUT, exist_ok=True)
     orig = Orig()
     prep = Prepared(orig)
@@ -313,10 +372,10 @@ def main():
     standin, bad = make_standin(prep)
     for va, nm in bad[:20]:
         print('  data symbol outside stand-in sections: %08x %s' % (va, nm))
-    implibs = make_import_libs(orig)
+    idata = make_idata_obj(orig)
     if a.stage == 'prep':
         return
-    rc, out = do_link(prep, standin, implibs, a.mode)
+    rc, out = do_link(prep, standin, idata, a.mode)
     print(out[-6000:])
     print('link rc', rc)
 

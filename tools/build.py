@@ -623,7 +623,7 @@ def write_targets(units, symtab, namemap, libs=None):
 
 def _note_names(name2va, into, obj=None):
     for k, v in name2va.items():
-        if k.startswith('$L'):
+        if k.startswith('$L') and len(k) >= 8:      # mktarget's '$L<hex va>' labels, not Ghidra's '$L4470'
             continue
         if into.get(k, v) != v:
             SYMCONFLICT.setdefault(k, set()).update((into[k], v))
@@ -786,7 +786,7 @@ def main(argv):
         units_json = write_targets(units, symtab, namemap, libs)
         if units_json is not None:
             write_objdiff_json(units_json)
-            json.dump({k: v for k, v in sorted(SYMVA.items()) if not k.startswith('$L')},
+            json.dump({k: v for k, v in sorted(SYMVA.items()) if not (k.startswith('$L') and len(k) >= 8)},
                       open(os.path.join(BUILD, 'symva.json'), 'w'), indent=0)
             json.dump(OBJVAS, open(os.path.join(BUILD, 'objvas.json'), 'w'), indent=0)
             json.dump(OBJSYM, open(os.path.join(BUILD, 'objsym.json'), 'w'), indent=0)
