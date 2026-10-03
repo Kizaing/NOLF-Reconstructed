@@ -2,7 +2,9 @@ r"""lithtech.exe decomp build driver.
 
   python tools/build.py                 compile, check, write target objs + objdiff.json, objdiff report
   python tools/build.py check [-v] [F]  compile and check annotated functions (F = substring of unit/name/addr)
-  python tools/build.py diff <F>        side-by-side disassembly for matching functions
+  python tools/build.py diff [-a] <F>   side-by-side disassembly for matching functions; every diff ends with an
+                                        ALIGNED line (instruction mismatches after alignment); -a prints aligned hunks
+  python tools/build.py relink         layout gate: mixed relink of every fully matched unit (tools/relink_gate.py)
   python tools/build.py base <obj>      rebuild one base object (objdiff's "custom make" entry point)
 
 Source annotations (reccmp style), on the line(s) directly before a definition:
@@ -203,25 +205,80 @@ def _newest_header():
     return t
 
 
-def compile_unit(u, force=False):
-    os.makedirs(os.path.dirname(u.base_obj), exist_ok=True)
-    if not force and os.path.exists(u.base_obj):
-        t = os.path.getmtime(u.base_obj)
-        if t > os.path.getmtime(u.path) and t > _newest_header():
+def _up_to_date(u):
+    if not os.path.exists(u.base_obj):
+        return False
+    t = os.path.getmtime(u.base_obj)
+    return t > os.path.getmtime(u.path) and t > _newest_header()
+
+
+def _lock(path, timeout=900):
+    """Exclusive lock file (several agents may check the same unit at once). Returns True once held."""
+    t0 = time.time()
+    while True:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
             return True
-    args = [VC6CL] + COMMON_FLAGS + u.flags + ['/Fo' + u.base_obj, u.path]
-    r = subprocess.run(['cmd', '/c'] + args, capture_output=True, text=True, cwd=os.path.dirname(u.path))
-    out = '\n'.join(l for l in r.stdout.splitlines() if l.strip() and l.strip() != os.path.basename(u.path))
-    if out:
-        print(out)
-    if r.returncode != 0 or not os.path.exists(u.base_obj):
-        # never check a stale object: its functions report ERROR until the unit compiles again
-        if os.path.exists(u.base_obj):
-            os.remove(u.base_obj)
-        print('COMPILE FAILED: %s' % u.rel)
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(path) > 600:     # a crashed holder: no compile takes 10 minutes
+                    os.remove(path)
+                    continue
+            except OSError:
+                pass
+            if time.time() - t0 > timeout:
+                return False
+            time.sleep(0.2)
+
+
+def _replace(src, dst):
+    """os.replace, retried while a reader has dst open (Windows refuses to replace an open file)."""
+    for i in range(150):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            time.sleep(0.2)
+    os.replace(src, dst)
+
+
+def compile_unit(u, force=False):
+    # The compiler writes a private temporary object that is renamed into place, under a per-unit lock, so a
+    # concurrent check never reads a half-written object and two compiles of one unit don't interleave.
+    os.makedirs(os.path.dirname(u.base_obj), exist_ok=True)
+    if not force and _up_to_date(u):
+        return True
+    lock = u.base_obj + '.lock'
+    if not _lock(lock):
+        print('COMPILE FAILED: %s (timed out waiting for %s)' % (u.rel, lock))
         COMPILE_FAILED.append(u.rel)
         return False
-    return True
+    try:
+        if not force and _up_to_date(u):       # another process compiled it while we waited
+            return True
+        tmp = '%s.%d.tmp.obj' % (u.base_obj[:-4], os.getpid())
+        args = [VC6CL] + COMMON_FLAGS + u.flags + ['/Fo' + tmp, u.path]
+        r = subprocess.run(['cmd', '/c'] + args, capture_output=True, text=True, cwd=os.path.dirname(u.path))
+        out = '\n'.join(l for l in r.stdout.splitlines() if l.strip() and l.strip() != os.path.basename(u.path))
+        if out:
+            print(out)
+        if r.returncode != 0 or not os.path.exists(tmp):
+            # never check a stale object: its functions report ERROR until the unit compiles again
+            for p in (tmp, u.base_obj):
+                if os.path.exists(p):
+                    os.remove(p)
+            print('COMPILE FAILED: %s' % u.rel)
+            COMPILE_FAILED.append(u.rel)
+            return False
+        _replace(tmp, u.base_obj)
+        return True
+    finally:
+        try:
+            os.remove(lock)
+        except OSError:
+            pass
 
 
 COMPILE_FAILED = []
@@ -490,7 +547,50 @@ def print_diff(r, o, exe):
             lt = re.sub(r'0x0\b|0x[0-9a-f]+(?=\])', rel[0][:28], lt, count=1) if '0x' in lt else lt + ' ; ' + rel[0][:28]
         same = la is not None and ra is not None and base[la:la + ls] == target[ra - r.a.va:ra - r.a.va + rs]
         mark = ' ' if same or (rel and ls == rs and lt.split()[0] == rt.split()[0]) else '*'
-        print('   %s %04x %-50s | %s' % (mark, la if la is not None else 0, lt[:50], ('%04x ' % (ra - r.a.va) if ra else '') + rt[:50]))
+        if not ALIGNED_ONLY:
+            print('   %s %04x %-50s | %s' % (mark, la if la is not None else 0, lt[:50], ('%04x ' % (ra - r.a.va) if ra else '') + rt[:50]))
+    print_aligned(r, left, right, relocs)
+
+
+ALIGNED_ONLY = False    # diff -a: print the aligned hunks instead of the index-by-index listing
+
+
+def _norm_insn(t, has_reloc, stack):
+    if re.match(r'^(j\w+|call|loop\w*)\b', t):
+        return t.split()[0]
+    if has_reloc:
+        t = re.sub(r'\b(0x[0-9a-f]+|\d+)\b', 'A', t)     # capstone prints an unrelocated 0 as plain 0
+    t = re.sub(r'\b0x4[0-9a-f]{5}\b', 'A', t)
+    if stack:
+        t = re.sub(r'\[(esp|ebp) [+-] 0x[0-9a-f]+\]', r'[\1 S]', t)
+    return t
+
+
+def aligned_score(left, right, relocs, stack):
+    """Instruction mismatches after aligning the two listings (difflib), so one inserted instruction counts once
+    instead of shifting every later row. Branch/call targets and relocated addresses are ignored."""
+    import difflib
+    A = [_norm_insn(t, any(o in relocs for o in range(a, a + s)), stack) for a, s, t in left]
+    B = [_norm_insn(t, False, stack) for a, s, t in right]
+    sm = difflib.SequenceMatcher(None, A, B, autojunk=False)
+    return sum(max(i2 - i1, j2 - j1) for tag, i1, i2, j1, j2 in sm.get_opcodes() if tag != 'equal'), sm
+
+
+def print_aligned(r, left, right, relocs):
+    n, sm = aligned_score(left, right, relocs, False)
+    ns, _ = aligned_score(left, right, relocs, True)
+    if ALIGNED_ONLY:
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == 'equal':
+                continue
+            print('   %s ours %04x..  exe %04x..' % (tag, left[i1][0] if i1 < len(left) else 0,
+                                                    (right[j1][0] - r.a.va) if j1 < len(right) else 0))
+            for k in range(i1, i2):
+                print('      - %s' % left[k][2])
+            for k in range(j1, j2):
+                print('      + %s' % right[k][2])
+    print('   ALIGNED %s: %d instruction mismatches, %d ignoring stack offsets (%d vs %d instructions)' % (
+        r.a.name or r.a.symbol, n, ns, len(left), len(right)))
 
 
 # ---------------------------------------------------------------- targets + objdiff
@@ -739,6 +839,9 @@ def lint():
 
 def main(argv):
     cmd = argv[0] if argv else 'all'
+    if cmd == 'relink':         # layout gate over the last full build's objects (tools/relink_gate.py)
+        import relink_gate
+        return relink_gate.main()
     if cmd == 'base':           # objdiff passes the base object path
         want = os.path.normcase(os.path.abspath(os.path.join(ROOT, argv[1])))
         if want.startswith(os.path.normcase(os.path.join(BUILD, 'base', 'lib') + os.sep)):
@@ -751,7 +854,9 @@ def main(argv):
     t0 = time.time()
     units = find_units()
     verbose = '-v' in argv
-    rest = [x for x in argv[1:] if x != '-v']
+    global ALIGNED_ONLY
+    ALIGNED_ONLY = '-a' in argv
+    rest = [x for x in argv[1:] if x not in ('-v', '-a')]
     filt = rest[0] if rest else None
     # a filtered check/diff/todo only compiles the units it names (several agents may run checks at once;
     # other units' existing objects are still read for names)
