@@ -10,24 +10,6 @@
 #include "bdefs.h"
 #include "de_memory.h"
 
-// This unit builds the inline CClientMgr constructor and destructor, so it sees the opaque members as the
-// real objects (the other units keep them as byte arrays of the same size).
-#define CLIENTMGR_REAL_MEMBERS
-class ILTClient;
-class LTRect;
-// The debug graph manager (debuggraphmgr.cpp; 0x64 bytes), embedded at CClientMgr+0x1300.
-class CDebugGraphMgr
-{
-public:
-	CDebugGraphMgr();															// 0x004309c0
-	~CDebugGraphMgr();															// 0x00430a70
-	LTRESULT	Init(ILTClient *pClientDE, LTRect *pRect);						// 0x00430ae0
-	LTRESULT	Term();															// 0x00430b70
-	LTRESULT	Draw();															// 0x00430d10
-
-private:
-	uint8		m_Pad[0x64];
-};
 #include "clientmgr.h"
 #include "clientshell.h"
 #include "iclientshell.h"
@@ -1090,8 +1072,8 @@ void CClientMgr::UpdateAllSounds(float fFrameTime)
 // ------------------------------------------------------------------ //
 
 // The inline CClientMgr constructor (the member constructors in member order, with MotionState's gravity
-// through SetForce, 0x00411670) is built into this function: this unit sees the real CSoundMgr,
-// CDebugGraphMgr and CLoaderThread members (CLIENTMGR_REAL_MEMBERS), and MotionInfo's empty constructor
+// through SetForce, 0x00411670) is built into this function: the CSoundMgr,
+// CDebugGraphMgr and CLoaderThread members are real objects (clientmgr.h), and MotionInfo's empty constructor
 // is __forceinline in motion.h so that it vanishes as in the original.
 // FUNCTION: LITHTECH 0x004112c0
 CClientMgr* cm_Init()
@@ -1184,8 +1166,7 @@ CClientMgr* cm_Init()
 }
 
 
-// Talon does Jupiter's Term here; the members' destructors follow inline (the real member types are visible
-// in this unit: see CLIENTMGR_REAL_MEMBERS in clientmgr.h).
+// Talon does Jupiter's Term here; the members' destructors follow inline.
 // FUNCTION: LITHTECH 0x00411720
 CClientMgr::~CClientMgr()
 {

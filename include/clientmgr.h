@@ -23,6 +23,7 @@
 #include "musicmgr.h"
 #include "demomgr.h"
 #include "soundmgr.h"
+#include "debuggraphmgr.h"
 
 // Talon client file manager handle (client_filemgr).
 struct ClientFileMgr;
@@ -138,13 +139,7 @@ public:
 	struct ObjectMapEntry	*m_ObjectMap;	// 0x12ec (indexed by object ID; servermgr.h)
 	uint32			m_ObjectMapSize;	// 0x12f0
 	RateTracker		m_FramerateTracker;	// 0x12f4
-// CDebugGraphMgr is still declared in clientmgr.cpp and debuggraphmgr.cpp separately (no shared header yet), so
-// only clientmgr.cpp (CLIENTMGR_REAL_MEMBERS) sees it as the real object.
-#ifdef CLIENTMGR_REAL_MEMBERS
-	CDebugGraphMgr	m_DebugGraphMgr;	// 0x1300 (0x64 bytes)
-#else
-	uint8			m_Pad1300[0x1364 - 0x1300];	// the CDebugGraphMgr
-#endif
+	CDebugGraphMgr	m_DebugGraphMgr;	// 0x1300 (debuggraphmgr.h; 0x64 bytes)
 	float			m_LastTime;			// 0x1364 m_CurTime of the previous frame (demomgr)
 	float			m_FrameTime;		// 0x1368
 	float			m_CurTime;			// 0x136c (pd_InitialServerUpdate)
