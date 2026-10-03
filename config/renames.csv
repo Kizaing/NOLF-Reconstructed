@@ -19,10 +19,3 @@ addr,name,ghidra_name,evidence
 004c62ec,WSOCK32.DLL!WSAStartup,WSOCK32.DLL!Ordinal_115,WSOCK32 import by ordinal 115
 004c62f0,WSOCK32.DLL!recvfrom,WSOCK32.DLL!Ordinal_17,WSOCK32 import by ordinal 17
 004c62f4,WSOCK32.DLL!WSACleanup,WSOCK32.DLL!Ordinal_116,WSOCK32 import by ordinal 116
-00405980,w_GetLightVal,CLightTable::GetLightVal,free cdecl function (CLightTable* arg on stack and plain ret; no this in ecx); callers GetPointShade in client and server
-004a4710,_STL::_Rb_tree_iterator<>::_Rb_tree_iterator<>,_Rb_tree_iterator<>,copy constructor of the STLport map<string,set<string>> iterator; called by CLTServer::LinkModelToExtraChildModel (0x47cd10) and Model::Load
-0041b380,DoPointCollision,StairStep,FLAG_POINTCOLLIDE branch of CollideWithWorld (Jupiter DoPointCollision: IntersectLine against the movement); not a stair step
-0041e290,StairStep,CollideCylinderWithTree,returns bHitNonStep via SURF_NOTASTEP (1<<22) and is called from the g_CV_NewStairStep path of CollideWithWorld: Jupiter StairStep
-0041edb0,StairStepOld,ClipBoxIntoTree2,the NewStairStep=0 path of CollideWithWorld: returns bHitNonStep like StairStep and has no sphere/box clipping
-0041da50,CollideCylinderWithTree,FUN_0041da50,iterates a CMovingCylinder along the movement (Jupiter CollideCylinderWithTree); called when FLAG2_CYLINDERPHYSICS and NewCollision is 0
-0041c460,ClipBoxIntoTree,FUN_0041c460,Talon version of Jupiter ClipBoxIntoTree2: classifies the box start/end against each node plane (CollideBox runs it twice)
