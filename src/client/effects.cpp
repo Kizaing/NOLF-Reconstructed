@@ -178,49 +178,20 @@ static void* Rotate_Init(SurfaceData *pSurfaceData, int argc, char **argv)
 	return pData;
 }
 
-// Close (98 of 384 bytes differ, from 178 once tz = (1-cos)*z became its own local like tx/ty): the original sums each
-// P/Q row loading Px before Pz (here Pz is loaded first, whatever the source term order or operand order is).
-// STUB: LITHTECH 0x00435de0
+// The SDK's Mat_SetupRot and MatVMul_3x3 (ltmatrix.h): the same arithmetic written out loads the row terms in another
+// x87 order (README, wave 6).
+// FUNCTION: LITHTECH 0x00435de0
 static void Rotate_Update(SurfaceData *pSurfaceData, void *pVoidData)
 {
 	SEData *pData = (SEData*)pVoidData;
-	float fSin, fCos, fOneMinusCos;
-	float tx, ty, tz, sx, sy, sz;
 	LTMatrix mat;
-	LTVector *pAxis;
 
 	// The current angle is kept at 0x34.
 	pData->m_Speed[1] += g_pClientMgr->m_FrameTime * pData->m_Speed[0];
 
-	fSin = (float)sin(pData->m_Speed[1]);
-	fCos = (float)cos(pData->m_Speed[1]);
-	fOneMinusCos = 1.0f - fCos;
-
-	pAxis = &pData->m_Normal;
-	tx = fOneMinusCos * pAxis->x;
-	ty = fOneMinusCos * pAxis->y;
-	tz = fOneMinusCos * pAxis->z;
-	sx = fSin * pAxis->x;
-	sy = fSin * pAxis->y;
-	sz = fSin * pAxis->z;
-
-	mat.m[0][0] = tx * pAxis->x + fCos;
-	mat.m[1][0] = tx * pAxis->y + sz;
-	mat.m[2][0] = tx * pAxis->z - sy;
-	mat.m[0][1] = tx * pAxis->y - sz;
-	mat.m[1][1] = ty * pAxis->y + fCos;
-	mat.m[2][1] = ty * pAxis->z + sx;
-	mat.m[0][2] = tx * pAxis->z + sy;
-	mat.m[1][2] = ty * pAxis->z - sx;
-	mat.m[2][2] = tz * pAxis->z + fCos;
-
-	pSurfaceData->P.x = mat.m[0][0] * pData->m_P.x + mat.m[0][2] * pData->m_P.z + mat.m[0][1] * pData->m_P.y;
-	pSurfaceData->P.y = mat.m[1][0] * pData->m_P.x + mat.m[1][2] * pData->m_P.z + mat.m[1][1] * pData->m_P.y;
-	pSurfaceData->P.z = mat.m[2][0] * pData->m_P.x + mat.m[2][2] * pData->m_P.z + mat.m[2][1] * pData->m_P.y;
-
-	pSurfaceData->Q.x = mat.m[0][0] * pData->m_Q.x + mat.m[0][2] * pData->m_Q.z + mat.m[0][1] * pData->m_Q.y;
-	pSurfaceData->Q.y = mat.m[1][0] * pData->m_Q.x + mat.m[1][2] * pData->m_Q.z + mat.m[1][1] * pData->m_Q.y;
-	pSurfaceData->Q.z = mat.m[2][0] * pData->m_Q.x + mat.m[2][2] * pData->m_Q.z + mat.m[2][1] * pData->m_Q.y;
+	Mat_SetupRot(&mat, &pData->m_Normal, pData->m_Speed[1]);
+	MatVMul_3x3(&pSurfaceData->P, &mat, &pData->m_P);
+	MatVMul_3x3(&pSurfaceData->Q, &mat, &pData->m_Q);
 }
 
 // FUNCTION: LITHTECH 0x00435f60
