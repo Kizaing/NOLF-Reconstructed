@@ -161,22 +161,17 @@ LTBOOL CModelRayIntersect::SetupArrays(PieceLOD *pLOD)
 
 // Skins the LOD's vertices with the model's node transforms.
 // STUB: LITHTECH 0x0045b3b0
-// Structure now matches the original except for: frame size (orig sub esp,0x14: three more dead dwords than our
-// push ecx), pLOD/loop registers (orig pLOD ebx, vertex stride edi), where `pWeight = pVert->m_Weights` is loaded
-// (orig after the weight-count test), and the order of the four terms per row (orig x: m02v2+m03v3+m01v1+v0*m00,
-// y/z/w: m_2v2+m_0v0+m_3v3+m_1v1; VC6 re-sorts the terms of an addition chain regardless of source order, always
-// emitting [3],[0],[2],[1] for y/z/w here, so the original's tree must have a different shape).
-// What fixed the rest: `for(iWeight=0; iWeight < n; iWeight++)` (countdown with jbe), `pOut[i].x = ...` instead of
-// pOut++, and `fInvW = 0.0f; ... w = fInvW;` (the original's 4th accumulator is loaded from the fInvW stack slot).
+// Wave 6: the SDK's inline MatVMul_Add into a float[4] accumulator (the 0x14 frame), with 1/w stored back into
+// vec[3], gives everything but one multiply: the original loads pVec[0] before m[0][0] in the x row
+// (`fld [ecx-0x14]; fmul [eax]`), ours m[0][0] first (4 bytes). A pMat local doesn't change it.
 void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 {
 	LTMatrix *pTransforms;
 	ModelVert *pVert;
 	NewVertexWeight *pWeight;
-	LTMatrix *pMat;
 	LTVector *pOut;
 	uint32 i, iWeight;
-	float x, y, z, w, fInvW;
+	float vec[4];
 
 	pTransforms = m_pModel->m_Transforms.GetArray();
 	pOut = s_RayVerts.GetArray();
@@ -185,23 +180,17 @@ void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 	{
 		pVert = &pLOD->m_Verts[i];
 
-		fInvW = 0.0f;
-		x = y = z = 0.0f;
-		w = fInvW;
-		for(iWeight=0, pWeight = pVert->m_Weights; iWeight < pVert->m_nWeights; iWeight++)
+		vec[0] = vec[1] = vec[2] = vec[3] = 0.0f;
+		for(iWeight=0; iWeight < pVert->m_nWeights; iWeight++)
 		{
-			pMat = &pTransforms[pWeight->m_iNode];
-			x += pMat->m[0][2]*pWeight->m_Vec[2] + pMat->m[0][3]*pWeight->m_Vec[3] + pMat->m[0][1]*pWeight->m_Vec[1] + pWeight->m_Vec[0]*pMat->m[0][0];
-			y += pMat->m[1][2]*pWeight->m_Vec[2] + pMat->m[1][0]*pWeight->m_Vec[0] + pMat->m[1][3]*pWeight->m_Vec[3] + pMat->m[1][1]*pWeight->m_Vec[1];
-			z += pMat->m[2][2]*pWeight->m_Vec[2] + pMat->m[2][0]*pWeight->m_Vec[0] + pMat->m[2][3]*pWeight->m_Vec[3] + pMat->m[2][1]*pWeight->m_Vec[1];
-			w += pMat->m[3][2]*pWeight->m_Vec[2] + pMat->m[3][0]*pWeight->m_Vec[0] + pMat->m[3][3]*pWeight->m_Vec[3] + pMat->m[3][1]*pWeight->m_Vec[1];
-			pWeight++;
+			pWeight = &pVert->m_Weights[iWeight];
+			MatVMul_Add(vec, &pTransforms[pWeight->m_iNode], pWeight->m_Vec);
 		}
 
-		fInvW = 1.0f / w;
-		pOut[i].x = x * fInvW;
-		pOut[i].y = y * fInvW;
-		pOut[i].z = z * fInvW;
+		vec[3] = 1.0f / vec[3];
+		pOut[i].x = vec[0] * vec[3];
+		pOut[i].y = vec[1] * vec[3];
+		pOut[i].z = vec[2] * vec[3];
 	}
 }
 
