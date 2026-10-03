@@ -59,8 +59,8 @@ static ObjectBank<HashElement> g_HashElementBank(32, 64);
 // FUNCTION: LITHTECH 0x00433c50 ?FreeVoid@?$ObjectBank@UHashElement@@VNullCS@@@@UAEXPAX@Z
 // FUNCTION: LITHTECH 0x00433c70 ?Term@?$ObjectBank@UHashElement@@VNullCS@@@@UAEXXZ
 // FUNCTION: LITHTECH 0x00433c90 ??_G?$ObjectBank@UHashElement@@VNullCS@@@@UAEPAXI@Z
-static GetCodeFn g_GetHashCodeFns[NUM_HASH_TYPES];
-static CompareKeyFn g_CompareKeyFns[NUM_HASH_TYPES];
+static GetCodeFn g_GetHashCodeFns[NUM_HASH_TYPES] = {0};
+static CompareKeyFn g_CompareKeyFns[NUM_HASH_TYPES] = {0};
 
 
 // ------------------------------------------------------------ //

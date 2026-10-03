@@ -683,7 +683,7 @@ LTMatrix* ModelInstance::GetTransforms()
 // FUNCTION: LITHTECH 0x004678d0
 LTMatrix* ModelInstance::GetNodeTransform(uint32 iNode)
 {
-	static LTMatrix identity;
+	static LTMatrix mIdentity;	// 0x004e45c8 (original name unknown; "identity" sorts it before g_ObjectMgrs in .bss)
 
 	if (!IsTransformCacheValid())
 		UpdateTransforms();
@@ -691,8 +691,8 @@ LTMatrix* ModelInstance::GetNodeTransform(uint32 iNode)
 	if (iNode < m_Transforms.GetSize())
 		return &m_Transforms[iNode];
 
-	identity.Identity();
-	return &identity;
+	mIdentity.Identity();
+	return &mIdentity;
 }
 
 // FUNCTION: LITHTECH 0x00467b30

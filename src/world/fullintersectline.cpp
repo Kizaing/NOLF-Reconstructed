@@ -48,8 +48,8 @@ Node* IntersectLine(Node *pRoot, LTVector *pPoint1, LTVector *pPoint2,
 LTBOOL IntersectLineNode(Node *pRoot, IntersectRequest *pRequest);
 
 
-uint32 g_nIntersectCalls;
-float g_IntersectLineLen;
+uint32 g_IntersectTicks, g_nIntersectCalls;	// Jupiter: g_Ticks_Intersect (this name gives the exe's .bss order)
+float g_IntersectLineLen = 0.0f;
 
 
 static void (*g_FindIntersectionsFn)(WorldBsp *pWorldBsp, Node **pNodeIntersectionPtr,
@@ -66,10 +66,10 @@ static uint8 g_bProcessObjects;
 // The current best intersection (LTNULL if none).
 static Node *g_pWorldIntersection; // The node we intersected if we hit a BSP.
 static LTObject *g_pIntersection;
-static float g_IntersectionBestDistSqr; // Distance to intersection point squared.
+static float g_IntersectionBestDistSqr = 0.0f; // Distance to intersection point squared.
 static LTPlane g_IntersectionPlane;
 static LTVector g_IntersectionPos;
-static HPOLY g_hWorldPoly;  // The WorldModel poly we're touching.
+static HPOLY g_hWorldPoly = 0;  // The WorldModel poly we're touching.
 
 static LTVector g_V, g_VTimesInvVV;
 static float g_VPTimesInvVV, g_LineLen;

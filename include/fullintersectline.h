@@ -5,6 +5,8 @@
 #include "ltbasetypes.h"
 
 // Profiling counters (the server manager clears them every update).
+// GLOBAL: LITHTECH 0x004e3804
+extern uint32 g_IntersectTicks;
 // GLOBAL: LITHTECH 0x004e3808
 extern uint32 g_nIntersectCalls;
 // Total length of all the segments tested (Talon).
