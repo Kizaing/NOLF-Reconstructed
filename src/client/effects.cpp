@@ -178,7 +178,8 @@ static void* Rotate_Init(SurfaceData *pSurfaceData, int argc, char **argv)
 	return pData;
 }
 
-// The SDK's inline Mat_SetupRot and MatVMul_3x3 (hand-expanded, the P/Q sums loaded Pz before Px).
+// The SDK's Mat_SetupRot and MatVMul_3x3 (ltmatrix.h): the same arithmetic written out loads the row terms in another
+// x87 order (README, wave 6).
 // FUNCTION: LITHTECH 0x00435de0
 static void Rotate_Update(SurfaceData *pSurfaceData, void *pVoidData)
 {

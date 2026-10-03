@@ -162,9 +162,11 @@ LTBOOL CModelRayIntersect::SetupArrays(PieceLOD *pLOD)
 
 // Skins the LOD's vertices with the model's node transforms.
 // STUB: LITHTECH 0x0045b3b0
-// Wave 6: the SDK's inline MatVMul_Add into a float[4] accumulator (the 0x14 frame), with 1/w stored back into
-// vec[3], gives everything but one multiply: the original loads pVec[0] before m[0][0] in the x row
-// (`fld [ecx-0x14]; fmul [eax]`), ours m[0][0] first (4 bytes). A pMat local doesn't change it.
+// The SDK's MatVMul_Add (ltmatrix.h) into a float[4] gives the original's frame and x87 term order, and the
+// homogeneous divide reuses vOut[3]. Remaining diff (2 aligned, 4 bytes): the x row's first product loads
+// pVec[0] before m[0][0] (`fld [ecx-0x14]; fmul [eax]`), ours the other way round. Tried a pMat local, a
+// NewVertexWeight reference, `&pVec[0]`, `pTransforms + n`, pointer-increment loops (worse), other vOut
+// initialisation orders and memset (worse).
 void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 {
 	LTMatrix *pTransforms;
@@ -172,7 +174,7 @@ void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 	NewVertexWeight *pWeight;
 	LTVector *pOut;
 	uint32 i, iWeight;
-	float vec[4];
+	float vOut[4];
 
 	pTransforms = m_pModel->m_Transforms.GetArray();
 	pOut = s_RayVerts.GetArray();
@@ -181,17 +183,17 @@ void CModelRayIntersect::TransformVerts(PieceLOD *pLOD)
 	{
 		pVert = &pLOD->m_Verts[i];
 
-		vec[0] = vec[1] = vec[2] = vec[3] = 0.0f;
+		vOut[0] = vOut[1] = vOut[2] = vOut[3] = 0.0f;
 		for(iWeight=0; iWeight < pVert->m_nWeights; iWeight++)
 		{
 			pWeight = &pVert->m_Weights[iWeight];
-			MatVMul_Add(vec, &pTransforms[pWeight->m_iNode], pWeight->m_Vec);
+			MatVMul_Add(vOut, &pTransforms[pWeight->m_iNode], pWeight->m_Vec);
 		}
 
-		vec[3] = 1.0f / vec[3];
-		pOut[i].x = vec[0] * vec[3];
-		pOut[i].y = vec[1] * vec[3];
-		pOut[i].z = vec[2] * vec[3];
+		vOut[3] = 1.0f / vOut[3];
+		pOut[i].x = vOut[0] * vOut[3];
+		pOut[i].y = vOut[1] * vOut[3];
+		pOut[i].z = vOut[2] * vOut[3];
 	}
 }
 

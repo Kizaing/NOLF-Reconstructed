@@ -224,8 +224,12 @@ LTRESULT SmackVideoInst::Init(const char *pFilename, uint32 flags, LTBOOL bTextu
 
 
 // STUB: LITHTECH 0x0049d810
-// Remaining diff: VC merges the GetDisplayMode and CreateSurface error tails the other way round (same family as
-// dsi_LoadServerObjects: our build cross-jumps identical RETURN_ERROR tails, the original keeps the print code per block).
+// Remaining diff (36 aligned): the error tails are cross-jumped differently. The original's GetDisplayMode block jumps
+// into the first CreateSurface block's print code and every `jl` goes to that block's epilogue; ours merges the first
+// CreateSurface block into the GetDisplayMode one and sends the `jl`s to the last block's epilogue. Wave 6 tried (no
+// change or worse): the NOT_INITIALIZED error as an else branch, an early `if(!m_smk || ...)` return, the
+// GetDisplayMode test nested as `== DD_OK`, the 565 test inverted, a goto past the convert path, a do{}while(0)
+// RETURN_ERROR_PARAM. No compiler option changes the merge direction (README, wave 6).
 LTRESULT SmackVideoInst::InitScreen()
 {
 	LPDIRECTDRAW7 pDD;

@@ -285,11 +285,10 @@ LTRESULT GetOrCopyFile(CServerMgr *pServerMgr, const char *pTempPath, const char
 }
 
 
-// STUB: LITHTECH 0x00434570
-// Remaining diff (18 bytes): in the original the first LT_INVALIDOBJECTDLL block's `jl` lands on its own epilogue
-// (pop pop pop, mov eax, pop) and the second block keeps a differently scheduled copy; we cross-jump the first block into
-// the second block's epilogue instead. Same family as InitScreen, LockTexture and ClientLoadChildModelCB (identical
-// RETURN_ERROR tails that VC cross-jumps in our build but not in the original). `||`-merging the two status tests is worse.
+// FUNCTION: LITHTECH 0x00434570
+// The copy-failure error is the outer if's else branch, not a statement after it: with code after the if/else
+// chain VC cross-jumps the two identical LT_INVALIDOBJECTDLL tails into the later copy, in tail position into
+// the earlier one (README, wave 6).
 LTRESULT dsi_LoadServerObjects(CClassMgr *pClassMgr)
 {
 	int version;
@@ -367,9 +366,11 @@ LTRESULT dsi_LoadServerObjects(CClassMgr *pClassMgr)
 			RETURN_ERROR_PARAM(1, LoadObjectsInDirectory, LT_INVALIDOBJECTDLLVERSION, pDLLName);
 		}
 	}
-
-	sm_SetupError(pServerMgr, LT_ERRORCOPYINGFILE, pDLLName);
-	RETURN_ERROR_PARAM(1, LoadServerObjects, LT_ERRORCOPYINGFILE, pDLLName);
+	else
+	{
+		sm_SetupError(pServerMgr, LT_ERRORCOPYINGFILE, pDLLName);
+		RETURN_ERROR_PARAM(1, LoadServerObjects, LT_ERRORCOPYINGFILE, pDLLName);
+	}
 }
 
 

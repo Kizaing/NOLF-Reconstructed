@@ -166,9 +166,10 @@ struct ClientLoadChildInfo
 
 
 // Loads a child model (the model's path is the parent's directory).
-// STUB: LITHTECH 0x00489a10
-// Tail merging: the two LT_MISSINGMODELFILE returns share the other epilogue (our `jl` skips to the second block's
-// epilogue, the original's to the first block's own; same family as dsi_LoadServerObjects).
+// FUNCTION: LITHTECH 0x00489a10
+// The bind failure repeats the delete + LT_ERROR block that VC merges with the final one, and the final one is an
+// else branch: with a statement after the if, VC cross-jumps the two LT_MISSINGMODELFILE tails the other way (README,
+// wave 6).
 LTRESULT ClientLoadChildModelCB(ModelLoadRequest *pRequest, Model **ppModel)
 {
 	ClientLoadChildInfo *pInfo;
@@ -226,15 +227,20 @@ LTRESULT ClientLoadChildModelCB(ModelLoadRequest *pRequest, Model **ppModel)
 	if (dResult == LT_OK)
 	{
 		pModel->SetFilename(fullName);
-		if (cm_BindModel(pInfo->m_pClientMgr, pModel, pIdent, LTFALSE) == LT_OK)
+		if (cm_BindModel(pInfo->m_pClientMgr, pModel, pIdent, LTFALSE) != LT_OK)
 		{
-			*ppModel = pModel;
-			return LT_OK;
+			delete pModel;
+			RETURN_ERROR(1, cm_LoadChildModel, LT_ERROR);
 		}
-	}
 
-	delete pModel;
-	RETURN_ERROR(1, cm_LoadChildModel, LT_ERROR);
+		*ppModel = pModel;
+		return LT_OK;
+	}
+	else
+	{
+		delete pModel;
+		RETURN_ERROR(1, cm_LoadChildModel, LT_ERROR);
+	}
 }
 
 
