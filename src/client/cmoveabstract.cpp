@@ -55,17 +55,13 @@ void CMoveAbstract::BreakContainerLinks(LTObject *pObj)
 {
 }
 
-// Close (69 bytes): the original reads the whole m_Rotation assignment from the quat_Mul temp and
-// keeps the spilled `this` at 0x44 with the newRot copy at 0x48 (ours: newRot 0x44, `this` 0x54).
-// STUB: LITHTECH 0x00417640
+// FUNCTION: LITHTECH 0x00417640
 void CMoveAbstract::MoveAttachments(MoveState *pState)
 {
 	Attachment *pAttachment;
 	LTObject *pAttachedObj;
-	LTRotation newRot;
 	LTVector attachPos, vOffset;
 	LTMatrix mat;
-
 	MoveState moveState;
 
 	// Move the attachments.
@@ -86,7 +82,7 @@ void CMoveAbstract::MoveAttachments(MoveState *pState)
 			MoveObject(&moveState, attachPos, MO_DETACHSTANDING | MO_MOVESTANDINGONS);
 
 			// Update its rotation..
-			newRot = pState->m_pObj->m_Rotation * pAttachment->m_Offset.m_Rot;
+			LTRotation newRot = pState->m_pObj->m_Rotation * pAttachment->m_Offset.m_Rot;
 			if (!newRot.Equals(pAttachedObj->m_Rotation, 0.00001f))
 			{
 				if (pAttachedObj->HasWorldModel())

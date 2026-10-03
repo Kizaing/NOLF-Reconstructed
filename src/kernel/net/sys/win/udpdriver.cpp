@@ -354,7 +354,9 @@ LTRESULT CUDPDriver::GetServiceList(NetService* &pListHead)
 
 
 // Same size and inlining as the original; this build keeps ebp == 0 live through the parse loop
-// (cmp [m_nArgs], ebp) where the original reloads (test eax, eax).
+// (cmp [m_nArgs], ebp) where the original reloads (test eax, eax). In the original ebp's zero is only used before
+// the loop (the bind check, the SetupLocalSockaddr argument); after it every zero is `push 0` / `test`.
+// `if(parse.m_nArgs != 0 && parse.m_nArgs > 0)` makes the first compare a load+test but doesn't fix the rest.
 // STUB: LITHTECH 0x00497d20
 LTRESULT CUDPDriver::StartQuery(char *pInfo)
 {
@@ -508,7 +510,10 @@ char* tcp_GetLastError()
 #pragma warning(default : 4715)
 
 
-// Inlines CPacket::ReadType/WriteType where the original calls the out-of-line copies (inline budget).
+// Wave 5: inline_scan p1/p2 (a free inline call after any statement) and inline_ballast (up to 64 units before the
+// first ReadType) don't turn it into a MATCH; the original calls the first ReadType<uint8> (subID) out of line
+// and inlines the later ones, ours inlines all of them. ResetWrite() replaces `m_DataLen = m_Pos = 1` (the
+// original stores m_Pos first through one reload of the packet).
 // STUB: LITHTECH 0x00498240
 LTRESULT CUDPDriver::UpdateQuery()
 {
@@ -537,7 +542,7 @@ LTRESULT CUDPDriver::UpdateQuery()
 		{
 			pQuery = &m_Queries[i];
 
-			pQueryPacket->m_DataLen = pQueryPacket->m_Pos = 1;
+			pQueryPacket->ResetWrite();
 			pQueryPacket->WriteType((uint8)TCPSUB_QUERY);
 			pQueryPacket->WriteRaw(&m_pNetMgr->m_guidApp, sizeof(LTGUID));
 

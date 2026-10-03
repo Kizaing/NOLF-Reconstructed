@@ -4,15 +4,6 @@
 #include <stdarg.h>
 #include "console.h"
 
-// Its compiler-generated dynamic initializer is _$E4 (calls _$E1 = construct, then
-// _$E3 = atexit(_$E2 = destruct)).
-// FUNCTION: LITHTECH 0x00420690 _$E4
-// FUNCTION: LITHTECH 0x004206a0 _$E1
-// FUNCTION: LITHTECH 0x004206b0 _$E3
-// FUNCTION: LITHTECH 0x004206c0 _$E2
-// GLOBAL: LITHTECH 0x004e2f88
-CConsole g_Console;
-
 
 // ------------------------------------------------------------------ //
 // Console interface functions.
@@ -77,3 +68,13 @@ void con_OnKeyPress(uint32 key)
 {
 	GETCONSOLE()->OnKeyPress( key );
 }
+
+// Defined last: VC6 emits the dynamic initializer where the definition is.
+// Its compiler-generated dynamic initializer is _$E4 (calls _$E1 = construct, then
+// _$E3 = atexit(_$E2 = destruct)).
+// FUNCTION: LITHTECH 0x00420690 _$E4
+// FUNCTION: LITHTECH 0x004206a0 _$E1
+// FUNCTION: LITHTECH 0x004206b0 _$E3
+// FUNCTION: LITHTECH 0x004206c0 _$E2
+// GLOBAL: LITHTECH 0x004e2f88
+CConsole g_Console;

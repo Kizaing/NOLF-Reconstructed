@@ -224,7 +224,8 @@ LTRESULT SmackVideoInst::Init(const char *pFilename, uint32 flags, LTBOOL bTextu
 
 
 // STUB: LITHTECH 0x0049d810
-// Remaining diff: VC merges the GetDisplayMode and CreateSurface error tails the other way round.
+// Remaining diff: VC merges the GetDisplayMode and CreateSurface error tails the other way round (same family as
+// dsi_LoadServerObjects: our build cross-jumps identical RETURN_ERROR tails, the original keeps the print code per block).
 LTRESULT SmackVideoInst::InitScreen()
 {
 	LPDIRECTDRAW7 pDD;
@@ -462,7 +463,8 @@ LTBOOL SmackVideoInst::IsAtLastFrame()
 
 // STUB: LITHTECH 0x0049de90
 // Remaining diff (116 bytes): the original's srcDesc and destDesc stack slots are swapped relative to ours (the first
-// Lock reuses ddsd's slot at +0x40); no declaration-order permutation of the locals changes it.
+// Lock reuses ddsd's slot at +0x40); no permutation of the four block locals (all 23 tried) changes it, and making
+// ddsd a function-scope variable that also serves as srcDesc is much worse (704 bytes).
 LTRESULT SmackVideoInst::UpdateOnScreen()
 {
 	LPDIRECTDRAWSURFACE7 pBackBuffer, pDisplaySurface;

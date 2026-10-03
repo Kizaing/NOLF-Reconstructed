@@ -912,8 +912,9 @@ CSoundInstance *CSoundMgr::FindSoundInstance(HLTSOUND hSound, LTBOOL bClientSoun
 	return LTNULL;
 }
 
-// Logic matches; a few stack slots (dwFrameTime, the velocity temporaries) and the registers of
-// the last loop are allocated differently.
+// Logic matches; low stack slots differ: the original has dwFrameTime as a named slot at +0x28 (next to dwCurTime) and its
+// spill/temp pool starts at +0x14, ours puts dwFrameTime in the pool at +0x1c; plus the last loop (the inlined
+// CMoArray append with a byte local at +0x1f) is allocated differently. Declaration order of the locals has no effect.
 // STUB: LITHTECH 0x00493b50
 LTRESULT CSoundMgr::Update()
 {
@@ -1282,7 +1283,8 @@ LTRESULT CSoundMgr::GetVolumeByType(uint16 &nVolume, uint8 nSoundType)
 	return LT_OK;
 }
 
-// The original returns nError (ebp) on success instead of a constant 0; otherwise matches.
+// The original returns nError (ebp) on success instead of a constant 0; otherwise matches. Tried: `return LT_OK`, `!nError`
+// tests, `if(nError != LT_OK){cleanup; return}` first (much worse): VC always proves nError == 0 on that path.
 // STUB: LITHTECH 0x00494500 ?PlaySoundA@CSoundMgr@@QAEKAAUPlaySoundInfo@@AAUFileIdentifier@@K@Z
 LTRESULT CSoundMgr::PlaySound(PlaySoundInfo &playSoundInfo, FileIdentifier &fileIdent, uint32 dwOffsetTime)
 {
@@ -2361,7 +2363,8 @@ LTRESULT CSoundMgr::GetFilterParamName(uint32 nIndex, const char *pFilter, const
 	return LT_OK;
 }
 
-// Matches except for a swapped ecx/edx assignment in the parameter loop.
+// Matches except for a swapped ecx/edx assignment in the parameter loop (all 119 permutations of the five local
+// declarations tried: no effect).
 // STUB: LITHTECH 0x00496060
 LTRESULT CSoundMgr::GetFilterParamIndex(const char *pFilter, const char *pParam, uint32 *pIndex)
 {

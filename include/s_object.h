@@ -72,6 +72,42 @@ inline LTBOOL CanOptimizeObject(LTObject *pObj)
 		(!(pObj->m_Flags & FLAG_OPTIMIZEMASK) || (pObj->m_Flags & FLAG_FORCEOPTIMIZEOBJECT));
 }
 
+// Talon object-creation property: the list in CServerMgr::m_pCurProps, built by LoadObjects and read by
+// the GetProp* functions of serverde_impl.
+struct PropEntry
+{
+	uint32		m_Type;			// 0x00 PT_
+	char		m_Name[0x50];	// 0x04
+	PropEntry	*m_pNext;		// 0x54
+	uint8		m_Data[1];		// 0x58 value (propLen bytes): string, vector, float or char bool
+};
+
+// Allocates and constructs an object of the class (Jupiter s_object.h; Talon inlines it everywhere).
+inline LPBASECLASS sm_AllocateObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass)
+{
+	LPBASECLASS pObject;
+	CClassData *pClassData;
+
+	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
+
+	pObject = (LPBASECLASS)sb_Allocate(&pClassData->m_ObjectBank);
+	pObject->m_hObject = 0;
+	pObject->m_pFirstAggregate = LTNULL;
+	pClass->m_ConstructFn(pObject);
+
+	return pObject;
+}
+
+// Destructs and frees an object of the class.
+inline void sm_FreeObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass, LPBASECLASS pObject)
+{
+	CClassData *pClassData;
+
+	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
+	pClass->m_DestructFn(pObject);
+	sb_Free(&pClassData->m_ObjectBank, pObject);
+}
+
 LTRESULT	sm_UpdateInBspStatus(CServerMgr *pServerMgr, LTObject *pObject);
 uint32		sm_GetNewObjectChangeFlags(CServerMgr *pServerMgr, LTObject *pObject);
 void		AddObjectToRemoveList(CServerMgr *pServerMgr, LTObject *pObj);

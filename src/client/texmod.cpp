@@ -46,7 +46,7 @@ CLTTexMod::CLTTexMod(CClientMgr *pClientMgr)
 
 
 // STUB: LITHTECH 0x0049adc0
-// The original masks the old reference count before adding (bitfield code differs).
+// The original masks the old reference count before adding (bitfield code differs). See ReleaseTextureHandle.
 LTRESULT CLTTexMod::GetTextureHandle(char *pFilename, HTEXTURE &hTexture, const uint32 flags)
 {
 	FN_NAME(LTTexMod::GetTextureHandle);
@@ -145,7 +145,9 @@ static LTBOOL texmod_IsValidTexture(SharedTexture *pTexture)
 
 
 // STUB: LITHTECH 0x0049b0c0
-// As GetTextureHandle: the reference count decrement.
+// As GetTextureHandle: the reference count decrement. The original computes (old & 0x7fff) - 1 unsimplified, merges it
+// into the old word (xor/and/xor) and tests the merged value; the ST_REFS bitfield view folds the mask into a lea, and
+// SetRefCount/GetRefCount give an xor-on-memory read-modify-write. Locals, casts and `& 0x7fff` forms all compile the same.
 LTRESULT CLTTexMod::ReleaseTextureHandle(const HTEXTURE hTexture)
 {
 	FN_NAME(LTTexMod::ReleaseTextureHandle);
@@ -193,7 +195,8 @@ LTRESULT CLTTexMod::GetTextureInfo(const HTEXTURE hTexture, TextureInfo &info)
 
 
 // STUB: LITHTECH 0x0049b260
-// Only the first error block is laid out differently.
+// Only the error blocks differ (same tail-merge family as dsi_LoadServerObjects): the original keeps `mov eax,[fn]; mov
+// ecx,[err]` per block before the const pushes and merges only the call; we merge from the pushes on.
 LTRESULT CLTTexMod::LockTexture(const HTEXTURE hTexture, const LTRect *pRect,
 	const uint32 lockType, uint8* &pData, long &lPitch)
 {

@@ -15,8 +15,15 @@
 #include "objectmgr.h"
 #include "lttimer.h"
 #include "ltdynarray.h"
+#include "motion.h"
 #include "../../build/proj/LT2/lithshared/stdlith/stringholder.h"
 #include "../../build/proj/LT2/lithshared/stdlith/object_bank.h"
+
+// The units that construct or destroy a CServerMgr define SERVERMGR_LOADERTHREAD (after <windows.h>),
+// which makes the loader thread a real member.
+#ifdef SERVERMGR_LOADERTHREAD
+#include "sloaderthread.h"
+#endif
 
 // A file the clients should cache (4 bytes).
 struct OtherFile
@@ -187,13 +194,23 @@ class CSoundData;
 struct UsedFile;
 class LThreadMessage;
 
-class CServerMgr
+// Talon: CServerMgr derives from CNetHandler (vtable at 0x00) and from the server's ILTSoundMgr
+// implementation (a second base at 0x04, hence the pointer adjustment in CLTServer's constructor).
+class CServerMgr : public CNetHandler, public CServerSoundMgr
 {
 public:
+	// Inline in the original (clientshell.cpp's CreateServerMgr builds it).
+	CServerMgr()
+	{
+		m_ClientServerType = ServerType;
+		m_nSendPackets = 0;
+		m_nDroppedSendPackets = 0;
+	}
+	virtual ~CServerMgr()	{ Term(); }
+
 	ClassBindModule*	GetClassModule()	{ return m_ClassMgr.m_ClassModule; }
 
-	// The MotionState at 0xa74 (motion.h; its m_Info.m_Force is m_GlobalForce).
-	struct MotionState*	GetMotionState()	{ return (struct MotionState*)m_PadA74; }
+	MotionState*	GetMotionState()	{ return &m_MotionState; }
 
 	LTRESULT	DoStartWorld(char *pWorldName, uint32 flags, float curTime);
 	LTRESULT	DoRunWorld();				// 0x00485020
@@ -206,11 +223,10 @@ public:
 	class CPacket*	AllocPacket();				// 0x00486f60
 	void		SetupPacketMessage(class CPacket *pPacket);	// 0x00486fc0
 
-	// CNetHandler (slots of the vtable at 0x00; s_net.cpp). Declared non-virtual here because
-	// the layout keeps the vtable as m_Pad0.
-	LTBOOL		NewConnectionNotify(CBaseConn *id, LTBOOL bIsLocal);	// 0x00473ee0
-	void		DisconnectNotify(CBaseConn *id);	// 0x00473f10
-	void		HandleUnknownPacket(class CPacket *pPacket, uint8 senderAddr[4], uint16 senderPort);	// 0x00473f30
+	// CNetHandler (slots of the vtable at 0x00; s_net.cpp).
+	virtual LTBOOL	NewConnectionNotify(CBaseConn *id, LTBOOL bIsLocal);	// 0x00473ee0
+	virtual void	DisconnectNotify(CBaseConn *id);	// 0x00473f10
+	virtual void	HandleUnknownPacket(class CPacket *pPacket, uint8 senderAddr[4], uint16 senderPort);	// 0x00473f30
 
 	LTBOOL		Init();						// 0x004823b0
 	void		Term();						// 0x004827e0
@@ -232,15 +248,13 @@ public:
 	void		DoEndWorld(LTBOOL bKeepGeometryAround);	// 0x004850b0
 	void		ProcessClientCommands(Client *pClient, uint8 *pCommands, int nCommands);	// 0x00485990
 	void		OnPeerToPeerAuthPacket(Client *pClient, class CPacket *pPacket);	// 0x00487010 (WONAPI PeerAuthServer)
-	void		ClearChildModelLinks();			// 0x00484d70 (STLport)
+	void		LoadChildModelMap();			// 0x00484d70 (STLport)
 	LTBOOL		InitWorldObjects();				// 0x004856e0 (CreateVisContainerObjects)
 	CBaseDriver*	GetLocalDriver();			// 0x004859f0
 	CSoundData*	FindSoundData(UsedFile *pFile);	// 0x004860a0
 	CSoundData*	GetSoundData(UsedFile *pFile);	// 0x004860d0
 	void		UntouchAllSoundData();			// 0x00486590
 
-	uint8		m_Pad0[0x4];				// 0x00 vtable (CNetHandler)
-	CServerSoundMgr	m_SoundMgr;			// 0x04 the server's ILTSoundMgr
 	StructBank	m_SoundDataBank;		// 0x0c CSoundData
 	StructBank	m_SoundTrackBank;		// 0x28 CSoundTrack
 	LTList		m_SoundDataList;		// 0x44
@@ -257,9 +271,7 @@ public:
 	char		m_CRCString[0x400];		// 0x66c
 	uint32		m_StringCRC;			// 0xa6c
 	uint32		m_WorldCRC;				// 0xa70
-	uint8		m_PadA74[0xa88 - 0xa74];	// 0xa74 MotionState (GetMotionState)
-	LTVector	m_GlobalForce;			// 0xa88 (start of the MotionInfo?)
-	uint8		m_PadA94[0xab4 - 0xa94];
+	MotionState	m_MotionState;			// 0xa74 (motion.h; m_Info.m_Force is the global force)
 	class SMoveAbstract	*m_MoveAbstract;	// 0xab4
 	CollisionInfo	*m_pCollisionInfo;	// 0xab8 only valid during touch notifies
 	float		m_FrameTime;			// 0xabc
@@ -319,8 +331,12 @@ public:
 	ConsoleState	m_ConsoleState;		// 0xe84
 	uint8		m_PadEC8[0xed0 - 0xec8];
 	class ServerAppHandler	*m_pServerAppHandler;	// 0xed0
-	uint8		m_LoaderThread[0x64];	// 0xed4 CServerLoaderThread (sloaderthread.h; kept opaque so
-										// servermgr.h doesn't pull in windows.h)
+#ifdef SERVERMGR_LOADERTHREAD
+	CServerLoaderThread	m_LoaderThread;	// 0xed4 (sloaderthread.h)
+#else
+	uint8		m_LoaderThread[0x64];	// 0xed4 CServerLoaderThread (sloaderthread.h; opaque here so the
+										// units that don't define SERVERMGR_LOADERTHREAD don't need windows.h)
+#endif
 	class Model	*m_pDefaultModel;		// 0xf38 stands in for models that fail to load
 };
 

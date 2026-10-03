@@ -272,7 +272,7 @@ inline CPacket* sm_AddRef(const CPacketRef &cPacketRef)
 
 // Console callbacks.
 // FUNCTION: LITHTECH 0x00473d40
-static void sm_NewVar(ConsoleState *pState, LTCommandVar *pVar)
+void sm_NewVar(ConsoleState *pState, LTCommandVar *pVar)
 {
 	CPacket *pPacket;
 
@@ -295,7 +295,7 @@ static void sm_NewVar(ConsoleState *pState, LTCommandVar *pVar)
 }
 
 // FUNCTION: LITHTECH 0x00473df0
-static void sm_VarChange(ConsoleState *pState, LTCommandVar *pVar)
+void sm_VarChange(ConsoleState *pState, LTCommandVar *pVar)
 {
 	sm_NewVar(pState, pVar);
 }

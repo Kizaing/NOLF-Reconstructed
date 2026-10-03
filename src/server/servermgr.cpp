@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <map>
+#include <set>
+#include <string>
 #include <windows.h>
 #undef PlaySound
 #include "bdefs.h"
@@ -166,7 +169,6 @@ void sm_CacheSingleFile(CServerMgr *pServerMgr, uint16 fileType, uint16 fileID);
 extern LTBOOL g_CV_CacheFiles;
 
 #define FT_SOUND			3
-#define PORTAL_OPEN			(1<<0)
 #define SMSG_PORTALFLAGS	0x13
 #define IFLAG_INSKY			(1<<8)
 
@@ -183,7 +185,7 @@ extern LTBOOL g_CV_CacheFiles;
 
 // Inactive object flags (LTObject::m_InternalFlags).
 #define IFLAG_INACTIVE_TICK_MASK	0x18
-#define IFLAG_INACTIVE				(1<<5)
+#define IFLAG_AUTODEACTIVATED		(1<<5)	// serverde_impl.h; bit 3 is IFLAG_INACTIVE
 
 // GLOBAL: LITHTECH 0x004e3794
 extern LTBOOL g_bAutoDeactivate;
@@ -1296,6 +1298,93 @@ LTRESULT sm_CacheEasyStuff(CServerMgr *pServerMgr)
 
 
 // ----------------------------------------------------------------------- //
+// Child model links (childmodel.map). STLport containers.
+// ----------------------------------------------------------------------- //
+
+// world name -> (child model key -> associated child model).
+typedef std::map<std::string, std::string> ChildModelLinks;
+typedef std::map<std::string, ChildModelLinks> WorldChildModelLinks;
+
+// FUNCTION: LITHTECH 0x00484720 _$E37
+// FUNCTION: LITHTECH 0x00484730 _$E34
+// FUNCTION: LITHTECH 0x00484780 _$E36
+// FUNCTION: LITHTECH 0x00484790 _$E35
+// GLOBAL: LITHTECH 0x004e5da4
+WorldChildModelLinks g_ChildModelLinks;
+// FUNCTION: LITHTECH 0x00484830 _$E42
+// FUNCTION: LITHTECH 0x00484840 _$E39
+// FUNCTION: LITHTECH 0x00484880 _$E41
+// Differs: _$E40 (the string's atexit destructor) keeps _M_start in edi (copied from ecx) and the free list
+// slot in esi, where we keep _M_start in esi; the same inlined block matches inside sm_LoadChildModelLinks.
+// STUB: LITHTECH 0x00484890 _$E40
+// GLOBAL: LITHTECH 0x004e5db8
+std::string g_ChildModelNone;
+
+// Hands the links childmodel.map has for a world to the server's model loader.
+// FUNCTION: LITHTECH 0x004848f0
+void sm_LoadChildModelLinks(ILTServer *pServer, char *pWorldName)
+{
+	char fileName[256];
+
+	pServer->ResetModelToChildModelLink();
+
+	strcpy(fileName, pWorldName);
+	_strlwr(fileName);
+
+	std::string worldKey(fileName);
+	ChildModelLinks &links = g_ChildModelLinks[worldKey];
+	if (!links.empty())
+	{
+		for (ChildModelLinks::iterator it=links.begin(); it != links.end(); ++it)
+		{
+			char *pChild = (char*)it->second.c_str();
+			pServer->LinkModelToExtraChildModel((char*)it->first.c_str(), &pChild, 1);
+		}
+	}
+}
+
+
+// Reads childmodel.map (lines of "world childmodelkey associatedchildmodel") the first time a world starts.
+// Differs only in one inline decision: the original calls the pair<string,map> destructor of the outer
+// operator[] temporary out of line (0x00487400) where we inline it (the 174 differing bytes are the shifted tail).
+// 8 units of inline_scan ballast anywhere before it make it match; the source of that cost is unknown
+// (tried: nested if vs early return, a local map reference).
+// STUB: LITHTECH 0x00484d70
+void CServerMgr::LoadChildModelMap()
+{
+	char line[256];
+	char *pWorld, *pKey, *pAssociated;
+	FILE *fp;
+
+	if (g_ChildModelLinks.empty())
+	{
+		g_ChildModelNone = "none";
+
+		fp = fopen("childmodel.map", "r");
+		if (fp)
+		{
+			while (fgets(line, sizeof(line), fp))
+			{
+				pWorld = strtok(line, "; \t\n\r");
+				pKey = strtok(NULL, "; \t\n\r");
+				pAssociated = strtok(NULL, "; \t\n\r");
+				_strlwr(pWorld);
+				_strlwr(pKey);
+				_strlwr(pAssociated);
+
+				if (pWorld && pKey && pAssociated)
+				{
+					std::string key(pKey);
+					std::string world(pWorld);
+					g_ChildModelLinks[world][key] = pAssociated;
+				}
+			}
+		}
+	}
+}
+
+
+// ----------------------------------------------------------------------- //
 // Worlds.
 // ----------------------------------------------------------------------- //
 
@@ -1335,6 +1424,32 @@ void s_DisassociateClientsFromObjects(CServerMgr *pServerMgr)
 			pClient->m_pObject = LTNULL;
 		}
 	}
+}
+
+LTRESULT sm_UnloadModelFile(CServerMgr *pServerMgr, char *pFilename);
+
+// Unloads the models that had extra child models linked in (the links are per world).
+// Differs: the original calls _Rb_global::_M_increment (0x00457ed0) for ++it and keeps the iterator on the
+// stack where we inline the walk, and uses ebx as the zero constant. inline_scan (p1,p2,b8,b16) found no
+// matching position; the set<Model*> template COMDATs below all match.
+// STUB: LITHTECH 0x004851d0
+void sm_UncacheModels(CServerMgr *pServerMgr)
+{
+	std::set<Model*> models;
+	HHashIterator *hIterator;
+	Model *pModel;
+
+	hIterator = hs_GetFirstElement(pServerMgr->m_hModelTable);
+	while (hIterator)
+	{
+		pModel = (Model*)hs_GetElementUserData(hs_GetNextElement(hIterator));
+		if (pModel->m_Unknown190)
+			models.insert(pModel);
+	}
+
+	std::set<Model*>::iterator it;
+	for (it=models.begin(); it != models.end(); ++it)
+		sm_UnloadModelFile(pServerMgr, (*it)->GetFilename());
 }
 
 // Unloads a model file the game is done with and tells the clients.
@@ -1618,7 +1733,7 @@ void sm_ClearAutoDeactivate(CServerMgr *pServerMgr)
 		{
 			pObj->sd->m_fDeactivateTimer = pObj->sd->m_fDeactivationTime;
 
-			if (pObj->m_InternalFlags & IFLAG_INACTIVE)
+			if (pObj->m_InternalFlags & IFLAG_AUTODEACTIVATED)
 				sm_SetObjectStateFlags(pServerMgr, pObj, pObj->m_InternalFlags & IFLAG_INACTIVE_TICK_MASK);
 
 			if (g_bAutoDeactivate && pObj->m_Link60.m_pNext == &pObj->m_Link60)
@@ -1635,7 +1750,7 @@ void sm_ResetDeactivateTimer(LTObject *pObj)
 	else
 		pObj->sd->m_fDeactivateTimer = pObj->sd->m_fDeactivationTime;
 
-	if (pObj->m_InternalFlags & IFLAG_INACTIVE)
+	if (pObj->m_InternalFlags & IFLAG_AUTODEACTIVATED)
 		sm_SetObjectStateFlags(g_pServerMgr, pObj, pObj->m_InternalFlags & IFLAG_INACTIVE_TICK_MASK);
 }
 
@@ -2071,7 +2186,7 @@ LTRESULT sm_RemoveObjectFromWorld(CServerMgr *pServerMgr, LPBASECLASS pBaseClass
 
 
 // ----------------------------------------------------------------------- //
-// The server's ILTSoundMgr (CServerMgr::m_SoundMgr).
+// The server's ILTSoundMgr (CServerMgr's second base class).
 // ----------------------------------------------------------------------- //
 
 // The CServerMgr that owns this sound manager.
@@ -2191,7 +2306,8 @@ LTRESULT CServerSoundMgr::GetSoundDuration(HLTSOUND hSound, LTFLOAT &fDuration)
 	return LT_OK;
 }
 
-// Close: the original keeps bDone's 0 in eax (shared with the return) and uses ecx for &bDone.
+// Close: the original keeps bDone's 0 in eax (shared with the return) and uses ecx for &bDone; separate-return,
+// else-if, shared-result-variable and merged-condition forms all tried (the stores stay immediates).
 // STUB: LITHTECH 0x00485d50
 LTRESULT CServerSoundMgr::IsSoundDone(HLTSOUND hSound, LTBOOL &bDone)
 {
@@ -2779,7 +2895,7 @@ LTRESULT CServerMgr::DoStartWorld(char *pWorldName, uint32 flags, float curTime)
 	UsedFile *pWorldFile;
 	uint32 seed;
 
-	ClearChildModelLinks();
+	LoadChildModelMap();
 
 	// Seed the random number generators.
 	seed = (uint32)time_GetTime();
@@ -2989,3 +3105,43 @@ void CServerMgr::OnPeerToPeerAuthPacket(Client *pClient, CPacket *pPacket)
 // Template code the peer auth leaves behind.
 // FUNCTION: LITHTECH 0x004872f0 ?Release@RefCount@WONAPI@@QAEXXZ
 // FUNCTION: LITHTECH 0x00487310 ??1Blowfish@WONAPI@@QAE@XZ
+
+// Template code this object instantiated first (STLport string/map/set nodes of the child model
+// link map and of sm_UncacheModels).
+// FUNCTION: LITHTECH 0x004873c0 ??0?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x00487400 ??1?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x004874c0 ??1?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x00487560 ?insert@?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@@_STL@@QAE?AU?$_Rb_tree_iterator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@U?$_Nonconst_traits@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@@2@U32@ABU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@2@@Z
+// FUNCTION: LITHTECH 0x00487730 ??0?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x004877a0 ?insert@?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@QAE?AU?$_Rb_tree_iterator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@U?$_Nonconst_traits@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@U32@ABU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@@Z
+// FUNCTION: LITHTECH 0x00487970 ??1?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x00487a00 ??0?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@QAE@ABV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@1@0@Z
+// FUNCTION: LITHTECH 0x00487a90 ??0?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@QAE@ABV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@1@ABV?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@1@@Z
+// FUNCTION: LITHTECH 0x00487b90 ??0?$_Rb_tree_base@PAVModel@@V?$allocator@PAVModel@@@_STL@@@_STL@@QAE@ABV?$allocator@PAVModel@@@1@@Z
+// FUNCTION: LITHTECH 0x00487d10 ?_M_empty_initialize@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@AAEXXZ
+// FUNCTION: LITHTECH 0x00487d30 ?_M_erase@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@@_STL@@AAEXPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@@Z
+// FUNCTION: LITHTECH 0x00487dd0 ??1?$_Rb_tree_base@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x00487e00 ?lower_bound@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@@_STL@@QAE?AU?$_Rb_tree_iterator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@U?$_Nonconst_traits@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@@2@ABV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@2@@Z
+// FUNCTION: LITHTECH 0x00487e90 ?_M_copy@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@AAEPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@PAU32@0@Z
+// FUNCTION: LITHTECH 0x00487f70 ?_M_erase@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@AAEXPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@Z
+// FUNCTION: LITHTECH 0x00487fe0 ?_M_erase@?$_Rb_tree@PAVModel@@PAV1@U?$_Identity@PAVModel@@@_STL@@U?$less@PAVModel@@@3@V?$allocator@PAVModel@@@3@@_STL@@AAEXPAU?$_Rb_tree_node@PAVModel@@@2@@Z
+// FUNCTION: LITHTECH 0x00488140 ?insert_unique@?$_Rb_tree@PAVModel@@PAV1@U?$_Identity@PAVModel@@@_STL@@U?$less@PAVModel@@@3@V?$allocator@PAVModel@@@3@@_STL@@QAE?AU?$pair@U?$_Rb_tree_iterator@PAVModel@@U?$_Nonconst_traits@PAVModel@@@_STL@@@_STL@@_N@2@ABQAVModel@@@Z
+// FUNCTION: LITHTECH 0x004882d0 ?destroy_node@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@IAEXPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@Z
+// FUNCTION: LITHTECH 0x00488330 ?destroy_node@?$_Rb_tree@PAVModel@@PAV1@U?$_Identity@PAVModel@@@_STL@@U?$less@PAVModel@@@3@V?$allocator@PAVModel@@@3@@_STL@@IAEXPAU?$_Rb_tree_node@PAVModel@@@2@@Z
+// FUNCTION: LITHTECH 0x00488460 ?_M_create_node@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@IAEPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@ABU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@@Z
+// FUNCTION: LITHTECH 0x00488560 ?_M_insert@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?d08100ff
+// FUNCTION: LITHTECH 0x00488740 ?insert_unique@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$les4e13f51b
+// FUNCTION: LITHTECH 0x00488900 ?_M_insert@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@AAE?AU?$_Rb_tree_iterator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@U?$_Nonconst_traits@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@PAU_Rb_tree_node_base@2@0ABU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@@Z
+// FUNCTION: LITHTECH 0x00488ae0 ?insert_unique@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@QAE?AU?$pair@U?$_Rb_tree_iterator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@U?$_Nonconst_traits@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@_N@2@ABU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@2@@Z
+// FUNCTION: LITHTECH 0x00488ca0 ?_M_assign_dispatch@?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@AAEAAV12@PBD0U__false_type@@@Z
+// FUNCTION: LITHTECH 0x00488e00 ?_Construct@_STL@@YAXPAU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@1@ABU21@@Z
+// FUNCTION: LITHTECH 0x00488eb0 ??_G?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@QAEPAXI@Z
+// FUNCTION: LITHTECH 0x00488f70 ?_M_acquire_lock@_STL_mutex_base@_STL@@QAEXXZ
+// FUNCTION: LITHTECH 0x00489060 ?_M_release_lock@_STL_mutex_base@_STL@@QAEXXZ
+// FUNCTION: LITHTECH 0x00489070 ??_G?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@QAEPAXI@Z
+// FUNCTION: LITHTECH 0x004890f0 ?_M_create_node@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@@_STL@@IAEPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@@2@ABU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@2@@Z
+// FUNCTION: LITHTECH 0x00489240 ??0?$_Rb_tree_base@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@_STL@@QAE@ABV?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@1@@Z
+// FUNCTION: LITHTECH 0x004893c0 ??0?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@QAE@ABU01@@Z
+// FUNCTION: LITHTECH 0x00489460 ?_M_create_node@?$_Rb_tree@PAVModel@@PAV1@U?$_Identity@PAVModel@@@_STL@@U?$less@PAVModel@@@3@V?$allocator@PAVModel@@@3@@_STL@@IAEPAU?$_Rb_tree_node@PAVModel@@@2@ABQAVModel@@@Z
+// FUNCTION: LITHTECH 0x00489500 ?_Construct@_STL@@YAXPAU?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@1@ABU21@@Z
+// FUNCTION: LITHTECH 0x00489610 ??0?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$map@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@@_STL@@@2@@2@@_STL@@QAE@ABU01@@Z

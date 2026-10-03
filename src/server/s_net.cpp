@@ -981,6 +981,7 @@ void FillInPlaysoundMessage(CServerEvent *pEvent, Client *pClient, CPacket *pPac
 
 // STUB: LITHTECH 0x00476710
 // Loads pClient->m_hFTServ into ecx where the original uses eax (2 bytes).
+// Wave 5 tried: a local for the handle, assignment-in-condition, an else that clears pClient: no change.
 LTBOOL ProcessIncomingPackets(CServerMgr *pServerMgr)
 {
 	CPacket *pPacket;
@@ -1153,6 +1154,8 @@ static LTRESULT OnPeerToPeerAuthPacket(CServerMgr *pServerMgr, CPacket *pPacket,
 
 // STUB: LITHTECH 0x00476ca0
 // eax/edx swapped for the message ID and the shell vtable (4 bytes).
+// Wave 5 tried: GetMessageImpl(), a local for the shell, a local for the message handle, initialising
+// messageID to 0: no change (the other OnMessagePacket, the client's at 0x0048d0f0, differs the same way).
 static LTRESULT OnMessagePacket(CServerMgr *pServerMgr, CPacket *pPacket, Client *pClient)
 {
 	uint8 messageID;

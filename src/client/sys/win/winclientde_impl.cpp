@@ -988,7 +988,7 @@ static LTRESULT cis_DrawSurfaceMasked(HSURFACE hDest, HSURFACE hSrc, HSURFACE hM
 }
 
 // FUNCTION: LITHTECH 0x0040dee0
-LTRESULT cis_DrawSurfaceToSurface(HSURFACE hDest, HSURFACE hSrc,
+static LTRESULT cis_DrawSurfaceToSurface(HSURFACE hDest, HSURFACE hSrc,
 	LTRect *pSrcRect, int destX, int destY)
 {
 	if(!g_pCisRenderStruct)

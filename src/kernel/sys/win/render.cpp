@@ -72,7 +72,9 @@ void r_UnloadSystemTexture(TextureData *pTexture)
 
 // Loads the texture and installs it.
 // STUB: LITHTECH 0x0046ebd0
-// Remaining diff: in the EnvMapAlpha block the original stores m_eTexType before popping the call's arguments.
+// Remaining diff (10 bytes): in the EnvMapAlpha block the original stores m_eTexType (2) before the `add esp, 8` that
+// pops cm_AddSharedTexture's arguments (we pop first). Tried: type store before/after the pointer store, no pLinked temp,
+// comma expression, an else-chain: none moves the store across the pop.
 LTRESULT r_LoadSystemTexture(SharedTexture *pSharedTexture, TextureData **ppTextureData, LTBOOL bBind)
 {
 	LThreadMessage unused;	// An unused local whose constructor was folded with LThreadMessage's.

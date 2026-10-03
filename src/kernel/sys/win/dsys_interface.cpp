@@ -286,7 +286,10 @@ LTRESULT GetOrCopyFile(CServerMgr *pServerMgr, const char *pTempPath, const char
 
 
 // STUB: LITHTECH 0x00434570
-// Remaining diff: VC merges the two identical LT_INVALIDOBJECTDLL error tails the other way round.
+// Remaining diff (18 bytes): in the original the first LT_INVALIDOBJECTDLL block's `jl` lands on its own epilogue
+// (pop pop pop, mov eax, pop) and the second block keeps a differently scheduled copy; we cross-jump the first block into
+// the second block's epilogue instead. Same family as InitScreen, LockTexture and ClientLoadChildModelCB (identical
+// RETURN_ERROR tails that VC cross-jumps in our build but not in the original). `||`-merging the two status tests is worse.
 LTRESULT dsi_LoadServerObjects(CClassMgr *pClassMgr)
 {
 	int version;

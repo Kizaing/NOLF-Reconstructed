@@ -26,7 +26,7 @@ LTRESULT cm_AddSharedTexture2(CClientMgr *pClientMgr, FileRef *pRef, SharedTextu
 
 // Animated world textures.
 // FUNCTION: LITHTECH 0x00417d80
-static void UpdateAnimations(CClientMgr *pClientMgr)
+void UpdateAnimations(CClientMgr *pClientMgr)
 {
 	SurfaceSprite *pCur;
 	uint32 msFrameTime;

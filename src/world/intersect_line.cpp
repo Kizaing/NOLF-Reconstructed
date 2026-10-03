@@ -48,6 +48,9 @@ inline LTBOOL InsideConvex(WorldPoly *pPoly, LTVector *pPt)
 
 // Close: the original keeps Cross's 3-float constructor out of line and inlines the rest (more inline cost
 // before it); the frame is 0x50 bytes there (dot1 lives in the dead pPoint1 slot), 0x60 here.
+// Wave 5: inline_scan finds that 8 units of ballast before any statement up to the VEC_LERP changes the diff
+// (982 -> 905 bytes) but never matches; `*pNormal ^ vTemp` (an extra nesting level) makes it worse (1248 bytes).
+// In the original the Cross result is built straight into edgePlane (ctor `this` = the plane), not in a temp.
 // STUB: LITHTECH 0x004442a0
 static LTBOOL InternalIntersectLineNode(
 	Node *pRoot,

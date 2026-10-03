@@ -300,8 +300,7 @@ void _TagSpriteTextures(Sprite *pSprite)
 }
 
 
-// The original stores an immediate 0 instead of hoisting it into a register.
-// STUB: LITHTECH 0x004261a0
+// FUNCTION: LITHTECH 0x004261a0
 void cm_UntagAllTextures(CClientMgr *pClientMgr)
 {
 	LTLink *pListHead, *pCur;
@@ -310,7 +309,9 @@ void cm_UntagAllTextures(CClientMgr *pClientMgr)
 	pListHead = &pClientMgr->m_SharedTextures.m_Head;
 	for (pCur=pListHead->m_pNext; pCur != pListHead; pCur=pCur->m_pNext)
 	{
-		((SharedTexture*)pCur->m_pData)->m_RefCount = 0;
+		pTexture = (SharedTexture*)pCur->m_pData;
+		pTexture->SetFlags(0);
+		pTexture->SetRefCount(0);
 	}
 }
 
@@ -698,7 +699,7 @@ void cm_MoveObject(CClientMgr *pClientMgr, LTObject *pObject, LTVector *pNewPos,
 
 
 // Register allocation differs (the original keeps pClientMgr in edi and recomputes
-// &m_ClientTree).
+// &m_ClientTree). Tried: a MoveAbstract local before Setup, a pMgr copy, reordering Setup/Rotate/Insert.
 // STUB: LITHTECH 0x00426940
 void cm_RotateObject(CClientMgr *pClientMgr, LTObject *pObject, LTRotation *pNewRot)
 {

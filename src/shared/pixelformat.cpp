@@ -1016,6 +1016,15 @@ void CPV_32toBF(FormatMgr *pFormatMgr, PFormat *pFormat, uint8 *pSrc, uint8 *pDe
 }
 
 
+// (Initialised data lands in the exe in definition order: these two tables precede the function tables.)
+// log2 of the bytes per pixel for each format type.
+// GLOBAL: LITHTECH 0x004d5478
+uint32 g_PixelBytesShift[NUM_BIT_TYPES] = {0, 0, 1, 2, 0, 0, 0, 0};
+
+// The bytes per pixel for each format type (0 if not applicable).
+// GLOBAL: LITHTECH 0x004d5498
+uint32 g_PixelBytes[NUM_BIT_TYPES] = {1, 1, 2, 4, 0, 0, 0, 1};
+
 // ------------------------------------------------------------------------------ //
 // Function tables.
 // ------------------------------------------------------------------------------ //
@@ -1095,14 +1104,6 @@ static void SetBitCountAndRightShift(PFormat *pFormat, uint32 iPlane)
 	pFormat->m_nBits[iPlane] = left - right;
 	pFormat->m_FirstBits[iPlane] = right;
 }
-
-// log2 of the bytes per pixel for each format type.
-// GLOBAL: LITHTECH 0x004d5478
-uint32 g_PixelBytesShift[NUM_BIT_TYPES] = {0, 0, 1, 2, 0, 0, 0, 0};
-
-// The bytes per pixel for each format type (0 if not applicable).
-// GLOBAL: LITHTECH 0x004d5498
-uint32 g_PixelBytes[NUM_BIT_TYPES] = {1, 1, 2, 4, 0, 0, 0, 1};
 
 // FUNCTION: LITHTECH 0x0046c190
 void PFormat::Init(BPPIdent Type, uint32 aMask, uint32 rMask, uint32 gMask, uint32 bMask)

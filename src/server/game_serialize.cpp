@@ -102,6 +102,7 @@ void sm_SaveInterlinks(CServerMgr *pServerMgr, LTObject *pObject, ILTStream *pSt
 
 // STUB: LITHTECH 0x00438fb0
 // Register allocation: the original keeps the world-model loop counter in memory and pObjects in ebx.
+// Wave 5: moving every local declaration to every other position (156 compiles) found no improvement over 674.
 void sm_SaveObjects(CServerMgr *pServerMgr, ILTStream *pStream, ObjectList *pList, uint32 dwParam,
 	uint32 flags)
 {
@@ -683,22 +684,6 @@ LTRESULT sm_RestoreObjects(CServerMgr *pServerMgr, ILTStream *pStream, uint32 dw
 	return LT_OK;
 }
 
-
-// Allocates and constructs an object of the class (Jupiter s_object.h).
-inline LPBASECLASS sm_AllocateObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass)
-{
-	LPBASECLASS pObject;
-	CClassData *pClassData;
-
-	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
-
-	pObject = (LPBASECLASS)sb_Allocate(&pClassData->m_ObjectBank);
-	pObject->m_hObject = 0;
-	pObject->m_pFirstAggregate = LTNULL;
-	pClass->m_ConstructFn(pObject);
-
-	return pObject;
-}
 
 
 // ------------------------------------------------------------------------ //

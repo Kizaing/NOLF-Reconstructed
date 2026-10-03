@@ -7,6 +7,10 @@
 #include "servermgr.h"
 #include "iltserver.h"
 #include "iltphysics.h"
+#include "iltmodel.h"
+#include "ilttransform.h"
+#include "iltlightanim.h"
+#include "shared_iltcommon.h"
 #include "server_filemgr.h"
 #include "s_object.h"
 #include "smoveabstract.h"
@@ -18,26 +22,58 @@
 
 class CServerMgr;
 
-// The ILTCommon implementation embedded in CLTServer at 0x254 (0x2c bytes; it lives in another unit).
-class CLTCommonServer : public ILTCommon
+// The child model links ILTServer::LinkModelToExtraChildModel builds: child model filename -> set of
+// extra child model filenames. An STLport map, member of CLTServer; only the units that construct or
+// destroy a CLTServer (server_interface, serverde_impl: they define SERVERDE_STL and build with the
+// STLport FLAGS) see the real type.
+#ifdef SERVERDE_STL
+#include <map>
+#include <set>
+#include <string>
+typedef std::set<std::string> ExtraChildSet;
+typedef std::map<std::string, ExtraChildSet> ExtraChildMap;
+#else
+struct ExtraChildMap
+{
+	uint8		m_Pad[0xc];
+};
+#endif
+
+// Installs the si_ function pointers.
+void si_SetupFunctionPointers(ILTServer *pServer);
+
+// The interface classes CLTServer embeds (their methods live in server_interface.cpp).
+// vtable 0x004c8318.
+class SPhysicsLT : public ILTPhysics
+{
+public:
+	SPhysicsLT(CServerMgr *pServerMgr) : m_fStairHeight(-1.0f)
+	{
+		m_pServerMgr = pServerMgr;
+		m_ClientServerType = ServerType;
+	}
+
+	virtual LTRESULT	SetVelocity(HOBJECT hObj, LTVector *pVel);
+	virtual LTRESULT	SetAcceleration(HOBJECT hObj, LTVector *pAccel);
+	virtual LTRESULT	SetObjectDims(HOBJECT hObj, LTVector *pNewDims, uint32 flags);
+	virtual LTRESULT	MoveObject(HOBJECT hObj, LTVector *pPos, uint32 flags);
+	virtual LTRESULT	GetGlobalForce(LTVector &vec);
+	virtual LTRESULT	SetGlobalForce(LTVector &vec);
+	virtual LTRESULT	GetStairHeight(float &fHeight);
+	virtual LTRESULT	SetStairHeight(float fHeight);
+
+	float		m_fStairHeight;		// 0x08
+	CServerMgr	*m_pServerMgr;		// 0x0c
+};
+
+// vtable 0x004c8368.
+class ServerCommonLT : public CommonLT
 {
 public:
 	virtual LTRESULT	SetObjectFilenames(HOBJECT pObj, ObjectCreateStruct *pStruct);
-	virtual LTRESULT	GetObjectFlags(const HOBJECT hObj, const ObjFlagType flagType, uint32 &dwFlags);
 	virtual LTRESULT	SetObjectFlags(HOBJECT hObj, const ObjFlagType flagType, uint32 dwFlags);
 	virtual LTRESULT	GetAttachmentObjects(HATTACHMENT hAttachment, HOBJECT &hParent, HOBJECT &hChild);
-	virtual LTRESULT	GetAttachments(HLOCALOBJ hObj, HLOCALOBJ *inList, uint32 inListSize,
-		uint32 &outListSize, uint32 &outNumAttachments);
-	virtual LTRESULT	GetAttachmentTransform(HATTACHMENT hAttachment, LTransform &transform, LTBOOL bWorldSpace);
-	virtual LTRESULT	GetAttachedModelNodeTransform(HATTACHMENT hAttachment, HMODELNODE hNode, LTransform &transform);
-	virtual LTRESULT	GetAttachedModelSocketTransform(HATTACHMENT hAttachment, HMODELSOCKET hSocket, LTransform &transform);
-	virtual LTRESULT	Parse(ConParse *pParse);
-	virtual LTRESULT	GetObjectType(HOBJECT hObj, uint32 *type);
-	virtual LTRESULT	GetModelAnimUserDims(HOBJECT hObject, LTVector *pDims, HMODELANIM hAnim);
-	virtual LTRESULT	GetRotationVectors(LTRotation &rot, LTVector &up, LTVector &right, LTVector &forward);
-	virtual LTRESULT	SetupEuler(LTRotation &rot, float pitch, float yaw, float roll);
 	virtual LTRESULT	CreateMessage(ILTMessage* &pMsg);
-	virtual LTRESULT	GetCRC(ILTStream *pStream, uint32 &dwResult);
 	virtual LTRESULT	GetPointStatus(LTVector *pPoint);
 	virtual LTRESULT	GetPointShade(LTVector *pPoint, LTVector *pColor);
 	virtual LTRESULT	GetPolyTextureFlags(HPOLY hPoly, uint32 *pFlags);
@@ -45,14 +81,76 @@ public:
 		uint32 nVertexListMaxSize, uint32 *pnNumVertices);
 	virtual LTRESULT	GetPolySurfaceFlags(HPOLY hPoly, uint32 &dwSurfFlags);
 
-	uint8		m_PadCS[0x2c - sizeof(ILTCommon)];
+	CServerMgr	*m_pServerMgr;		// 0x10
 };
+
+// vtable 0x004c83c0.
+class ServerModelLT : public ILTModel
+{
+public:
+	ServerModelLT(CServerMgr *pServerMgr)
+	{
+		m_pServerMgr = pServerMgr;
+	}
+
+	virtual LTRESULT	SetPieceHideStatus(HOBJECT hObj, HMODELPIECE hPiece, LTBOOL bHidden);
+	virtual LTRESULT	AddTracker(HOBJECT hObj, LTAnimTracker *pTracker);
+	virtual LTRESULT	RemoveTracker(HOBJECT hObj, LTAnimTracker *pTracker);
+	virtual LTRESULT	SetCurAnim(LTAnimTracker *pTracker, HMODELANIM hAnim);
+	virtual LTRESULT	ResetAnim(LTAnimTracker *pTracker);
+	virtual LTRESULT	SetLooping(LTAnimTracker *pTracker, LTBOOL bLooping);
+	virtual LTRESULT	SetPlaying(LTAnimTracker *pTracker, LTBOOL bPlaying);
+	virtual LTRESULT	SetWeightSet(LTAnimTracker *pTracker, HMODELWEIGHTSET hSet);
+	virtual LTRESULT	SetAllowTransition(LTAnimTracker *pTracker, LTBOOL bAllowTransition);
+	virtual LTRESULT	SetTimeScale(LTAnimTracker *pTracker, LTFLOAT fTimeScale);
+	virtual LTRESULT	SetCurAnimTime(LTAnimTracker *pTracker, uint32 curTime);
+
+	CServerMgr	*m_pServerMgr;		// 0x04
+};
+
+// vtable 0x004c8304.
+class ServerLightAnimLT : public ILTLightAnim
+{
+public:
+	ServerLightAnimLT(CServerMgr *pServerMgr)
+	{
+		m_pServerMgr = pServerMgr;
+	}
+
+	virtual LTRESULT	FindLightAnim(const char *pName, HLIGHTANIM &hLightAnim);
+	virtual LTRESULT	GetNumFrames(HLIGHTANIM hLightAnim, uint32 &nFrames);
+	virtual LTRESULT	GetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info);
+	virtual LTRESULT	SetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info);
+
+	CServerMgr	*m_pServerMgr;		// 0x04
+};
+
+
 
 // Talon CLTServer (0x28c+ bytes).
 class CLTServer : public ILTServer
 {
 public:
-	virtual			~CLTServer();
+	CLTServer(CServerMgr *pServerMgr)
+		: m_ModelLT(pServerMgr), m_PhysicsLT(pServerMgr), m_LightAnimLT(pServerMgr)
+	{
+		m_pServerMgr = pServerMgr;
+		m_pCommonLT = &m_CommonLT;
+		m_pPhysicsLT = &m_PhysicsLT;
+		m_pModelLT = &m_ModelLT;
+		m_pTransformLT = &m_TransformLT;
+		m_pLightAnimLT = &m_LightAnimLT;
+		m_pSoundMgr = pServerMgr;
+
+		m_CommonLT.SetMathLT(&m_MathLT);
+		m_CommonLT.m_pServerMgr = pServerMgr;
+		m_CommonLT.m_pTransformLT = &m_TransformLT;
+		m_CommonLT.m_pModelLT = &m_ModelLT;
+
+		si_SetupFunctionPointers(this);
+	}
+
+	virtual			~CLTServer() {}
 
 	// ILTCSBase.
 	virtual HMESSAGEWRITE	StartHMessageWrite();
@@ -145,13 +243,14 @@ protected:
 
 public:
 	CServerMgr		*m_pServerMgr;		// 0x244
-	uint8			m_Pad248[0x254 - 0x248];
-	CLTCommonServer	m_CommonLT;			// 0x254
-	uint8			m_Pad280[0x8];		// 0x280 STLport map (child model links)
+	ILTTransform	m_TransformLT;		// 0x248
+	ServerModelLT	m_ModelLT;			// 0x24c
+	ServerCommonLT	m_CommonLT;			// 0x254
+	SPhysicsLT		m_PhysicsLT;		// 0x268
+	ServerLightAnimLT	m_LightAnimLT;	// 0x278
+	ExtraChildMap	m_ChildModelLinks;	// 0x280 STLport map (child model links)
 };
 
-// Installs the si_ function pointers.
-void si_SetupFunctionPointers(ILTServer *pServer);
 
 
 // ------------------------------------------------------------------------ //

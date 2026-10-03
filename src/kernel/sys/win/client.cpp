@@ -545,7 +545,7 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
 // Builds the engine's command line: from launch.dll if -launch is given, otherwise from the real
 // command line with -cmdfile files expanded.
 // FUNCTION: LITHTECH 0x00403a00
-static LTBOOL SetupArgs(CmdLineArgs *pArgs)
+LTBOOL SetupArgs(CmdLineArgs *pArgs)
 {
 	int32 nArgs;
 	int i, j, len;

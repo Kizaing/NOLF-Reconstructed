@@ -157,7 +157,8 @@ char* SMoveAbstract::GetObjectClassName(LTObject *pObject)
 	return pObject->sd->m_pClass->m_ClassName;
 }
 
-// Register allocation: VC6 keeps 0 in esi here and splits the CountAdder add.
+// Register allocation: VC6 keeps 0 in esi here and splits the CountAdder add (orig: immediate zeros, `add [ecx],eax`).
+// Moving MoveState before the counter makes the size match but worsens the diff.
 // STUB: LITHTECH 0x0048f130
 void FullMoveObject(CServerMgr *pServerMgr, LTObject *pObj, const LTVector *pP1, uint32 flags)
 {
@@ -175,11 +176,11 @@ LTRESULT SMoveAbstract::GetGlobalForce(LTObject *pObj, LTVector *pForce)
 	if (!pObj)
 	{
 		if (pForce)
-			*pForce = m_pServerMgr->m_GlobalForce;
+			*pForce = m_pServerMgr->m_MotionState.m_Info.m_Force;
 		return LT_OK;
 	}
 
 	if (pForce)
-		*pForce = m_pServerMgr->m_GlobalForce;
+		*pForce = m_pServerMgr->m_MotionState.m_Info.m_Force;
 	return LT_OK;
 }

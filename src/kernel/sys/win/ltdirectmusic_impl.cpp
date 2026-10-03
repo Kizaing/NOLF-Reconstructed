@@ -552,7 +552,9 @@ LTRESULT CLTDirectMusicMgr::Term()
 // Initialize a game level using the parameters in the given control file
 ///////////////////////////////////////////////////////////////////////////////////////////
 // STUB: LITHTECH 0x00448040
-// One byte off: the original indexes the last working-directory char as [len-1 in ecx + esi] (add ecx,-2), we get [ecx+esi-1].
+// One byte off (the 742 differing bytes are the following jumps shifting): the original indexes the last working-directory
+// char as `add ecx,-2; [ecx+esi]`, we get `dec ecx; [ecx+esi-1]`. Tried: `*(s+len-1)`, `(s+len)[-1]`, an int index local,
+// a pointer local, `strlen != 0` / `*s` for the guard.
 LTRESULT CLTDirectMusicMgr::InitLevel(const char* sWorkingDirectory, const char* sControlFileName, const char* sDefine1,
 		  						     const char* sDefine2, const char* sDefine3)
 {

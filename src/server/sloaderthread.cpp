@@ -74,18 +74,24 @@ LTRESULT CServerSerializeHelper::ReadObjectRef(ILTMessage *pMsg, HOBJECT *pObj)
 }
 
 
-// STUB: LITHTECH 0x0048ea70
+// FUNCTION: LITHTECH 0x0048ea70
 LTRESULT CServerSerializeHelper::WriteObjectRef(ILTMessage *pMsg, HOBJECT hObj)
 {
 	LTObject *pObj = (LTObject*)hObj;
 
 	if(((LMessageImpl*)pMsg)->IsInvalid() == LTTRUE)
 	{
-		pMsg->WriteWord(pObj ? pObj->m_SerializeID : (uint16)INVALID_OBJECTID);
+		if(pObj)
+			pMsg->WriteWord(pObj->m_SerializeID);
+		else
+			pMsg->WriteWord(INVALID_OBJECTID);
 	}
 	else
 	{
-		pMsg->WriteWord(pObj ? pObj->m_ObjectID : (uint16)INVALID_OBJECTID);
+		if(pObj)
+			pMsg->WriteWord(pObj->m_ObjectID);
+		else
+			pMsg->WriteWord(INVALID_OBJECTID);
 	}
 
 	return LT_OK;

@@ -117,6 +117,9 @@ public:
 	const LTVector &	GetListenerPosition() const
 	{ return m_vListenerPosition; }
 
+	const LTVector &	GetLastListenerPosition() const
+	{ return m_vLastListenerPosition; }
+
 	const LTVector &	GetListenerVelocity() const
 	{ return m_vListenerVelocity; }
 

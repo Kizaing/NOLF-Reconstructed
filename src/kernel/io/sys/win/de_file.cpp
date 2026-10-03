@@ -528,8 +528,7 @@ ILTStream* df_Open(HLTFileTree *hTree, const char *pName, int openMode)
 }
 
 
-// STUB: LITHTECH 0x004274b0
-// Remaining diff: register allocation (the original keeps pInfo in ebp across both tree types).
+// FUNCTION: LITHTECH 0x004274b0
 int df_FindNext(HLTFileTree *hTree, const char *pDirName, LTFindInfo *pInfo)
 {
 	LTFindData *pFindData;
@@ -569,7 +568,7 @@ int df_FindNext(HLTFileTree *hTree, const char *pDirName, LTFindInfo *pInfo)
 		}
 
 		// Find a valid name..
-		while(1)
+		for(;;)
 		{
 			if(curRet == -1)
 			{
@@ -582,14 +581,10 @@ int df_FindNext(HLTFileTree *hTree, const char *pDirName, LTFindInfo *pInfo)
 				return 0;
 			}
 
-			if(pFindData->m_Data.name[0] == '.')
-			{
-				curRet = _findnext(pFindData->m_Handle, &pFindData->m_Data);
-			}
-			else
-			{
+			if(pFindData->m_Data.name[0] != '.')
 				break;
-			}
+
+			curRet = _findnext(pFindData->m_Handle, &pFindData->m_Data);
 		}
 
 		// Ok, found a valid one.
@@ -700,8 +695,8 @@ int df_FindNext(HLTFileTree *hTree, const char *pDirName, LTFindInfo *pInfo)
 			pTree->m_pRezMgr->TypeToStr(pFindData->m_pCurItm->GetType(),sItemType);
 			strcat(pInfo->m_Name, ".");
 			strcat(pInfo->m_Name, sItemType);
-			pInfo->m_Type = FILE_TYPE;
 			pInfo->m_Date = pFindData->m_pCurItm->GetTime();
+			pInfo->m_Type = FILE_TYPE;
 			pInfo->m_Size = pFindData->m_pCurItm->GetSize();
 		}
 

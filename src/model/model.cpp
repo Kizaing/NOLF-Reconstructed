@@ -127,23 +127,14 @@ LTBOOL ModelStringList::SetAlloc(LAlloc *pAlloc)
 // AnimTimeRef / AnimKeyFrame.
 // ------------------------------------------------------------------------ //
 
-// STUB: LITHTECH 0x0044dd20
-// esi/edi swapped between the model pointer and its anim count.
+// FUNCTION: LITHTECH 0x0044dd20
 LTBOOL AnimTimeRef::IsValid()
 {
-	Model *pModel;
-
-	pModel = m_pModel;
-	if(pModel &&
-		m_Prev.m_iAnim < pModel->NumAnims() && m_Cur.m_iAnim < pModel->NumAnims() &&
-		m_Prev.m_iFrame < pModel->GetAnim(m_Prev.m_iAnim)->m_KeyFrames.GetSize() &&
-		m_Cur.m_iFrame < pModel->GetAnim(m_Cur.m_iAnim)->m_KeyFrames.GetSize() &&
-		m_Percent >= 0.0f && m_Percent <= 1.0f)
-	{
-		return LTTRUE;
-	}
-
-	return LTFALSE;
+	return m_pModel &&
+		m_Prev.m_iAnim < m_pModel->NumAnims() && m_Cur.m_iAnim < m_pModel->NumAnims() &&
+		m_Prev.m_iFrame < m_pModel->GetAnim(m_Prev.m_iAnim)->m_KeyFrames.GetSize() &&
+		m_Cur.m_iFrame < m_pModel->GetAnim(m_Cur.m_iAnim)->m_KeyFrames.GetSize() &&
+		m_Percent >= 0.0f && m_Percent <= 1.0f;
 }
 
 
@@ -1085,7 +1076,9 @@ uint32 Model::CalcNumParentAnims()
 
 // Parses the model's command string (the "ModelEdit" properties).
 // STUB: LITHTECH 0x0044fa10
-// Only the register choice of the NormalRef matrix copy (edx/esi) differs.
+// Only the register choice of the NormalRef matrix copy (edx/esi) differs: the original computes
+// `idx << 6` in esi first and then adds the array base (eax); ours loads the base into esi and adds the index.
+// Tried: GetAt/Get, pointer arithmetic in both operand orders, a local index, a local pointer, memcpy.
 void Model::ParseCommandString()
 {
 	struct FloatCommand

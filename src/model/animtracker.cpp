@@ -16,6 +16,7 @@ void LTAnimTracker::SetupTimeRef(AnimTimeRef *pRef)
 //  Initialize the tracker with animation from model
 //  ----------------------------------------------------------------
 // Remaining diff: register allocation in the pModel block (orig: pModel esi, iAnim edx, flags bx).
+// Also tried: Jupiter's chained iAnim/iFrame stores, local flags copy, nested AllowInvalid ifs (no change).
 // STUB: LITHTECH 0x00401050
 void trk_Init(LTAnimTracker *pTracker, Model *pModel, uint32 iAnim)
 {
@@ -37,11 +38,9 @@ void trk_Init(LTAnimTracker *pTracker, Model *pModel, uint32 iAnim)
 		if(!pTracker->AllowInvalid() && (iAnim >= pModel->NumAnims()))
 			iAnim = 0;
 
-		pTracker->m_TimeRef.m_Cur.m_iAnim = (uint16)iAnim;
+		pTracker->m_TimeRef.m_Prev.m_iAnim = pTracker->m_TimeRef.m_Cur.m_iAnim = (uint16)iAnim;
 		pTracker->m_Flags |= AT_PLAYING;
-		pTracker->m_TimeRef.m_Prev.m_iAnim = (uint16)iAnim;
-		pTracker->m_TimeRef.m_Cur.m_iFrame = 0;
-		pTracker->m_TimeRef.m_Prev.m_iFrame = 0;
+		pTracker->m_TimeRef.m_Prev.m_iFrame = pTracker->m_TimeRef.m_Cur.m_iFrame = 0;
 		pTracker->m_InterpolationMS = NOT_INTERPOLATING;
 	}
 

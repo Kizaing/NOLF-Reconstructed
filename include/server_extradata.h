@@ -16,7 +16,7 @@ LTRESULT	se_LoadModelData(CServerMgr *pServerMgr, const char *pFilename, UsedFil
 // 0x00478780: adds a loaded model to the cache. Returns TRUE if that failed.
 LTBOOL		se_LoadChildModels(CServerMgr *pServerMgr, Model *pModel, UsedFile *pFile, uint32 flags);
 LTRESULT	se_GetModel(CServerMgr *pServerMgr, char *pFilename, Model **ppModel, UsedFile **ppFile,
-				LTBOOL bAddRef, uint32 flags);			// 0x004788c0
+				LTBOOL bLoad, LTBOOL bNow);			// 0x004788c0
 LTRESULT	se_UncacheModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile *pFile);	// 0x00478a20
 
 // Per-type object data: loads an object's files (sm_InitExtraData), releases them again

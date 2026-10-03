@@ -151,6 +151,9 @@ void w_FilterPointsIntoLeaves(WorldBsp *pBsp, Node *pRoot, LTVector *pPoints, in
 }
 
 // Only FPU scheduling differs: the original issues all eight y stores before the x/z stores and ends with fld st(0)/fstp instead of fst.
+// Wave 5: permuting the eight Init() statements (swaps/moves) only gets 299 -> 77 differing bytes, never a match;
+// the original issues all six y-constant stores before the first FPU op, and per-member assignments, a VEC_SET
+// form and negated locals all compile the same as Init().
 // STUB: LITHTECH 0x004303a0
 void w_AddPolyGridToLeaves(WorldBsp *pBsp, LTPolyGrid *pGrid)
 {

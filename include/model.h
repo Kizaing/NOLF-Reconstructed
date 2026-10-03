@@ -403,6 +403,10 @@ public:
 	char*			GetFilename();				// 0x0046c290
 	void			Delete()	{ delete this; }
 
+	// References held by the client manager (m_pDefaultModel) and the server (m_RefCount at 0x20c).
+	void			AddRef()	{ ++m_RefCount; }
+	void			Release()	{ if(m_RefCount > 0) --m_RefCount; }
+
 	void			SetFadeRange(float fMin, float fMax);			// 0x0044ff10 (name unknown)
 	void			TermAnims();									// 0x0044f200
 	void			TermChildModels(LTBOOL bX);						// 0x0044f280 (argument unknown)

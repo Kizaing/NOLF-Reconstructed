@@ -42,7 +42,7 @@ public:
 	virtual LTBOOL		SendPacket(void *pData, uint32 dataLen, uint32 spaceAfter, CBaseConn *idSendTo);
 	virtual LTBOOL		GetPacket(CPacket *pPacket);
 
-	virtual uint32		GetPacketOverhead();
+	virtual uint32		GetPacketOverhead() { return 0; }
 
 // Functions called between local drivers.
 // NOTE:  These MUST be virtual so it actually executes the code from

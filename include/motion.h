@@ -10,6 +10,10 @@
 // Gravity info (Jupiter shared/src/motion.h), 0x20 bytes.
 struct MotionInfo
 {
+	// The original inlines this empty constructor into every caller (cm_Init, CreateServerMgr); the compiler
+	// refuses to unless it is forced.
+	__forceinline MotionInfo() {}
+
 	LTVector	m_Force, m_UnitForce;	// 0x00, 0x0c
 	float		m_ForceMag;				// 0x18
 	float		m_SlideRatio;			// 0x1c

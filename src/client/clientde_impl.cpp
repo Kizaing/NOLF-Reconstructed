@@ -768,7 +768,8 @@ LTRESULT ClientCommonLT::GetPolyTextureFlags(HPOLY hPoly, uint32 *pFlags)
 }
 
 // STUB: LITHTECH 0x00405680
-// Register allocation: the original keeps the vertex count in edx and the output pointer in esi.
+// Register allocation: the original keeps the vertex count in edx and the output pointer in esi (ours: the reverse).
+// Local order, loop forms (while / break) and a vertex-array pointer local did not change it.
 LTRESULT ClientCommonLT::GetPolyInfo(HPOLY hPoly, LTPlane **ppPlane, LTVector *pVertexList,
 	uint32 nVertexListMaxSize, uint32 *pnNumVertices)
 {
@@ -839,7 +840,7 @@ LTRESULT ClientCommonLT::GetPointStatus(LTVector *pPoint)
 	return ic_IsPointInWorld(pWorldTree, pPoint) ? LT_INSIDE : LT_OUTSIDE;
 }
 
-static void w_GetLightVal(CLightTable *pTable, LTVector *pPos, LTRGBColor *pRGB);
+void w_GetLightVal(CLightTable *pTable, LTVector *pPos, LTRGBColor *pRGB);	// 0x00405980 (also called by server_interface.cpp)
 
 // FUNCTION: LITHTECH 0x004058b0
 LTRESULT ClientCommonLT::GetPointShade(LTVector *pPoint, LTVector *pColor)
@@ -860,9 +861,141 @@ LTRESULT ClientCommonLT::GetPointShade(LTVector *pPoint, LTVector *pColor)
 	return LT_OK;
 }
 
-// STUB: LITHTECH 0x00405980
-static void w_GetLightVal(CLightTable *pTable, LTVector *pPos, LTRGBColor *pRGB)
+// The older Jupiter light grid lookup (no light groups, no filtering): Ghidra calls it CLightTable::GetLightVal, but it
+// is a free cdecl function (config/renames.csv).
+// FUNCTION: LITHTECH 0x00405980
+void w_GetLightVal(CLightTable *pTable, LTVector *pPos, LTRGBColor *pRGB)
 {
+	LTVector fSamplePt;
+	LTVector samples[8];
+	LTVector ySamples[2];
+	LTVector xySamples[2];
+	LTVector vInv;
+	LTVector finalColor;
+	struct { int x, y, z; } gridCoords;
+	LTRGB *pBase;
+
+	fSamplePt = *pPos - pTable->m_LookupStart;
+	fSamplePt.x *= pTable->m_InvBlockSize.x;
+	fSamplePt.y *= pTable->m_InvBlockSize.y;
+	fSamplePt.z *= pTable->m_InvBlockSize.z;
+
+	gridCoords.x = (int)fSamplePt.x;
+	gridCoords.y = (int)fSamplePt.y;
+	gridCoords.z = (int)fSamplePt.z;
+	gridCoords.x = LTCLAMP(gridCoords.x, 0, (int)pTable->m_DimsMinus1[0]);
+	gridCoords.y = LTCLAMP(gridCoords.y, 0, (int)pTable->m_DimsMinus1[1]);
+	gridCoords.z = LTCLAMP(gridCoords.z, 0, (int)pTable->m_DimsMinus1[2]);
+
+	if(gridCoords.x == (int)pTable->m_DimsMinus1[0])
+	{
+		fSamplePt.x = 0.0f;
+		vInv.x = 1.0f;
+		gridCoords.x--;
+	}
+	else
+	{
+		fSamplePt.x = fSamplePt.x - (float)floor(fSamplePt.x);
+		vInv.x = 1.0f - fSamplePt.x;
+	}
+
+	if(gridCoords.y == (int)pTable->m_DimsMinus1[1])
+	{
+		fSamplePt.y = 0.0f;
+		vInv.y = 1.0f;
+		gridCoords.y--;
+	}
+	else
+	{
+		fSamplePt.y = fSamplePt.y - (float)floor(fSamplePt.y);
+		vInv.y = 1.0f - fSamplePt.y;
+	}
+
+	if(gridCoords.z == (int)pTable->m_DimsMinus1[2])
+	{
+		fSamplePt.z = 0.0f;
+		vInv.z = 1.0f;
+		gridCoords.z--;
+	}
+	else
+	{
+		fSamplePt.z = fSamplePt.z - (float)floor(fSamplePt.z);
+		vInv.z = 1.0f - fSamplePt.z;
+	}
+
+	pBase = &pTable->m_pData[gridCoords.x + gridCoords.y*pTable->m_Dims[0] + gridCoords.z*pTable->m_XSizeTimesYSize];
+	samples[0].x = pBase[pTable->m_Dims[0]].r;
+	samples[0].y = pBase[pTable->m_Dims[0]].g;
+	samples[0].z = pBase[pTable->m_Dims[0]].b;
+	samples[1].x = pBase[pTable->m_Dims[0] + 1].r;
+	samples[1].y = pBase[pTable->m_Dims[0] + 1].g;
+	samples[1].z = pBase[pTable->m_Dims[0] + 1].b;
+	samples[2].x = pBase[0].r;
+	samples[2].y = pBase[0].g;
+	samples[2].z = pBase[0].b;
+	samples[3].x = pBase[1].r;
+	samples[3].y = pBase[1].g;
+	samples[3].z = pBase[1].b;
+
+	pBase += pTable->m_XSizeTimesYSize;
+	samples[4].x = pBase[pTable->m_Dims[0]].r;
+	samples[4].y = pBase[pTable->m_Dims[0]].g;
+	samples[4].z = pBase[pTable->m_Dims[0]].b;
+	samples[5].x = pBase[pTable->m_Dims[0] + 1].r;
+	samples[5].y = pBase[pTable->m_Dims[0] + 1].g;
+	samples[5].z = pBase[pTable->m_Dims[0] + 1].b;
+	samples[6].x = pBase[0].r;
+	samples[6].y = pBase[0].g;
+	samples[6].z = pBase[0].b;
+	samples[7].x = pBase[1].r;
+	samples[7].y = pBase[1].g;
+	samples[7].z = pBase[1].b;
+
+	ySamples[0].x = samples[2].x * vInv.y;
+	ySamples[0].y = samples[2].y * vInv.y;
+	ySamples[0].z = samples[2].z * vInv.y;
+	ySamples[0].x += samples[0].x * fSamplePt.y;
+	ySamples[0].y += samples[0].y * fSamplePt.y;
+	ySamples[0].z += samples[0].z * fSamplePt.y;
+	ySamples[1].x = samples[3].x * vInv.y;
+	ySamples[1].y = samples[3].y * vInv.y;
+	ySamples[1].z = samples[3].z * vInv.y;
+	ySamples[1].x += samples[1].x * fSamplePt.y;
+	ySamples[1].y += samples[1].y * fSamplePt.y;
+	ySamples[1].z += samples[1].z * fSamplePt.y;
+	xySamples[0].x = ySamples[0].x * vInv.x;
+	xySamples[0].y = ySamples[0].y * vInv.x;
+	xySamples[0].z = ySamples[0].z * vInv.x;
+	xySamples[0].x += ySamples[1].x * fSamplePt.x;
+	xySamples[0].y += ySamples[1].y * fSamplePt.x;
+	xySamples[0].z += ySamples[1].z * fSamplePt.x;
+	ySamples[0].x = samples[6].x * vInv.y;
+	ySamples[0].y = samples[6].y * vInv.y;
+	ySamples[0].z = samples[6].z * vInv.y;
+	ySamples[0].x += samples[4].x * fSamplePt.y;
+	ySamples[0].y += samples[4].y * fSamplePt.y;
+	ySamples[0].z += samples[4].z * fSamplePt.y;
+	ySamples[1].x = samples[7].x * vInv.y;
+	ySamples[1].y = samples[7].y * vInv.y;
+	ySamples[1].z = samples[7].z * vInv.y;
+	ySamples[1].x += samples[5].x * fSamplePt.y;
+	ySamples[1].y += samples[5].y * fSamplePt.y;
+	ySamples[1].z += samples[5].z * fSamplePt.y;
+	xySamples[1].x = ySamples[0].x * vInv.x;
+	xySamples[1].y = ySamples[0].y * vInv.x;
+	xySamples[1].z = ySamples[0].z * vInv.x;
+	xySamples[1].x += ySamples[1].x * fSamplePt.x;
+	xySamples[1].y += ySamples[1].y * fSamplePt.x;
+	xySamples[1].z += ySamples[1].z * fSamplePt.x;
+	finalColor.x = xySamples[0].x * vInv.z;
+	finalColor.y = xySamples[0].y * vInv.z;
+	finalColor.z = xySamples[0].z * vInv.z;
+	finalColor.x += xySamples[1].x * fSamplePt.z;
+	finalColor.y += xySamples[1].y * fSamplePt.z;
+	finalColor.z += xySamples[1].z * fSamplePt.z;
+	pRGB->r = (uint8)(int)finalColor.x;
+	pRGB->g = (uint8)(int)finalColor.y;
+	pRGB->b = (uint8)(int)finalColor.z;
 }
 
 // FUNCTION: LITHTECH 0x00405f50
@@ -2000,7 +2133,9 @@ static void ci_GetPointContainersCB(WorldTreeObj *pObj, void *pUser)
 }
 
 // STUB: LITHTECH 0x00407dd0
-// The original multiplies the homogenous transform rows in a different operand order.
+// The original multiplies the homogenous transform rows in a different operand order: its sum loads the z term first
+// (z, x, y) where ours loads y first (y, x, z). The term order of an expanded MatVMul_H does not change it (all six
+// permutations compile the same) and the expanded form is 7 bytes worse than the SDK inline.
 static LTBOOL _IsPointInContainer(LTVector *pPoint, ContainerInstance *pContainer)
 {
 	WorldBsp *pWorldBsp;
@@ -3373,8 +3508,7 @@ void ci_KillSoundLoop(HLTSOUND hSound)
 	GetClientILTSoundMgrImpl()->KillSoundLoop(hSound);
 }
 
-// STUB: LITHTECH 0x0040a100
-// (Not matching: the original hoists all six GetClientILTSoundMgrImpl calls before the distance math.)
+// FUNCTION: LITHTECH 0x0040a100
 void ci_SetListener(LTBOOL bListenerInClient, LTVector *pPos, LTRotation *pRot)
 {
 	LTBOOL bTeleport;
@@ -3383,7 +3517,7 @@ void ci_SetListener(LTBOOL bListenerInClient, LTVector *pPos, LTRotation *pRot)
 	if(pPos)
 	{
 		// Teleport if it moved far.
-		if(VEC_DISTSQR(*pPos, GetClientILTSoundMgrImpl()->m_vLastListenerPosition) > 1048576.0f)
+		if(VEC_DISTSQR(*pPos, GetClientILTSoundMgrImpl()->GetLastListenerPosition()) > 1048576.0f)
 			bTeleport = LTTRUE;
 	}
 
@@ -3982,7 +4116,8 @@ void ci_SetObjectRotation(HLOCALOBJ hObj, LTRotation *pRotation)
 }
 
 // STUB: LITHTECH 0x0040b4a0
-// (Not matching: x87 scheduling of the pOut stores differs (52 bytes).)
+// (Not matching: x87 scheduling of the pOut stores differs (52 bytes): the original copies the `vRight * wx` temporary
+// into *pOut only after the vUp products are issued.) Tried vTemp locals, compound `*=`/`+=` forms, one big expression.
 LTRESULT ci_Get3DCameraPt(HLOCALOBJ hCamera, int sx, int sy, LTVector *pOut)
 {
 	CameraInstance *pCamera = (CameraInstance*)hCamera;
@@ -4366,8 +4501,7 @@ LTRESULT ci_GetPolyGridInfo(HLOCALOBJ hObj, char **pBytes, uint32 *pWidth, uint3
 	return LT_OK;
 }
 
-// STUB: LITHTECH 0x0040c150
-// (Not matching: vector temporaries and the scale divisions schedule differently.)
+// FUNCTION: LITHTECH 0x0040c150
 LTRESULT ci_FitPolyGrid(HLOCALOBJ hObj, LTVector *pMin, LTVector *pMax, LTVector *pPos, LTVector *pScale)
 {
 	LTPolyGrid *pGrid = (LTPolyGrid*)hObj;
@@ -4376,15 +4510,19 @@ LTRESULT ci_FitPolyGrid(HLOCALOBJ hObj, LTVector *pMin, LTVector *pMax, LTVector
 	if(!pGrid || pGrid->m_ObjectType != OT_POLYGRID || !pMin || !pMax)
 		RETURN_ERROR(1, CLTClient::FitPolyGrid, LT_INVALIDPARAMS);
 
-	vCenter = (*pMax - *pMin) * 0.5f + *pMin;
+	vCenter = (*pMax - *pMin);
+	vCenter *= 0.5f;
+	vCenter += *pMin;
 
 	if(pPos)
 		*pPos = vCenter;
 
 	if(pScale)
 	{
+		float fH = (float)pGrid->m_Height * 0.5f;
+		float dz = pMax->z - vCenter.z;
 		pScale->x = (pMax->x - vCenter.x) / ((float)pGrid->m_Width * 0.5f);
-		pScale->z = (pMax->z - vCenter.z) / ((float)pGrid->m_Height * 0.5f);
+		pScale->z = dz / fH;
 		pScale->y = (pMax->y - vCenter.y) / 127.0f;
 	}
 

@@ -438,6 +438,7 @@ void ic_WriteCompRotation(ILTMessage *pMsg, LTRotation *pRot)
 // STUB: LITHTECH 0x0043e140
 // Inline budget: the original places the super-compressed branch after the return and calls
 // more of the LTVector inlines (Mag, operator-, the 2nd Cross) out of line.
+// Wave 5: swapping the branch order (`if (bytes[0] < 0)` first) is worse (938 bytes).
 void ic_ReadCompRotation(ILTMessage *pMsg, LTRotation *pRot)
 {
 	char bytes[6];
@@ -499,8 +500,9 @@ void ic_ReadCompRotation(ILTMessage *pMsg, LTRotation *pRot)
 // FUNCTION: LITHTECH 0x0043e540 ?SetBasisVectors@LTMatrix@@QAEXPAV?$_CVector@M@@00@Z
 
 // STUB: LITHTECH 0x0043e5b0
-// The original keeps CMoArray::Insert2 out of line inside the inlined CPacket::WriteType (as in
-// CNetMgr::SendFragmented); ours inlines it.
+// The original keeps CMoArray::Insert2 (0x00414630) out of line inside the inlined CPacket::WriteType (as in
+// CNetMgr::SendFragmented); ours inlines it. A top-level cost of >= 8 units before the WriteType gives the right
+// size (224) with 91 bytes still differing; free pending sites (1-6) do nothing, nor does LTMatrix::El().
 void ic_WriteYRotation(CPacket *pPacket, LTRotation *pRot)
 {
 	LTMatrix mat;
@@ -555,7 +557,8 @@ LTRESULT ic_GetNextModelNode(HOBJECT hObject, HMODELNODE hNode, HMODELNODE *pNex
 }
 
 // STUB: LITHTECH 0x0043e7c0
-// Register allocation: the original computes maxLen-1 before loading the node name.
+// Register allocation: the original computes maxLen-1 before loading the node name (dec edx; push edx; then
+// the m_FlatNodeList data pointer). Wave 5 tried: a length local, maxLen--, GetNode(), a name pointer local.
 LTRESULT ic_GetModelNodeName(HOBJECT hObject, HMODELNODE hNode, char *pName, uint32 maxLen)
 {
 	LTObject *pObj;

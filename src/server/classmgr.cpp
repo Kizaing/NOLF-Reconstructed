@@ -2,6 +2,7 @@
 #include <string.h>
 #include "ltengineobjects.h"
 #include "servermgr.h"
+#include "s_object.h"
 #include "dhashtable.h"
 
 #ifndef HASH_RAW
@@ -238,21 +239,6 @@ static void SetupClassNullFunctions(ClassDef *pClass, uint32 offset)
 	}
 }
 
-
-inline LPBASECLASS sm_AllocateObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass)
-{
-	LPBASECLASS pObject;
-	CClassData *pClassData;
-
-	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
-
-	pObject = (LPBASECLASS)sb_Allocate(&pClassData->m_ObjectBank);
-	pObject->m_hObject = 0;
-	pObject->m_pFirstAggregate = LTNULL;
-	pClass->m_ConstructFn(pObject);
-
-	return pObject;
-}
 
 
 // FUNCTION: LITHTECH 0x00402cb0

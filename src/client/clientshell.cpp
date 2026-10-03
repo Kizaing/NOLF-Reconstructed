@@ -4,6 +4,7 @@
 // (SurfaceSprite) and surface effects animate texture coordinates every frame.
 #include <windows.h>
 #include <string.h>
+#define SERVERMGR_LOADERTHREAD
 #include "bdefs.h"
 #include "clientshell.h"
 #include "clientmgr.h"
@@ -333,7 +334,12 @@ LTRESULT CClientShell::StartupLocal(StartGameRequest *pRequest, LTBOOL bHost, CB
 }
 
 
-// The original inlines the whole CServerMgr constructor (CServerMgr has none declared here).
+// The original inlines the whole CServerMgr constructor (inline in servermgr.h). Everything up to CClassMgr
+// matches (MotionInfo's empty constructor needs __forceinline, motion.h). After that the original calls
+// LTList::LTList (0x411650) for m_Objects and m_ClientReferences, CMoArray::CMoArray (0x416930), the empty
+// SkyDef constructor (0x45c5f0), ObjectBank<ServerData>::ObjectBank (0x416e10) and ServerFileMgr (0x4150c0), where
+// we inline the lists, the CMoArray and the ObjectBank constructors (CMoArray's Clear/Init stay calls).
+// Pending free calls and ballast in the constructor body or in a base constructor don't move those decisions.
 // STUB: LITHTECH 0x00414cd0
 LTRESULT CClientShell::CreateServerMgr()
 {
@@ -353,8 +359,7 @@ LTRESULT CClientShell::CreateServerMgr()
 	return LT_OK;
 }
 
-// 0x00414e80 is CServerMgr's scalar deleting destructor, with the whole destructor inlined
-// (servermgr.h declares neither a constructor nor a destructor yet).
+// 0x00414e80 is CServerMgr's scalar deleting destructor (the destructor is inline in servermgr.h).
 
 
 static void UpdateSurfaceEffects(CClientShell *pShell);
@@ -1097,16 +1102,38 @@ MainWorld* CClientShell::GetWorld()
 
 
 // Template and inline code the CServerMgr constructor and destructor use.
-// (not emitted yet) 0x004150c0 ??0ServerFileMgr@@QAE@XZ
-// (not emitted yet) 0x00416930 ??0?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@QAE@XZ
-// (not emitted yet) 0x00416950 ?GenGetNext@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@UAEXPAXAAK@Z
-// (not emitted yet) 0x00416970 ?GenGetAt@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@UAEXPAXAAK@Z
-// (not emitted yet) 0x00416990 ?GenRemove@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@UAEXK@Z
+// FUNCTION: LITHTECH 0x00414e80 ??_GCServerMgr@@UAEPAXI@Z
+// FUNCTION: LITHTECH 0x004150c0 ??0ServerFileMgr@@QAE@XZ
+// FUNCTION: LITHTECH 0x00416930 ??0?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@QAE@XZ
+// FUNCTION: LITHTECH 0x00416950 ?GenGetNext@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@UBE?AUObjectMapEntry@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00416970 ?GenGetAt@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@UBE?AUObjectMapEntry@@AAVGenListPos@@@Z
+// FUNCTION: LITHTECH 0x00416990 ?GenRemoveAt@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@UAEXVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00416ab0 ?AllocVoid@?$ObjectBank@UServerData@@VNullCS@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00416af0 ?FreeVoid@?$ObjectBank@UServerData@@VNullCS@@@@UAEXPAX@Z
-// (not emitted yet) 0x00416e10 ??0?$ObjectBank@UServerData@@VNullCS@@@@QAE@XZ
+// FUNCTION: LITHTECH 0x00416b20 ??1?$ObjectBank@VModelInstance@@VNullCS@@@@UAE@XZ
+// FUNCTION: LITHTECH 0x00416b40 ??1?$ObjectBank@VWorldModelInstance@@VNullCS@@@@UAE@XZ
+// FUNCTION: LITHTECH 0x00416b60 ??1?$ObjectBank@VSpriteInstance@@VNullCS@@@@UAE@XZ
+// FUNCTION: LITHTECH 0x00416b80 ??1?$ObjectBank@VDynamicLight@@VNullCS@@@@UAE@XZ
+// FUNCTION: LITHTECH 0x00416ba0 ??1?$ObjectBank@VCameraInstance@@VNullCS@@@@UAE@XZ
+// FUNCTION: LITHTECH 0x00416bc0 ??1?$ObjectBank@VLTParticleSystem@@VNullCS@@@@UAE@XZ
+// FUNCTION: LITHTECH 0x00416be0 ??1?$ObjectBank@VLTPolyGrid@@VNullCS@@@@UAE@XZ
+// FUNCTION: LITHTECH 0x00416c00 ?SetSize2@?$CMoArray@ULightAnim@@VDefaultCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00416c90 ?Term@?$ObjectBank@UUsedFile@@VNullCS@@@@UAEXXZ
+// FUNCTION: LITHTECH 0x00416cb0 ?SetSize2@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@QAEHKPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00416d20 ?InternalNiceSetSize@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@AAEHKHPAVLAlloc@@@Z
+// FUNCTION: LITHTECH 0x00416e10 ??0?$ObjectBank@UServerData@@VNullCS@@@@QAE@XZ
 // FUNCTION: LITHTECH 0x00416e30 ?Term@?$ObjectBank@UServerData@@VNullCS@@@@UAEXXZ
+// FUNCTION: LITHTECH 0x00416e50 ??_G?$ObjectBank@UUsedFile@@VNullCS@@@@UAEPAXI@Z
 // FUNCTION: LITHTECH 0x00416e90 ??_G?$ObjectBank@UServerData@@VNullCS@@@@UAEPAXI@Z
-// (not emitted yet) 0x00416cb0 ?SetSize2@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@QAEHKPAVLAlloc@@@Z
-// (not emitted yet) 0x00416d20 ?NiceSetSize2@?$CMoArray@UObjectMapEntry@@VDefaultCache@@@@QAEHKHPAVLAlloc@@@Z
 // FUNCTION: LITHTECH 0x00416ef0 ?BaseNew@@YAPAUObjectMapEntry@@PAVLAlloc@@PAU1@K@Z
+// FUNCTION: LITHTECH 0x00416ed0 ?BaseDelete@@YAXPAVLAlloc@@PAUObjectMapEntry@@K@Z
+
+// STANDIN: the original CreateServerMgr calls these two constructors out of line; ours inlines them, so this
+// forces out-of-line copies (not in lithtech.exe). Delete it once CreateServerMgr matches.
+#pragma inline_depth(0)
+void standin_ServerMgrMemberCtors(void *p1, void *p2)
+{
+	new (p1) CMoArray<ObjectMapEntry>;
+	new (p2) ObjectBank<ServerData>;
+}
+#pragma inline_depth()

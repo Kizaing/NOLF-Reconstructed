@@ -62,7 +62,8 @@ LTBOOL ModelAllocations::Load(ILTStream &str)
 
 // This is not going to be very accurate.
 // STUB: LITHTECH 0x00459270
-// Only the operand order of m_nChildModels * m_nNodes differs.
+// Only the operand order of m_nChildModels * m_nNodes differs (original: load m_nChildModels, imul m_nNodes;
+// ours always loads m_nNodes first. Tried both orders, parenthesised, temp local, constant first/last).
 LTBOOL ModelAllocations::CalcAllocationSize(uint32 &size)
 {
 	uint32 nChildNodes;

@@ -1,3 +1,4 @@
+// FLAGS: /O2 /D__STL_NO_EXCEPTION_HEADER /D__STL_NO_NEW_NEW_HEADER /D__STL_NO_BAD_ALLOC /IE:/AVP2Source/build/proj/LT2/lithshared/stl /IE:/MSVC6/VC98/MFC
 // Talon's server-side ILT interface implementations (the classes CLTServer embeds: SPhysicsLT,
 // ServerCommonLT, ServerModelLT and ServerLightAnimLT; Jupiter split them into
 // server_iltphysics.cpp, server_iltcommon.cpp and server_iltmodel.cpp), plus si_GetPointShade and
@@ -6,6 +7,7 @@
 #include "bdefs.h"
 #include "servermgr.h"
 #include "s_object.h"
+#define SERVERDE_STL
 #include "serverde_impl.h"
 #include "shared_iltcommon.h"
 #include "iltmodel.h"
@@ -110,72 +112,20 @@ LTBOOL si_GetPointShade(LTVector *pPoint, LTVector *pColor)
 // The interface classes.
 // ----------------------------------------------------------------------- //
 
-// vtable 0x004c8318.
-class SPhysicsLT : public ILTPhysics
+// Creates the server's ILT interface (the CLTServer constructor, in serverde_impl.h, is inline).
+// Differs: the original builds the child model link map (member at 0x280) with _M_empty_initialize
+// (0x00487d10) out of line and keeps pServerMgr in ebp; we inline _M_empty_initialize. The inline budget
+// can't be steered into that split: pending free sites after the map (up to 12) un-inline the whole map
+// constructor instead, ballast before it (up to 48 units) gives a 187-byte diff, and the order of the
+// pointer assignments only changes the stores' schedule (the 0x10, 0x244, 0x08, 0x14, 0x0c, 0x18, 0x1c order
+// in the original is not the source order).
+// STUB: LITHTECH 0x004798b0
+ILTServer* CreateLTServer(CServerMgr *pServerMgr)
 {
-public:
-	virtual LTRESULT	SetVelocity(HOBJECT hObj, LTVector *pVel);
-	virtual LTRESULT	SetAcceleration(HOBJECT hObj, LTVector *pAccel);
-	virtual LTRESULT	SetObjectDims(HOBJECT hObj, LTVector *pNewDims, uint32 flags);
-	virtual LTRESULT	MoveObject(HOBJECT hObj, LTVector *pPos, uint32 flags);
-	virtual LTRESULT	GetGlobalForce(LTVector &vec);
-	virtual LTRESULT	SetGlobalForce(LTVector &vec);
-	virtual LTRESULT	GetStairHeight(float &fHeight);
-	virtual LTRESULT	SetStairHeight(float fHeight);
+	return new CLTServer(pServerMgr);
+}
 
-	float		m_fStairHeight;		// 0x08
-	CServerMgr	*m_pServerMgr;		// 0x0c
-};
-
-// vtable 0x004c8368.
-class ServerCommonLT : public CommonLT
-{
-public:
-	virtual LTRESULT	SetObjectFilenames(HOBJECT pObj, ObjectCreateStruct *pStruct);
-	virtual LTRESULT	SetObjectFlags(HOBJECT hObj, const ObjFlagType flagType, uint32 dwFlags);
-	virtual LTRESULT	GetAttachmentObjects(HATTACHMENT hAttachment, HOBJECT &hParent, HOBJECT &hChild);
-	virtual LTRESULT	CreateMessage(ILTMessage* &pMsg);
-	virtual LTRESULT	GetPointStatus(LTVector *pPoint);
-	virtual LTRESULT	GetPointShade(LTVector *pPoint, LTVector *pColor);
-	virtual LTRESULT	GetPolyTextureFlags(HPOLY hPoly, uint32 *pFlags);
-	virtual LTRESULT	GetPolyInfo(HPOLY hPoly, LTPlane **ppPlane, LTVector *pVertexList,
-		uint32 nVertexListMaxSize, uint32 *pnNumVertices);
-	virtual LTRESULT	GetPolySurfaceFlags(HPOLY hPoly, uint32 &dwSurfFlags);
-
-	CServerMgr	*m_pServerMgr;		// 0x10
-};
-
-// vtable 0x004c83c0.
-class ServerModelLT : public ILTModel
-{
-public:
-	virtual LTRESULT	SetPieceHideStatus(HOBJECT hObj, HMODELPIECE hPiece, LTBOOL bHidden);
-	virtual LTRESULT	AddTracker(HOBJECT hObj, LTAnimTracker *pTracker);
-	virtual LTRESULT	RemoveTracker(HOBJECT hObj, LTAnimTracker *pTracker);
-	virtual LTRESULT	SetCurAnim(LTAnimTracker *pTracker, HMODELANIM hAnim);
-	virtual LTRESULT	ResetAnim(LTAnimTracker *pTracker);
-	virtual LTRESULT	SetLooping(LTAnimTracker *pTracker, LTBOOL bLooping);
-	virtual LTRESULT	SetPlaying(LTAnimTracker *pTracker, LTBOOL bPlaying);
-	virtual LTRESULT	SetWeightSet(LTAnimTracker *pTracker, HMODELWEIGHTSET hSet);
-	virtual LTRESULT	SetAllowTransition(LTAnimTracker *pTracker, LTBOOL bAllowTransition);
-	virtual LTRESULT	SetTimeScale(LTAnimTracker *pTracker, LTFLOAT fTimeScale);
-	virtual LTRESULT	SetCurAnimTime(LTAnimTracker *pTracker, uint32 curTime);
-
-	CServerMgr	*m_pServerMgr;		// 0x04
-};
-
-// vtable 0x004c8304.
-class ServerLightAnimLT : public ILTLightAnim
-{
-public:
-	virtual LTRESULT	FindLightAnim(const char *pName, HLIGHTANIM &hLightAnim);
-	virtual LTRESULT	GetNumFrames(HLIGHTANIM hLightAnim, uint32 &nFrames);
-	virtual LTRESULT	GetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info);
-	virtual LTRESULT	SetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info);
-
-	CServerMgr	*m_pServerMgr;		// 0x04
-};
-
+// FUNCTION: LITHTECH 0x004799f0 ??_GILTServer@@MAEPAXI@Z
 
 // ----------------------------------------------------------------------- //
 // SPhysicsLT

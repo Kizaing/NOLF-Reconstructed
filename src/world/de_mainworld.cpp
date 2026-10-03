@@ -401,8 +401,11 @@ void MainWorld::Clear()
 }
 
 
-// Register allocation differs (the original keeps pInfo in ebx and this in edi) and the
-// error blocks are laid out differently.
+// Wave 5: reading pStream before the progress-fn check and the `if (n) do {...} while` loop shape moved this from
+// 1118 to 690 differing bytes (ours is now 1312 bytes, the original 1280). All that is left is a register
+// difference: from the inlined m_WorldModels.SetSize the original keeps &m_WorldModels in ebp across SetSize,
+// SetArray and the loop (so the constant 0 is an immediate there), while ours spends ebp on a zero register
+// and addresses the array off `this`. A local pointer/reference to m_WorldModels did not change anything.
 // STUB: LITHTECH 0x004285c0
 LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 {
@@ -419,10 +422,9 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 
 	Term();
 
+	pStream = pInfo->m_pStream;
 	if (!pInfo->m_ProgressFn)
 		pInfo->m_ProgressFn = w_NullProgressFn;
-
-	pStream = pInfo->m_pStream;
 
 	if (!w_ReadWorldHeader(pStream, version, objectDataPos, m_RenderDataPos))
 		return LoadWorld_InvalidVersion;
@@ -472,7 +474,10 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 
 	SetArray(m_WorldModels, (WorldData*)LTNULL);
 
-	for (i=0; i < nWorldModels; i++)
+	i = 0;
+	if (nWorldModels)
+	{
+	do
 	{
 		pWorldModel = m_WorldModels[i] = new WorldData;
 		if (!pWorldModel)
@@ -515,6 +520,8 @@ LTRESULT MainWorld::Load(WorldLoadInfo *pInfo)
 
 		pInfo->m_ProgressFn(pInfo->m_ProgressParam);
 		pStream->SeekTo(nextPos);
+		i++;
+	} while (i < nWorldModels);
 	}
 
 	// Precalculate stuff.

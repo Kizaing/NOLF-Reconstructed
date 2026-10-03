@@ -373,7 +373,8 @@ inline LTRESULT ReadObjectSubPacket(CClientShell *pShell, CPacket *pPacket, uint
 // Processes an update packet.  Any errors generated in here will cause
 // a disconnection from the server.
 // Inline budget: the original reads the second change flag byte out of line (ours inlines it) and
-// expands CPacketRef's temporary destructor inline; ours does the opposite.
+// expands CPacketRef's temporary destructor inline; ours does the opposite. Wave 5: inline_scan p1/p2 gets at
+// best 566 bytes (a free call after the SoundSubPacket objectID read), never a MATCH.
 // STUB: LITHTECH 0x0048ada0
 LTRESULT OnUpdatePacket(CClientShell *pShell, CPacket *pPacket)
 {
@@ -779,7 +780,9 @@ static void ReadAnimInfoSet(CClientShell *pShell, CPacket *pPacket, AnimInfoSet 
 
 
 // A new object's type, filenames and special effect data.
-// The original keeps one shared tail for the object types; ours duplicates it per branch.
+// The original keeps one shared tail for the object types; ours duplicates it per branch. The original keeps
+// objectType in dl and converts it with `xor ax,ax; mov al,dl` for the m_ObjectType store; ours spills it and
+// reloads with movzx, so the tail is not the only difference.
 // STUB: LITHTECH 0x0048bfe0
 static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct, CPacket *pSFXData)
 {
@@ -850,7 +853,10 @@ static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct
 
 
 
-// The original inlines two fewer CPacket::ReadType<> (a little more inline cost before the pitch read).
+// Wave 5: `pPacket->GetMessageImpl()` for ic_ReadCompPos and `m_vPosition.Init()` (a pending free call) bring it to
+// 976 bytes with 2 differing: Init() stores x,y,z while the original stores z,y,x (VEC_INIT). VEC_INIT plus any one
+// free inline call after the radius read (inline_scan p1: every statement from 895 to PlaySound) is a MATCH, so the
+// original has one more pending inline site there that is not Init().
 // STUB: LITHTECH 0x0048c380
 static LTRESULT ReadPlaySound(CClientShell *pShell, CPacket *pPacket)
 {
@@ -913,14 +919,14 @@ static LTRESULT ReadPlaySound(CClientShell *pShell, CPacket *pPacket)
 		// If this is a remote positional sound, then get the position...
 		if(!bLocalOverride)
 		{
-			ic_ReadCompPos(&pPacket->m_Message, &playSoundInfo.m_vPosition, pShell->GetWorld());
+			ic_ReadCompPos(pPacket->GetMessageImpl(), &playSoundInfo.m_vPosition, pShell->GetWorld());
 		}
 		else
 		{
 			if(pShell->m_pFrameClientObject)
 				playSoundInfo.m_vPosition = pShell->m_pFrameClientObject->GetPos();
 			else
-				VEC_INIT(playSoundInfo.m_vPosition);
+				playSoundInfo.m_vPosition.Init();
 		}
 	}
 
@@ -1593,9 +1599,7 @@ LTRESULT OnUnloadPacket(CClientShell *pShell, CPacket *pPacket)
 }
 
 
-// With ~8 units of extra inline cost before the percent read (the original reads it out of line)
-// this matches exactly; the natural source for that cost is not known.
-// STUB: LITHTECH 0x0048e3b0
+// FUNCTION: LITHTECH 0x0048e3b0
 LTRESULT OnLightAnimInfoPacket(CClientShell *pShell, CPacket *pPacket)
 {
 	HLIGHTANIM hLightAnim;
@@ -1627,7 +1631,7 @@ LTRESULT OnLightAnimInfoPacket(CClientShell *pShell, CPacket *pPacket)
 			info.m_fBlendPercent = (float)pPacket->ReadType((uint8*)0) / 255.0f;
 
 		if(flags & 8)
-			ic_ReadCompPos(&pPacket->m_Message, &info.m_vLightPos, pShell->GetWorld());
+			ic_ReadCompPos(pPacket->GetMessageImpl(), &info.m_vLightPos, pShell->GetWorld());
 
 		if(flags & 0x10)
 		{

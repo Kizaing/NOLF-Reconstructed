@@ -9,6 +9,25 @@
 #include <stdarg.h>
 #include "bdefs.h"
 #include "de_memory.h"
+
+// This unit builds the inline CClientMgr constructor and destructor, so it sees the opaque members as the
+// real objects (the other units keep them as byte arrays of the same size).
+#define CLIENTMGR_REAL_MEMBERS
+class ILTClient;
+class LTRect;
+// The debug graph manager (debuggraphmgr.cpp; 0x64 bytes), embedded at CClientMgr+0x1300.
+class CDebugGraphMgr
+{
+public:
+	CDebugGraphMgr();															// 0x004309c0
+	~CDebugGraphMgr();															// 0x00430a70
+	LTRESULT	Init(ILTClient *pClientDE, LTRect *pRect);						// 0x00430ae0
+	LTRESULT	Term();															// 0x00430b70
+	LTRESULT	Draw();															// 0x00430d10
+
+private:
+	uint8		m_Pad[0x64];
+};
 #include "clientmgr.h"
 #include "clientshell.h"
 #include "iclientshell.h"
@@ -29,6 +48,7 @@
 #include "setupobject.h"
 #include "effects.h"
 #include "servermgr.h"
+#include "model.h"
 #include "../../build/proj/LT2/lithshared/stdlith/struct_bank.h"
 #include "WONAuth/AuthContext.h"
 #include "WONAuth/PeerAuthClient.h"
@@ -90,24 +110,7 @@ void DetachObjectsStandingOn(LTObject *pObj);											// 0x0045d150
 void w_RemoveObjectFromLeaf(LTObject *pObj);
 void ic_FreeFileList(FileEntry *pList);	// 0x0043eae0											// 0x00430680
 
-// The parts of a Model (model.cpp) the client manager touches.
 #define MODELFLAG_CACHED	(1<<0)
-class Model
-{
-public:
-					Model(LAlloc *pAlloc, LAlloc *pDefAlloc);	// 0x0044ebe0
-	virtual			~Model();
-
-	uint32			m_Unknown04;		// 0x04
-	LTLink			m_Link;				// 0x08 in the client's model list (CClientMgr::m_TextureUsers)
-	uint8			m_Pad14[0x20 - 0x14];
-	uint32			m_Flags;			// 0x20 MODELFLAG_
-	uint8			m_Pad24[0x20c - 0x24];
-	uint32			m_RefCount;			// 0x20c
-
-	void			AddRef()	{ ++m_RefCount; }
-	void			Release()	{ if(m_RefCount > 0) --m_RefCount; }
-};
 
 // ltdirectmusic_impl.h needs the DirectX 8 headers; only its constructor is used here.
 class CLTDirectMusicMgr
@@ -130,7 +133,7 @@ static void FreeModelList(LTLink *pListHead);
 static void FreeSpriteList(LTList *pList);
 
 // The client manager's CSoundMgr (CClientMgr::m_SoundMgr).
-#define SOUNDMGR(pMgr)	((CSoundMgr*)(pMgr)->m_SoundMgr)
+#define SOUNDMGR(pMgr)	(&(pMgr)->m_SoundMgr)
 
 
 // Empty in this build (folded into 0x00473ac0); called after binding a texture (cutil.cpp).
@@ -190,7 +193,7 @@ uint32 g_Ticks_Render;
 // FUNCTION: LITHTECH 0x0040fba0
 CSoundMgr* GetClientILTSoundMgrImpl()
 {
-	return (CSoundMgr*)g_pClientMgr->m_SoundMgr;
+	return &g_pClientMgr->m_SoundMgr;
 }
 
 // FUNCTION: LITHTECH 0x0040fbb0
@@ -254,15 +257,7 @@ VideoMgr* CreateVideoMgr(CClientMgr *pClientMgr, const char *pszName);	// 0x0049
 typedef void (*StringShowFn)(const char *pString, void *pUser);
 void str_ShowAllStringsAllocated(StringShowFn fn, void *pUser);	// 0x00497440
 
-// The debug graph manager (debuggraphmgr.cpp), embedded at CClientMgr+0x1300.
-class CDebugGraphMgr
-{
-public:
-	LTRESULT	Init(ILTClient *pClientDE, LTRect *pRect);	// 0x00430ae0
-	LTRESULT	Term();										// 0x00430b70
-	LTRESULT	Draw();										// 0x00430d10
-};
-#define DEBUGGRAPHMGR(pMgr)	((CDebugGraphMgr*)&(pMgr)->m_Pad1300[0])
+#define DEBUGGRAPHMGR(pMgr)	(&(pMgr)->m_DebugGraphMgr)
 
 
 // FUNCTION: LITHTECH 0x0040fc70
@@ -533,7 +528,8 @@ void CClientMgr::OnExitWorld(CClientShell *pShell)
 
 
 // Starts a shell: hosts or joins a game, or runs one locally, and sends the hello message.
-// Remaining diff: register allocation only (the original keeps pShell in esi and pRequest in edi).
+// Remaining diff: register allocation only (the original keeps pShell in esi and pRequest in edi). Wave 5 tried
+// `pShell->m_ShellMode` instead of `pRequest->m_Type` in the switch and the HOST test (worse: ~980 bytes).
 // STUB: LITHTECH 0x00410500
 LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 {
@@ -1093,10 +1089,11 @@ void CClientMgr::UpdateAllSounds(float fFrameTime)
 // C routines.
 // ------------------------------------------------------------------ //
 
-// The original's inline CClientMgr constructor also gives m_MotionState its gravity
-// (MotionInfo::SetForce, 0x00411670) and runs InitGlobals; that, and the inline budget of the
-// member constructors, isn't rebuilt yet.
-// STUB: LITHTECH 0x004112c0
+// The inline CClientMgr constructor (the member constructors in member order, with MotionState's gravity
+// through SetForce, 0x00411670) is built into this function: this unit sees the real CSoundMgr,
+// CDebugGraphMgr and CLoaderThread members (CLIENTMGR_REAL_MEMBERS), and MotionInfo's empty constructor
+// is __forceinline in motion.h so that it vanishes as in the original.
+// FUNCTION: LITHTECH 0x004112c0
 CClientMgr* cm_Init()
 {
 	CClientMgr *pClientMgr;
@@ -1106,6 +1103,7 @@ CClientMgr* cm_Init()
 		return LTNULL;
 
 	pClientMgr->InitGlobals();
+	pClientMgr->m_DemoMgr.m_pClientMgr = pClientMgr;
 
 	pClientMgr->m_ObjectMap = LTNULL;
 	pClientMgr->m_ObjectMapSize = 0;
@@ -1134,6 +1132,8 @@ CClientMgr* cm_Init()
 
 	VEC_SET(pClientMgr->m_GlobalLightScale, 1.0f, 1.0f, 1.0f);
 	VEC_SET(pClientMgr->m_GlobalVertexTint, 1.0f, 1.0f, 1.0f);
+	pClientMgr->m_vUnknown754.Init();
+	pClientMgr->m_vUnknown760.Init();
 
 	// Initialize the client file mgr.
 	pClientMgr->m_hFileMgr = cf_Init(pClientMgr);
@@ -1154,6 +1154,7 @@ CClientMgr* cm_Init()
 	pClientMgr->m_bRendering = LTFALSE;
 	pClientMgr->m_nSkyObjects = 0;
 	pClientMgr->m_Unknown12e8 = 0;
+	pClientMgr->m_Unknown1370 = 0;
 	pClientMgr->m_LastTime = 0.0f;
 	pClientMgr->m_CurTime = 0.0f;
 	pClientMgr->m_iCurInputSlot = 0;
@@ -1183,9 +1184,9 @@ CClientMgr* cm_Init()
 }
 
 
-// Talon does Jupiter's Term here; the members' destructors follow (MainWorld, ObjectMgr, the
-// sound and net managers, the loader thread and demo manager are only partly declared yet).
-// STUB: LITHTECH 0x00411720
+// Talon does Jupiter's Term here; the members' destructors follow inline (the real member types are visible
+// in this unit: see CLIENTMGR_REAL_MEMBERS in clientmgr.h).
+// FUNCTION: LITHTECH 0x00411720
 CClientMgr::~CClientMgr()
 {
 	int i;
@@ -2060,6 +2061,6 @@ LTRESULT cm_OnModelRefRemoved(void *pUser, ClientModelUser *pUser2, LTBOOL bServ
 // FUNCTION: LITHTECH 0x00413b90 ??4?$ConstSmartPtr@VByteBuffer@WONAPI@@@WONAPI@@QAEPBVByteBuffer@1@PBV21@@Z
 // FUNCTION: LITHTECH 0x00413bf0 ?_M_do_lock@?$_STL_mutex_spin@$0A@@_STL@@SAXPCK@Z
 // FUNCTION: LITHTECH 0x00414630 ?Insert2@?$CMoArray@EVDefaultCache@@@@QAEHKABEPAVLAlloc@@@Z
-// FUNCTION: LITHTECH 0x00414720 ?_DeleteAndDestroyArray@?$CMoArray@ULightAnim@@VDefaultCache@@@@AAEXPAVLAlloc@@K@Z
+// FUNCTION: LITHTECH 0x00414720 ?_DeleteAndDestroyArray@?$CMoArray@ULAPolyRef@@VDefaultCache@@@@AAEXPAVLAlloc@@K@Z
 // FUNCTION: LITHTECH 0x00414860 ?BaseNew@@YAPAPAUWorldPoly@@PAVLAlloc@@PAPAU1@K@Z
 // FUNCTION: LITHTECH 0x004148c0 ?BaseNew@@YAPAULAPolyFrame@@PAVLAlloc@@PAU1@K@Z

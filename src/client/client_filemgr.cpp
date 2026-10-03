@@ -92,7 +92,7 @@ static ServerFile* cf_FindServerFile(ClientFileMgr *pMgr, uint16 fileID);
 
 // Jupiter: CHelpers::FormatFilename (without the NULL check).
 // FUNCTION: LITHTECH 0x00403f10
-static void cf_FormatFilename(const char *pFilename, char *pOut, int outLen)
+void cf_FormatFilename(const char *pFilename, char *pOut, int outLen)
 {
 	strncpy(pOut, pFilename, outLen);
 	pOut[outLen-1] = 0;

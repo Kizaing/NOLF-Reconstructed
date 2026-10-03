@@ -875,34 +875,32 @@ CameraInstance::~CameraInstance()
 {
 }
 
-// STUB: LITHTECH 0x00468070
-// Store scheduling differs (the original keeps the -500/300/-1 stores after the vptr).
+// FUNCTION: LITHTECH 0x00468070
 LTParticleSystem::LTParticleSystem() : LTObject(OT_PARTICLESYSTEM)
 {
-	m_ColorR = m_ColorG = m_ColorB = 255;
-	m_OldRadius = 1.0f;
-	m_pParticleBank = LTNULL;
-	m_SoftwareR = m_SoftwareG = m_SoftwareB = 255;
 	m_ParticleHead.m_pNext = m_ParticleHead.m_pPrev = &m_ParticleHead;
+	m_SoftwareR = m_SoftwareG = m_SoftwareB = 255;
+	m_pParticleBank = LTNULL;
+	m_ColorR = m_ColorG = m_ColorB = 255;
 	m_pCurTexture = LTNULL;
 	m_Padding = 0;
 	m_pSprite = LTNULL;
-	m_SystemRadius = 1.0f;
 	((uint32*)m_SpriteTracker)[0] = 0;
 	((uint32*)m_SpriteTracker)[1] = 0;
 	((uint32*)m_SpriteTracker)[2] = 0;
 	((uint32*)m_SpriteTracker)[3] = 0;
-	m_GravityAccel = -500.0f;
 	((uint32*)m_SpriteTracker)[4] = 0;
 	m_SystemCenter.x = m_SystemCenter.y = m_SystemCenter.z = 0.0f;
 	m_OldCenter.x = m_OldCenter.y = m_OldCenter.z = 0.0f;
 	m_nParticles = 0;
+	m_nChangedParticles = 0;
 	m_MinPos.x = m_MinPos.y = m_MinPos.z = 0.0f;
 	m_MaxPos.x = m_MaxPos.y = m_MaxPos.z = 0.0f;
-	m_nChangedParticles = 0;
+	m_OldRadius = m_SystemRadius = 1.0f;
+	m_GravityAccel = -500.0f;
+	m_ParticleRadius = 300.0f;
 	m_Unknown258 = m_Unknown25C = -1;
 	m_Unknown260 = 0;
-	m_ParticleRadius = 300.0f;
 }
 
 // FUNCTION: LITHTECH 0x00468190 ??_GLTParticleSystem@@UAEPAXI@Z

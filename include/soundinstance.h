@@ -115,8 +115,7 @@ public:
 	virtual LTRESULT	GetOcclusion(LTFLOAT &fLevel)
 	{ return LT_ERROR; }
 
-	virtual LTRESULT	SetPosition(const LTVector &vPos, LTBOOL bTeleport = LTFALSE)
-	{ m_vPosition = vPos; return LT_OK; }
+	virtual LTRESULT	SetPosition(const LTVector &vPos, LTBOOL bTeleport = LTFALSE);
 
 	virtual LTRESULT	GetPosition(LTVector &vPos)
 	{ vPos = m_vPosition; return LT_OK; }
@@ -197,6 +196,10 @@ public:
 	float			m_fFilterParamValue[SOUNDINSTANCE_MAXFILTERPARAMS];	// 0xa4
 	uint8			m_nUserSoundType;		// 0xc0
 };
+
+inline LTRESULT CSoundInstance::SetPosition(const LTVector &vPos, LTBOOL bTeleport)
+{ m_vPosition = vPos; return LT_OK; }
+
 
 class CLocalSoundInstance : public CSoundInstance
 {

@@ -200,6 +200,9 @@ static LTRESULT sm_SendCacheListSection(CServerMgr *pServerMgr, Client *pClient,
 
 // Writes a light animation's changed state.
 // STUB: LITHTECH 0x0046f8e0
+// Wave 5: becomes a MATCH (864 bytes) with ONE extra free inline call pending anywhere after the first
+// WriteType (inline_scan p1 matches at every later statement; ~12 units of ballast before the first WriteType
+// also match, ours otherwise inlines the third WriteType). Source of the extra site unknown, so no fake call shipped.
 static void sm_WriteLightAnimInfo(CServerMgr *pServerMgr, LightAnim *pAnim, uint16 iLightAnim,
 	CPacket *pPacket, uint32 flags)
 {
@@ -269,6 +272,11 @@ void sm_SendAllLightAnims(CServerMgr *pServerMgr, Client *pClient)
 
 // Sends the light animations that changed since the last update.
 // STUB: LITHTECH 0x0046fd30
+// Wave 5: the code is identical except the frame: the original has ONE new slot (the CPacketRef temp, a
+// `push ecx`) and keeps the loop counter i in the dead home of the pServerMgr argument ([esp+0x14], stored right
+// after pServerMgr is loaded into edi); ours takes two new slots (sub esp,8). Same dead-argument-slot reuse as
+// se_InitModelObject (pModel/pFile live in the pObject/pStruct homes). Declaration order and a pChange++
+// loop don't change it.
 void sm_SendChangedLightAnims(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacket *pPacket;
@@ -457,6 +465,9 @@ inline void sm_SendPreloadModelMsgToClient(CServerMgr *pServerMgr, Client *pClie
 
 // Goes thru the current level and tells the client about everything it should preload.
 // STUB: LITHTECH 0x00470230
+// Wave 5: only register differences in the sound-list loop (pCur->m_pNext into edx not eax, the file id
+// through eax not ecx). inline_scan p1/p2/b8/b16 over every statement finds no improvement; tried a UsedFile
+// local, a nested if for GetFile(): no change.
 LTRESULT sm_TellClientToPreloadStuff(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacketRef cPacket;
@@ -512,6 +523,9 @@ LTRESULT sm_TellClientToPreloadStuff(CServerMgr *pServerMgr, Client *pClient)
 	return LT_OK;
 }
 
+
+// The out-of-line copy of CPacket::GetSpaceLeft (packet.h); sm_TellClientToPreloadStuff keeps its calls out of line.
+// FUNCTION: LITHTECH 0x00470490 ?GetSpaceLeft@CPacket@@QAEJXZ
 
 int sm_FTCantOpenFileFn(FTServ *hServ, char *pFilename);	// 0x004a02b0 (shared return 1)
 
@@ -1144,7 +1158,9 @@ void sm_TracePacket(CServerMgr *pServerMgr, CPacket *pPacket)
 
 
 // STUB: LITHTECH 0x00471760
-// One byte: the inlined CMoArray::Insert2 shift loop adds m_pArray + i with the operands swapped.
+// One byte: the inlined CMoArray::Insert2 shift loop adds m_pArray + i with the operands swapped
+// (lea ecx,[eax+edx] in the original, [edx+eax] here). The instance is CPacket::m_Data's Append(0) inside
+// WriteType (packet.h is frozen); the order is register-allocation noise inside the inlined Insert2.
 LTBOOL sm_FlushUpdate(UpdateInfo *pInfo, CPacket *pPacket, uint8 packetID, int nRoomNeeded)
 {
 	uint32 packetFlags;

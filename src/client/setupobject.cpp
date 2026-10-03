@@ -167,7 +167,8 @@ struct ClientLoadChildInfo
 
 // Loads a child model (the model's path is the parent's directory).
 // STUB: LITHTECH 0x00489a10
-// Tail merging: the two LT_MISSINGMODELFILE returns share the other epilogue.
+// Tail merging: the two LT_MISSINGMODELFILE returns share the other epilogue (our `jl` skips to the second block's
+// epilogue, the original's to the first block's own; same family as dsi_LoadServerObjects).
 LTRESULT ClientLoadChildModelCB(ModelLoadRequest *pRequest, Model **ppModel)
 {
 	ClientLoadChildInfo *pInfo;
@@ -452,7 +453,9 @@ LTRESULT ModelSetTexture(CClientMgr *pClientMgr, FileRef *pRef, ModelInstance *&
 // ------------------------------------------------------------------ //
 
 // STUB: LITHTECH 0x0048a100
-// The original keeps the object in its (address-taken) argument slot; this caches it in edi.
+// The original keeps the object in its (address-taken) argument slot (ModelSetTexture takes ModelInstance *&) and
+// reloads it every iteration; we cache it in edi/ebp and strength-reduce the pSkins pointer. Making the parameter itself a
+// ModelInstance*, passing (ModelInstance*&)pObject, or dropping the local did not stop the caching.
 LTRESULT ModelExtraInit(CClientMgr *pClientMgr, LTObject *pObject,
 	InternalObjectSetup *pSetup, LTBOOL bLocalFromServer)
 {

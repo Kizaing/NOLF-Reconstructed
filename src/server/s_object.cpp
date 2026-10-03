@@ -138,6 +138,15 @@ void sm_FreeAllModels(CServerMgr *pServerMgr)
 // Updates the object (called once per frame): the model's trackers, the update countdown and the
 // object's physics.
 // STUB: LITHTECH 0x00477120
+// Wave 5: the original keeps ContainerPhysics' empty ctor (call 0x45c5f0, shared with RayTri's), LTVector
+// MagSqr (0x438f72), operator+ (0x41f710), operator- (0x41f740) and SetObjectChangeFlags (0x477540) OUT OF
+// LINE, and its frame is 0x60. Top-level ballast of ~96 units anywhere before the physics block (position
+// doesn't matter) outlines them (size 1040 vs 1041 real) but still leaves ~770 bytes differing (frame and
+// local order). Ruled out: moving the tracker loop into an inline helper (cost ~10, no effect); splitting the
+// physics block into inline PhysicsUpdateObject (+ nested GetPhysicsVector) like Jupiter: with it the size
+// is right (1056/1088) and the ctor call appears only when cPhysics lives in the nested helper (then it sits
+// after the IFLAG_APPLYPHYSICS test instead of before it); any ballast then makes the whole helper
+// out-of-line (size 208). So the cost is a top-level inline of ~96 units whose source is still unknown.
 void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 {
 	uint32 nFrameTimeMS;
@@ -329,49 +338,19 @@ void ServerStringKeyCallback(LTAnimTracker *pTracker, AnimKeyFrame *pFrame, char
 	}
 }
 
-// A property of the object being loaded (the layout serverde_impl.cpp calls PropEntry).
-struct LoadPropEntry
-{
-	uint32			m_Type;			// 0x00 PT_
-	char			m_Name[0x50];	// 0x04
-	LoadPropEntry	*m_pNext;		// 0x54
-	uint8			m_Data[4];		// 0x58 value (propLen bytes)
-};
-
 #define PT_STRING_LOAD	0
 
 // PRECREATE_NORMAL (1.0f) passed through sm_AddObjectToWorld's uint32 parameter.
 #define OBJECTCREATED_NORMAL_LOAD	0x3f800000
 
-// Allocates and constructs an object of the class (Jupiter s_object.h).
-inline LPBASECLASS sm_AllocateObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass)
-{
-	LPBASECLASS pObject;
-	CClassData *pClassData;
-
-	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
-
-	pObject = (LPBASECLASS)sb_Allocate(&pClassData->m_ObjectBank);
-	pObject->m_hObject = 0;
-	pObject->m_pFirstAggregate = LTNULL;
-	pClass->m_ConstructFn(pObject);
-
-	return pObject;
-}
-
-// Destructs and frees an object of the class.
-inline void sm_FreeObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass, LPBASECLASS pObject)
-{
-	CClassData *pClassData;
-
-	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
-	pClass->m_DestructFn(pObject);
-	sb_Free(&pClassData->m_ObjectBank, pObject);
-}
-
 
 // Creates the world's objects from the world file.
 // STUB: LITHTECH 0x00477750
+// Wave 5: 4 bytes (eax/ecx for the two cb_FindClass arguments). It becomes a MATCH if ONE extra free inline call
+// is pending anywhere after the createStruct ctor (e.g. a dead `pServerMgr->GetClassModule();` before
+// createStruct.Clear()): the original's ctor expansion (Init x3 out of line) needs a smaller budget share.
+// Using the accessor for cb_FindClass's module gives the 4-byte state below; the source of the real extra
+// site is not known (ruled out: pClassMgr local, accessor for cb_IsClassFlagSet (56 bytes worse)).
 LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldName, LTBOOL bAllObjects)
 {
 	uint32 i, k, nObjects, nProperties, nObjectDataOffset, dwDummy;
@@ -382,7 +361,7 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 	LPBASECLASS pObject;
 	LTObject *pObj;
 	ObjectCreateStruct createStruct;
-	LoadPropEntry *pProp, *pNext;
+	PropEntry *pProp, *pNext;
 	uint32 objStartPos, dwPropFlags;
 
 	pStream->SeekTo(0);
@@ -408,7 +387,7 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 		}
 
 		// Get the class.
-		pClass = cb_FindClass(pServerMgr->m_ClassMgr.m_ClassModule, typeName);
+		pClass = cb_FindClass(pServerMgr->GetClassModule(), typeName);
 
 		// Set things up to succeed anyway if we don't have that class.
 		if (pClass)
@@ -455,7 +434,7 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 			STREAM_READ(dwPropFlags);
 			STREAM_READ(propLen);
 
-			pProp = (LoadPropEntry*)dalloc(propLen + sizeof(LoadPropEntry) - sizeof(pProp->m_Data));
+			pProp = (PropEntry*)dalloc(propLen + sizeof(PropEntry) - sizeof(pProp->m_Data));
 			pProp->m_Type = propCode;
 			strncpy(pProp->m_Name, propName, sizeof(pProp->m_Name) - 1);
 
@@ -469,8 +448,8 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 				pStream->Read(pProp->m_Data, propLen);
 			}
 
-			pProp->m_pNext = (LoadPropEntry*)g_pServerMgr->m_pCurProps;
-			g_pServerMgr->m_pCurProps = (struct PropEntry*)pProp;
+			pProp->m_pNext = g_pServerMgr->m_pCurProps;
+			g_pServerMgr->m_pCurProps = pProp;
 		}
 
 		if (pClass && pObject)
@@ -478,7 +457,7 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 			strncpy(createStruct.m_ClassName, typeName, sizeof(createStruct.m_ClassName) - 1);
 			createStruct.m_ClassName[sizeof(createStruct.m_ClassName) - 1] = 0;
 
-			pObject->EngineMessageFn(MID_PRECREATE, &createStruct, PRECREATE_NORMAL);
+			pObject->EngineMessageFn(MID_PRECREATE, &createStruct, PRECREATE_WORLDFILE);
 
 			if (sm_AddObjectToWorld(pServerMgr, pObject, pClass, &createStruct, INVALID_OBJECTID,
 				OBJECTCREATED_NORMAL_LOAD, &pObj) != LT_OK)
@@ -488,7 +467,7 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 		}
 
 		// Free the property list.
-		pProp = (LoadPropEntry*)g_pServerMgr->m_pCurProps;
+		pProp = g_pServerMgr->m_pCurProps;
 		while (pProp)
 		{
 			pNext = pProp->m_pNext;

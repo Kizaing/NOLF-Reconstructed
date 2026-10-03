@@ -10,6 +10,11 @@
 // Remaining diff: only the FLAG2_ORIENTMOVEMENT block (orig calls the _CVector ctor out of line for
 // a * (timeIntegral * 0.5f), we inline it: VC6 inline budget), which shifts the rest; plus pObj/n
 // register choice (edi/ebx swap) since the friction path stores m_Velocity without updating v.
+// Wave 5: the original's orient block builds `a * dt` and `v * dt` with the _CVector(x,y,z) ctor inlined but
+// `a * (timeIntegral * 0.5f)` through the out-of-line ctor 0x412960 (result in a stack temp that `dr +=` reads directly,
+// so the source is probably `dr += a * (timeIntegral * 0.5f)`); the same early-inline/late-out-of-line pattern holds for
+// the rest of the function (see the call lines of `build.py diff`).  inline_ballast `pending` at that statement
+// (1..12 calls) and `cost` ballast (4..32) did not reproduce it; the missing budget accounting is unknown.
 // STUB: LITHTECH 0x0045c600
 LTBOOL CalcMotion(MotionState *pState)
 {

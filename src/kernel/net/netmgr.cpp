@@ -337,7 +337,10 @@ LTRESULT CNetMgr::GetLocalIpAddress(char *pAddress, uint32 bufLen, uint16 &hostP
 }
 
 
-// The original has an 8-byte aligned frame and calls WriteType out of line; not reworked yet.
+// Wave 5: ResetWrite() and `CPacketRef cAckPacket` declared in the ack block (lazy constructor) fix the frame
+// size and the m_Pos/m_DataLen store order. Left: in the latent-packet loop the original evaluates GetNext's
+// pointer arithmetic before the `fadd [pLatent+8]` and keeps pLatent in eax; ours does the opposite and keeps
+// it in ebx (loop forms, `+=` forms and `>=` operand order did not change it).
 // STUB: LITHTECH 0x00462eb0
 void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 {
@@ -346,7 +349,7 @@ void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 	CBaseConn *pConn;
 	GPOS pos;
 	LatentPacket *pLatent;
-	CPacketRef cPacket, cAckPacket;
+	CPacketRef cPacket;
 
 	m_pCurPrefix = pPrefix;
 
@@ -367,7 +370,7 @@ void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 
 		if(pConn->m_ConnFlags & CONNFLAG_FORCEDISCONNECT)
 		{
-			cPacket->m_Pos = cPacket->m_DataLen = 1;
+			cPacket->ResetWrite();
 			cPacket->m_Data[0] = NETMGR_PACKETID;
 			cPacket->WriteType((uint8)NMPACKET_DISCONNECT);
 			LagOrSend(cPacket, pConn, 0);
@@ -408,6 +411,7 @@ void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 		{
 			NetDebugOut2(pConn, 2, "Sending ack local: %d remote: %d.", pConn->m_IncomingFrame-1, pConn->m_OutgoingFrame);
 
+			CPacketRef cAckPacket;
 			cAckPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
 			FillAckPacket(pConn, cAckPacket);
 			LagOrSend(cAckPacket, pConn, 0);
@@ -465,7 +469,8 @@ void CNetMgr::Update(char *pPrefix, float curTime, LTBOOL bAllowTimeout)
 // FUNCTION: LITHTECH 0x00463350 ??_GCPacketBase@@UAEPAXI@Z
 
 
-// Inlines CPacket::WriteType where the original calls the out-of-line copies (inline budget).
+// Wave 5: ResetWrite() did not change the diff (first difference at +0x161, in the NAK loops, where both builds
+// inline WriteType<uint32> with CMoArray::Insert2 out of line but schedule the loop tests differently).
 // STUB: LITHTECH 0x00463370
 void CNetMgr::FillAckPacket(CBaseConn *pConn, CPacket *pPacket)
 {
@@ -473,7 +478,7 @@ void CNetMgr::FillAckPacket(CBaseConn *pConn, CPacket *pPacket)
 	GPOS pos;
 	GPacket *pGPacket;
 
-	pPacket->m_DataLen = pPacket->m_Pos = 1;
+	pPacket->ResetWrite();
 	pPacket->m_Data[0] = NETMGR_PACKETID | PACKETFLAG_SEND;
 	pPacket->WriteType((uint8)NMPACKET_ACK);
 
@@ -848,31 +853,28 @@ void CNetMgr::DisconnectNotify(CBaseConn *id)
 }
 
 
-// Inlines CPacket::WriteType where the original calls the out-of-line copies (inline budget).
-// STUB: LITHTECH 0x004642f0
+// FUNCTION: LITHTECH 0x004642f0
 LTBOOL CNetMgr::SendFragmented(void *pData, uint32 dataLen, uint32 spaceAfter, CBaseConn *pConn)
 {
 	uint32 frameNum, fragSize, start, end, i;
 	LTBOOL bRet;
 
-	if(dataLen <= MAX_PACKET_LEN)
+	if(dataLen < MAX_PACKET_LEN + 1)
 		return pConn->m_pDriver->SendPacket(pData, dataLen, spaceAfter, pConn);
 
 	frameNum = *((uint32*)&((uint8*)pData)[dataLen - 4]);
-	NetDebugOut2(pConn, 2, "Fragmenting packet %d", frameNum);
 	dataLen -= 4;
+	NetDebugOut2(pConn, 2, "Fragmenting packet %d", frameNum);
 
 	CPacketRef cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
 	cPacket->m_Data[0] = NETMGR_PACKETID;
 
+	start = 0;
 	fragSize = (dataLen / MAX_PACKET_FRAGMENTS) + 1;
 	bRet = TRUE;
-	start = 0;
 	for(i=0; i < MAX_PACKET_FRAGMENTS; i++)
 	{
-		end = start + fragSize;
-		if(end >= dataLen)
-			end = dataLen;
+		end = LTMIN(start + fragSize, dataLen);
 
 		if(end == start)
 		{
@@ -880,7 +882,7 @@ LTBOOL CNetMgr::SendFragmented(void *pData, uint32 dataLen, uint32 spaceAfter, C
 			break;
 		}
 
-		cPacket->m_Pos = cPacket->m_DataLen = 1;
+		cPacket->ResetWrite();
 		cPacket->WriteType((uint8)NMPACKET_FRAGMENT);
 		cPacket->WriteType((uint8)(i | FRAGMENT_INDEXFLAG));
 		cPacket->WriteType(frameNum);
@@ -900,20 +902,21 @@ LTBOOL CNetMgr::SendFragmented(void *pData, uint32 dataLen, uint32 spaceAfter, C
 }
 
 
-// Inlines CPacket::WriteType where the original calls the out-of-line copy (inline budget).
+// Wave 5: byte-identical except the stack slots: the original keeps the spilled `this` in the third slot
+// (0x18, after cGroup/cAck) with pRestore/savedDataLen/savedPos (uint32) after it; ours puts `this` last.
+// Declaration order, initialisers and a `CNetMgr *pThis = this;` local did not change that.
 // STUB: LITHTECH 0x00464460
 LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 {
 	CPacketRef cGroup, cAck;
-	CPacket *pRestore;
-	uint16 savedDataLen, savedPos;
 	GPacket *pGPacket, *pCur;
 	GPOS pos;
 	int spaceLeft;
 	LTBOOL bRet;
 
-	pRestore = LTNULL;
-	savedDataLen = savedPos = 0;
+	CPacket *pRestore = LTNULL;
+	uint32 savedDataLen = 0;
+	uint32 savedPos = 0;
 
 	// Guaranteed packets get their frame number at the end.
 	if(pPacket->m_Data[0] & PACKETFLAG_GUARANTEED)
@@ -926,8 +929,10 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 
 	if(pPacket->m_ErrorFlags & (PACKETERR_READOVERFLOW|PACKETERR_WRITEOVERFLOW))
 	{
-		dsi_ConsolePrint((pPacket->m_ErrorFlags & PACKETERR_READOVERFLOW) ?
-			"*** Packet read overflow, disconnecting ***" : "*** Packet write overflow, disconnecting ***");
+		if(pPacket->m_ErrorFlags & PACKETERR_READOVERFLOW)
+			dsi_ConsolePrint("*** Packet read overflow, disconnecting ***");
+		else
+			dsi_ConsolePrint("*** Packet write overflow, disconnecting ***");
 
 		idSendTo->m_ConnFlags |= CONNFLAG_FORCEDISCONNECT;
 		pPacket->m_ErrorFlags &= ~(PACKETERR_READOVERFLOW|PACKETERR_WRITEOVERFLOW);
@@ -1034,23 +1039,34 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 	{
 		bRet = SendFragmented(pPacket->m_Data.GetArray(), pPacket->m_DataLen,
 			pPacket->m_Data.GetSize() - pPacket->m_DataLen, idSendTo);
+
+		if(pRestore)
+		{
+			pRestore->m_DataLen = savedDataLen;
+			pRestore->m_Pos = savedPos;
+		}
+
+		return bRet;
 	}
 	else
 	{
 		bRet = idSendTo->m_pDriver->SendPacket(pPacket->m_Data.GetArray(), pPacket->m_DataLen,
 			pPacket->m_Data.GetSize() - pPacket->m_DataLen, idSendTo);
-	}
 
-	if(pRestore)
-	{
-		pRestore->m_DataLen = savedDataLen;
-		pRestore->m_Pos = savedPos;
-	}
+		if(pRestore)
+		{
+			pRestore->m_DataLen = savedDataLen;
+			pRestore->m_Pos = savedPos;
+		}
 
-	return bRet;
+		return bRet;
+	}
 }
 
 
+// Wave 5: the original keeps this in ebx and pSender in ebp (ours the other way round) and the diff is
+// register allocation only up to the CRC block; the structure matches. Caching pSender fields in locals,
+// `pThis` locals and the ResetWrite/tail-duplication idioms of ReallySendPacket did not move it.
 // STUB: LITHTECH 0x00464870
 LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOOL bMaybeDrop)
 {
@@ -1306,7 +1322,8 @@ void CNetMgr::RemoveConnFragments(CBaseConn *pConn)
 }
 
 
-// Inlines CPacket::ReadType/WriteType where the original calls the out-of-line copies (inline budget).
+// Wave 5: ResetWrite() brought it from 1776 to 1680 bytes; the original has a 0x4c-byte frame (ours 0x2c), i.e.
+// 0x20 bytes more of locals or temporaries (a CPacketRef or two) than we declare.
 // STUB: LITHTECH 0x00464fb0
 LTBOOL CNetMgr::HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender)
 {
@@ -1331,7 +1348,7 @@ LTBOOL CNetMgr::HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender)
 			pingID = pPacket->ReadType((uint16*)0);
 
 			cReply = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
-			cReply->m_DataLen = cReply->m_Pos = 1;
+			cReply->ResetWrite();
 			cReply->m_Data[0] = NETMGR_PACKETID;
 			cReply->WriteType((uint8)NMPACKET_PINGREPLY);
 			cReply->WriteType(pingID);
@@ -1457,7 +1474,7 @@ LTBOOL CNetMgr::HandleNetMgrPacket(CPacket *pPacket, CBaseConn *pSender)
 		// Put the packet back together.
 		NetDebugOut2(pSender, 2, "Completed fragmented packet %d", pGroup->m_FrameNum);
 
-		pPacket->m_DataLen = pPacket->m_Pos = 1;
+		pPacket->ResetWrite();
 		pPacket->m_Data[0] = pGroup->m_Fragments[0]->m_Data[0];
 		for(i=0; i < MAX_PACKET_FRAGMENTS; i++)
 		{
@@ -1648,7 +1665,9 @@ void CNetMgr::DeleteGPackets(GPacketList *pList)
 
 // The original inlines WriteType but calls CMoArray::Insert2; this build inlines both (inline budget).
 // inline_scan: one more (free) inline call site anywhere after the WriteType statement makes it MATCH, so the
-// original has a pending inline call here that we haven't identified.
+// original has a pending inline call here that we haven't identified. (wave 5: a discarded
+// `pGroup->GetPacketID();` or `pGroup->GetMessageImpl();` after WriteRaw gives a byte match; ResetWrite() or a
+// GetPacketID() between the two writes does not. Not shipped: no known real caller of such an accessor here.)
 // STUB: LITHTECH 0x00465b20
 void CNetMgr::AddDataToGroupPacket(CPacket *pGroup, void *pData, uint32 dataLen)
 {

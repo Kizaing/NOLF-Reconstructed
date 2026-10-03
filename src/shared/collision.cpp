@@ -291,15 +291,15 @@ LTBOOL SetupBox()
 		LTVector *pBoxPts = g_MovePts[i];
 		LTVector &p = offsetPos[i];
 
-		pBoxPts[0].Init(p.x - pDims->x, p.y + pDims->y, p.z - pDims->z);
-		pBoxPts[1].Init(p.x - pDims->x, p.y + pDims->y, p.z + pDims->z);
-		pBoxPts[2].Init(p.x + pDims->x, p.y + pDims->y, p.z + pDims->z);
-		pBoxPts[3].Init(p.x + pDims->x, p.y + pDims->y, p.z - pDims->z);
+		pBoxPts[0].Init(p.x - pDims->x, p.y + g_pCurRequest->m_Dims.y, p.z - g_pCurRequest->m_Dims.z);
+		pBoxPts[1].Init(p.x - pDims->x, p.y + g_pCurRequest->m_Dims.y, p.z + g_pCurRequest->m_Dims.z);
+		pBoxPts[2].Init(p.x + pDims->x, p.y + g_pCurRequest->m_Dims.y, p.z + g_pCurRequest->m_Dims.z);
+		pBoxPts[3].Init(p.x + pDims->x, p.y + g_pCurRequest->m_Dims.y, p.z - g_pCurRequest->m_Dims.z);
 
-		pBoxPts[4].Init(p.x - pDims->x, p.y - pDims->y, p.z - pDims->z);
-		pBoxPts[5].Init(p.x - pDims->x, p.y - pDims->y, p.z + pDims->z);
-		pBoxPts[6].Init(p.x + pDims->x, p.y - pDims->y, p.z + pDims->z);
-		pBoxPts[7].Init(p.x + pDims->x, p.y - pDims->y, p.z - pDims->z);
+		pBoxPts[4].Init(p.x - pDims->x, p.y - g_pCurRequest->m_Dims.y, p.z - g_pCurRequest->m_Dims.z);
+		pBoxPts[5].Init(p.x - pDims->x, p.y - g_pCurRequest->m_Dims.y, p.z + g_pCurRequest->m_Dims.z);
+		pBoxPts[6].Init(p.x + pDims->x, p.y - g_pCurRequest->m_Dims.y, p.z + g_pCurRequest->m_Dims.z);
+		pBoxPts[7].Init(p.x + pDims->x, p.y - g_pCurRequest->m_Dims.y, p.z - g_pCurRequest->m_Dims.z);
 	}
 
 	// Setup the spheres.
@@ -671,10 +671,10 @@ LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 		if (m_fClosestDist < m_fPlaneIntrusion)
 		{
 			m_vClosestPt = vProj;
+			m_fClosestDist = m_fPlaneIntrusion;
 			m_vClosestDir.x = -pPlane->m_Normal.x;
 			m_vClosestDir.y = -pPlane->m_Normal.y;
 			m_vClosestDir.z = -pPlane->m_Normal.z;
-			m_fClosestDist = m_fPlaneIntrusion;
 			m_pClosestNode = pNode;
 		}
 	}
@@ -832,42 +832,6 @@ void DoObjectCollisionResponse(CollisionInfo *pCollisionInfo, CollideInfo *pInfo
 }
 
 
-// The objects a sphere move can hit (moveobject.cpp defines its IntersectingObjectArray and
-// SphereMoveInfo privately).
-struct IntersectingObject
-{
-	LTObject	*m_pObject;
-	float		m_fDistSqr;
-};
-
-struct IntersectingObjectArray
-{
-	MoveState			*m_pState;		// 0x00
-	int32				m_nObjects;		// 0x04
-	IntersectingObject	m_Objects[128];	// 0x08
-};
-
-// Talon sphere physics move request, 0x140 bytes.
-struct SphereMoveInfo
-{
-	LTObject				*m_pObj;		// 0x00
-	MoveState				*m_pState;		// 0x04
-	IntersectingObjectArray	*m_pObjects;	// 0x08 the objects it can hit
-	LTVector				m_vStartPos;	// 0x0c
-	LTVector				m_vDestPos;		// 0x18 in: where it wants to go, out: where it ended up
-	float					m_fRadius;		// 0x24
-	float					m_fHitTime;		// 0x28
-	LTVector				m_vHitNormal;	// 0x2c
-	uint8					m_nIterations;	// 0x38
-	uint8					m_Pad39[3];
-	int32					m_nNormals;		// 0x3c
-	LTVector				m_Normals[10];	// 0x40
-	int32					m_nGroundNormals;	// 0xb8
-	LTVector				m_GroundNormals[10];	// 0xbc
-	int32					m_bGround;		// 0x134
-	uint8					m_Pad138[0x140 - 0x138];
-};
-
 // ------------------------------------------------------------------ //
 // Sphere physics (FLAG2_SPHEREPHYSICS), Talon only.
 // ------------------------------------------------------------------ //
@@ -901,14 +865,21 @@ void GetSpherePosTestPolys(SphereMoveInfo *pInfo, WorldPoly **pPolies, int *pnPo
 void OrientMovement(SphereMoveInfo *pInfo);
 
 // Moves a sphere physics object (FLAG2_SPHEREPHYSICS), sliding it along the polygons it hits.
-// Close: the original's frame is 16 bytes larger (slot order of fTime/fRemain/bWall/nPolies differs)
-// and it only forms pDest after the first polygon test.
+// Close: 2 of 1136 bytes differ (the x87 operand order of the x term of the crease test
+// `vNormal.Dot(m_Normals[i])` is `fld v.x; fmul this.x`, ours the other way round); everything else matches,
+// including the layout. What got it here: `do {...} while(1)` with the sphere-test failure as a `break` to the
+// orient code after the loop (a `for(;;)` with the return inside the loop duplicates the loop head), the two "gave
+// up" exits (a normal that is too short, 10 iterations) each restoring pDest and sharing one block, positive
+// forms (`!(x > c)`, `fTime <= m_fHitTime`), a `bool` bFound (byte register), `0 < m_nIterations` for the return
+// (`cmp al,dl; sbb; neg`), the crease test as `vNormal.Dot(m_Normals[i])` (the stack copy is of the normal list's
+// entry), and `m_vDestPos = m_vStartPos` for the exits (member to member loads all three words first).
 // STUB: LITHTECH 0x00419d40
 LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 {
 	LTVector vNormal(0.0f, 0.0f, 0.0f);
 	float fTime, fRemain, fDot;
-	int bWall, nPolies, i, bFound;
+	int bWall, nPolies, i;
+	bool bFound;
 	LTVector vSlide, vDelta, vRemain, vHitNormal, vUp, vRight, vForward;
 	LTVector *pDest, *pStart;
 	WorldPoly *polys[0x200];
@@ -924,30 +895,29 @@ LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 	LTRotation rot = pInfo->m_pObj->m_Rotation;
 	math.GetRotationVectors(rot, vRight, vUp, vForward);
 
-	pStart = &pInfo->m_vStartPos;
 	nPolies = 0;
+	pStart = &pInfo->m_vStartPos;
 	GetSpherePosTestPolys(pInfo, polys, &nPolies, 0x200, *pStart, 0);
 	if (!SpherePosTestPolys(pStart, pInfo->m_fRadius, polys, nPolies))
 	{
-		pInfo->m_vDestPos = *pStart;
+		pInfo->m_vDestPos = pInfo->m_vStartPos;
 		return LTFALSE;
 	}
 
 	pDest = &pInfo->m_vDestPos;
 
-	for (;;)
+	do
 	{
 		GetSphereCollideTestPolys(pInfo, polys, &nPolies, 0x200, LTNULL, LTNULL, 0);
 		if (!SweptSphereToPolys(pStart, pDest, pInfo->m_fRadius, polys, nPolies, &vNormal, &vHitNormal,
 			&fTime, &bWall))
-		{
-			if (pInfo->m_pObj->m_Flags2 & FLAG2_ORIENTMOVEMENT)
-				OrientMovement(pInfo);
-			return pInfo->m_nIterations != 0;
-		}
-
-		if (vNormal.MagSqr() <= 0.001f)
 			break;
+
+		if (!(vNormal.MagSqr() > 0.001f))
+		{
+			pInfo->m_vDestPos = pInfo->m_vStartPos;
+			return LTFALSE;
+		}
 
 		vDelta = *pDest - *pStart;
 		fRemain = 1.0f - fTime;
@@ -955,7 +925,7 @@ LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 		fDot = vNormal.Dot(vRemain);
 		vSlide = vNormal * fDot;
 
-		if (bWall && fTime < pInfo->m_fHitTime)
+		if (bWall && fTime <= pInfo->m_fHitTime)
 		{
 			pInfo->m_fHitTime = fTime;
 			pInfo->m_vHitNormal = vHitNormal;
@@ -964,7 +934,7 @@ LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 		// Is it a crease (a plane facing away from one we already slid along)?
 		bFound = LTFALSE;
 		for (i = 0; i < pInfo->m_nNormals && !bFound; i++)
-			bFound = pInfo->m_Normals[i].Dot(vNormal) < 0.0f;
+			bFound = vNormal.Dot(pInfo->m_Normals[i]) < 0.0f;
 
 		if (pInfo->m_nNormals < 10)
 		{
@@ -973,12 +943,15 @@ LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 		}
 
 		if (pInfo->m_nIterations >= 10)
-			break;
+		{
+			pInfo->m_vDestPos = pInfo->m_vStartPos;
+			return LTFALSE;
+		}
 
-		if (bFound)
-			*pDest -= vRemain * 1.02f;
-		else
+		if (!bFound)
 			*pDest -= vSlide * 1.02f;
+		else
+			*pDest -= vRemain * 1.02f;
 
 		if (bWall && vUp.Dot(vNormal) < 0.99f)
 		{
@@ -988,10 +961,11 @@ LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 		}
 
 		pInfo->m_nIterations++;
-	}
+	} while (1);
 
-	*pDest = *pStart;
-	return LTFALSE;
+	if (pInfo->m_pObj->m_Flags2 & FLAG2_ORIENTMOVEMENT)
+		OrientMovement(pInfo);
+	return 0 < pInfo->m_nIterations;
 }
 
 // Finds the world polygons the sphere moving from pStart to pEnd could touch.
@@ -1591,12 +1565,6 @@ static void SetupMoveBox(LTVector *pMin, LTVector *pMax)
 // CollideWithWorld.
 // ------------------------------------------------------------------ //
 
-// "NewCollision" and "NewStairStep" console variables (the table at 0x004d2424).
-// GLOBAL: LITHTECH 0x004d2164
-extern int32 g_CV_NewCollision;
-// GLOBAL: LITHTECH 0x004d2168
-extern int32 g_CV_NewPlayerPhysics;
-
 #define MAX_PHYSICS_ITERATIONS	40
 
 // Reset by CollideWithWorld (the profiling counters of the functions below).
@@ -1670,7 +1638,7 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 	{
 		g_pCurBlock = (PBlock*)((WorldModelInstance*)g_pCurRequest->m_pWorldObj)->IsPointInside(&g_P0);
 
-		if (g_CV_NewPlayerPhysics)
+		if (g_CV_NewStairStep)
 		{
 			float fStairHeight, fHalfStair;
 
@@ -1818,7 +1786,7 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 	g_pCurInfo = pOldInfo;
 
 	// If there was a stair collision, and nothing else, increment the hit count
-	if (!g_CV_NewPlayerPhysics && !pInfo->m_nHits && bHitStairStep)
+	if (!g_CV_NewStairStep && !pInfo->m_nHits && bHitStairStep)
 		pInfo->m_nHits = 1;
 }
 
@@ -2220,12 +2188,14 @@ static const float g_fStairOldFlatNormalY = (float)0.7071;
 
 // Collides the cylinder (the object's dims) moving from g_P0 to g_P1 with the world, a step at a
 // time, backing it off what it hits.
-// Not matching: the original builds its start/end with the VEC_ADD/VEC_SUB macros and keeps the
-// cylinder fields in other slots.
+// Not matching: the same size as the original (2112) but the frame is 4 bytes larger and the cylinder fields sit in
+// other slots. The CountAdder is declared after the three leading assignments (nOldHitCount, nRetryHitCount,
+// iRetryCollision), as the original constructs it after them. The original forms vFullStart/vFullEnd without by-value
+// argument copies and stores each component through a stack temporary (neither the operator+ nor the VEC_ADD macro
+// form reproduces that).
 // STUB: LITHTECH 0x0041da50
 LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 {
-	CountAdder cntAdd(&g_Ticks_CollideBoxWithTree);
 	CMovingCylinder theCylinder;
 	LTVector vFullStart, vFullEnd, vDirection;
 	Node *pNodes, *pRoot;
@@ -2240,6 +2210,8 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 	nOldHitCount = pInfo->m_nHits;
 	nRetryHitCount = pInfo->m_nHits;
 	iRetryCollision = 3;
+
+	CountAdder cntAdd(&g_Ticks_CollideBoxWithTree);
 
 	pNodes = g_pCurRequest->m_pWorld->GetNodes();
 
@@ -2415,7 +2387,7 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 }
 
 
-// Stair stepping (g_CV_NewPlayerPhysics): finds a polygon that is a step (it isn't SURF_NOTASTEP and
+// Stair stepping (g_CV_NewStairStep): finds a polygon that is a step (it isn't SURF_NOTASTEP and
 // faces up), and raises the box on top of it.  *pbHitNonStep is set when it ran into a polygon that
 // can't be stepped on.
 // Not matching: AddMovement is an inline function in the original and is expanded here (the size is

@@ -495,17 +495,16 @@ LTRESULT ILTModel::AddTracker(HOBJECT hObj, LTAnimTracker *pTracker)
 }
 
 
-// STUB: LITHTECH 0x0045a5e0
-// Register allocation differs (vtable load in edx, ppPrev store) throughout.
+// FUNCTION: LITHTECH 0x0045a5e0
 LTRESULT ILTModel::RemoveTracker(HOBJECT hObj, LTAnimTracker *pTracker)
 {
 	FN_NAME(ILTModel::RemoveTracker);
 	ModelInstance *pInst;
 	LTAnimTracker **ppPrev;
 
-	CHECK_PARAMS2(hObj && hObj->m_ObjectType == OT_MODEL && pTracker &&
-		pTracker != &((ModelInstance*)hObj)->m_AnimTracker);
+	CHECK_PARAMS2(hObj && hObj->m_ObjectType == OT_MODEL && pTracker);
 	pInst = (ModelInstance*)hObj;
+	CHECK_PARAMS2(pTracker != &pInst->m_AnimTracker);
 
 	if (pInst->FindTracker(pTracker, ppPrev))
 	{
@@ -522,7 +521,9 @@ LTRESULT ILTModel::RemoveTracker(HOBJECT hObj, LTAnimTracker *pTracker)
 
 
 // STUB: LITHTECH 0x0045a6a0
-// Frame is 0x14 vs 0x10: the original keeps weightSet/bAllowTransition/flags in dead parameter slots.
+// Frame is 0x14 vs 0x10: the original keeps weightSet/bAllowTransition/flags in dead parameter slots and holds
+// (uint8)bAllowTransition in ebx across the calls. Tried flags at function scope, reading flags/weightSet straight into
+// the tracker, a uint32 byte local: none helps.
 LTRESULT ILTModel::ReadTracker(LTAnimTracker *pTracker, HMESSAGEREAD hRead)
 {
 	FN_NAME(ILTModel::ReadTracker);

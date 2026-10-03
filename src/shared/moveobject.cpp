@@ -21,7 +21,7 @@ void GetSmallestPushaway(LTVector &moverMin, LTVector &moverMax, LTVector &mover
 	LTVector &blockerMin, LTVector &blockerMax, LTVector &pushAmount, int32 &pushPlane, LTVector &vMoveDelta);
 LTBOOL IsSolidWorldBsp(LTObject *pObj);
 void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, const LTVector &destPos);
-LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision);
+inline LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision);
 LTBOOL DoSolidBBoxCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos);
 LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bPushAway);
 void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *pvDeltaPos, LTVector *pMinBox, LTVector *pMaxBox);
@@ -31,6 +31,7 @@ void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser);
 int CompareObjectDists(const void *pA, const void *pB);
 LTBOOL DoBoxesIntersect(LTVector &min1, LTVector &max1, LTVector &min2, LTVector &max2, float fTolerance);
 void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj);
+LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2);
 void quat_ConvertToMatrix(const float *pQuat, float mat[4][4]);
 void GrowDim(MoveState *pState, int32 nDim, float *pNewDim);
 void CollideWorldModelCB(WorldTreeObj *pObj, void *pUser);
@@ -50,50 +51,6 @@ struct StartPosInfo
 	LTObject	*m_pObj;
 	LTVector	m_vRelPos;
 };
-
-
-#define MAX_INTERSECTING_OBJECTS	128
-
-struct IntersectingObject
-{
-	LTObject	*m_pObject;
-	float		m_fDistSqr;		// From the start of the move to the overlap's center.
-};
-
-class IntersectingObjectArray
-{
-public:
-	MoveState			*m_pState;
-	int32				m_nObjects;
-	IntersectingObject	m_Objects[MAX_INTERSECTING_OBJECTS];
-
-	IntersectingObjectArray()
-	{
-		m_nObjects = 0;
-	}
-};
-
-
-// Talon sphere physics (FLAG2_SPHEREPHYSICS) move request, 0x140 bytes.
-struct SphereMoveInfo
-{
-	LTObject				*m_pObj;		// 0x00
-	MoveState				*m_pState;		// 0x04
-	IntersectingObjectArray	*m_pObjects;	// 0x08 the objects it can hit
-	LTVector				m_vStartPos;	// 0x0c
-	LTVector				m_vDestPos;		// 0x18 in: where it wants to go, out: where it ended up
-	float					m_fRadius;		// 0x24
-	uint8					m_Pad28[0xbc - 0x28];
-	LTVector				m_Points[10];	// 0xbc
-	uint8					m_Pad134[0x140 - 0x134];
-};
-
-// Moves a sphere physics object (0x00419d40).
-LTBOOL MoveSphere(SphereMoveInfo *pInfo);
-
-// 0 = old (Talon) object collisions, else the newer per-object collision path.
-// GLOBAL: LITHTECH 0x004d2168
-extern int32 g_CV_NewPlayerPhysics;
 
 
 // GLOBAL: LITHTECH 0x004e4560
@@ -575,264 +532,6 @@ inline LTBOOL IsWorldModel(LTObject *pObj1, LTObject *pObj2)
 }
 
 
-// Finds the first place along the movement where the mover hits the test object.
-// Approximation of the Talon version (Jupiter's CheckIntersectOnMovement structure with the
-// Talon collision calls); not byte-matched yet.
-// STUB: LITHTECH 0x0045fc60
-LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bPushAway)
-{
-	float t1, t2, tClosest, tFarthest;
-	int32 i, nIterations;
-	LTBOOL bCollide, bMoved, bStopped;
-	LTBOOL bWorldModel, bClosestIsT1;
-	LTVector vTempDestPos, vNewPos;
-	MoveState moveState;
-
-	nIterations = 0;
-	bWorldModel = IsWorldModel(pState->m_pObj, pTestObj);
-
-	do
-	{
-		// Loop over all the planes of the blocker.  Put the position of the mover on the plane and see if the
-		// objects collide...
-		bMoved = bCollide = bStopped = LTFALSE;
-		for(i = 0; i < 3 && !bCollide; i++)
-		{
-			// t == 0.0f is the start position.  There should've been no collision at the start position, so
-			// start this loop assuming no collisions...
-			t1 = t2 = 0.0f;
-
-			// Find parameterized value of movement...
-			if(pState->m_vDeltaPos[i] < 0.0f || pState->m_vDeltaPos[i] > 0.0f)
-			{
-				t1 = (pTestObj->m_MinBox[i] - (*(LTVector*)pState->m_pStartPos)[i]) / pState->m_vDeltaPos[i];
-				t1 = LTCLAMP(t1, 0.0f, 1.0f);
-				t2 = (pTestObj->m_MaxBox[i] - (*(LTVector*)pState->m_pStartPos)[i]) / pState->m_vDeltaPos[i];
-				t2 = LTCLAMP(t2, 0.0f, 1.0f);
-			}
-
-			if(t1 < t2)
-			{
-				bClosestIsT1 = LTTRUE;
-				tClosest = t1;
-				tFarthest = t2;
-			}
-			else
-			{
-				bClosestIsT1 = LTFALSE;
-				tClosest = t2;
-				tFarthest = t1;
-			}
-
-			// Check if the parameterized value is within range...
-			if(0.0f < tClosest || bWorldModel)
-			{
-				// Check for collisions at this plane if non-solid or if we are moving toward the test object's
-				// minimum plane...
-				if(!bPushAway || (bClosestIsT1 && pState->m_vDeltaPos[i] > 0.0f) || (!bClosestIsT1 && pState->m_vDeltaPos[i] < 0.0f))
-				{
-					bMoved = LTTRUE;
-					VEC_LERP(vNewPos, *pState->m_pStartPos, pState->m_vDestPos, tClosest);
-					MoveObjectTo(pState->m_pObj, vNewPos);
-
-					if(DoBoxesIntersect(pState->m_pObj->m_MinBox, pState->m_pObj->m_MaxBox,
-						pTestObj->m_MinBox, pTestObj->m_MaxBox, -0.01f))
-					{
-						bCollide = LTTRUE;
-					}
-				}
-			}
-
-			// Check if the parameterized value is within range...
-			// Check this position if it's closer to the starting position...
-			if(!bCollide && (0.0f < tFarthest || bWorldModel))
-			{
-				// Check for collisions at this plane if non-solid or if we are moving toward the test object's
-				// maximum plane...
-				if(!bPushAway || (bClosestIsT1 && pState->m_vDeltaPos[i] < 0.0f) || (!bClosestIsT1 && pState->m_vDeltaPos[i] > 0.0f))
-				{
-					bMoved = LTTRUE;
-					VEC_LERP(vNewPos, *pState->m_pStartPos, pState->m_vDestPos, tFarthest);
-					MoveObjectTo(pState->m_pObj, vNewPos);
-
-					if(DoBoxesIntersect(pState->m_pObj->m_MinBox, pState->m_pObj->m_MaxBox,
-						pTestObj->m_MinBox, pTestObj->m_MaxBox, -0.01f))
-					{
-						bCollide = LTTRUE;
-					}
-				}
-			}
-
-			if(bMoved && !bCollide)
-			{
-				bMoved = LTFALSE;
-
-				// Reset the position to the end of the movement...
-				MoveObjectTo(pState->m_pObj, *pState->m_pStartPos + pState->m_vDeltaPos);
-			}
-		}
-
-		if(bCollide)
-		{
-			// Possibly push them away from each other.
-			if(bPushAway)
-			{
-				// World model physics does complete movement volume collisions, so put the input object at the
-				// destination.  No tunneling is possible...
-				if(bWorldModel)
-				{
-					MoveObjectTo(pState->m_pObj, pState->m_vDestPos);
-
-					bStopped = DoSolidWMCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos,
-						pState->m_vDestPos, LTTRUE, bCollide);
-
-					if(bStopped)
-					{
-						MoveObjectTo(pState->m_pObj, pState->m_vDestPos);
-					}
-				}
-				else
-				{
-					LTVector vDestPos = pState->m_pObj->GetPos();
-					bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, vDestPos);
-					pState->m_pObj->SetPos(vDestPos);
-				}
-			}
-			else
-			{
-				// If we've got a world model, make sure we really hit it.
-				bStopped = LTTRUE;
-				if(bWorldModel)
-				{
-					// We have to copy destpos into a temp variable, cuz CollideAgainstWorld will
-					// change it...
-					vTempDestPos = pState->m_vDestPos;
-
-					if(pTestObj->HasWorldModel() && !(pTestObj->m_Flags & FLAG_BOXPHYSICS))
-					{
-						bStopped = CollideAgainstWorld(pState,
-							((WorldModelInstance*)pTestObj)->m_pValidBsp,
-							pTestObj,
-							pState->m_pObj, *(LTVector*)pState->m_pStartPos, vTempDestPos,
-							LTFALSE, LTTRUE);
-					}
-					else if(pState->m_pObj->HasWorldModel() && !(pState->m_pObj->m_Flags & FLAG_BOXPHYSICS))
-					{
-						bStopped = CollideAgainstWorld(pState,
-							((WorldModelInstance*)pState->m_pObj)->m_pValidBsp,
-							pState->m_pObj,
-							pTestObj, *(LTVector*)pState->m_pStartPos, vTempDestPos,
-							LTFALSE, LTTRUE);
-					}
-
-					// Adjust the delta position based on the collision
-					if(bStopped)
-						pState->m_vDeltaPos = vTempDestPos - *pState->m_pStartPos;
-				}
-				else
-				{
-					// Ok, it has box physics, do a simple collision.
-					DoNonsolidCollision(pState->m_pAbstract, pTestObj, pState->m_pObj);
-				}
-
-				bStopped = LTFALSE;
-			}
-		}
-
-		// If we messed with the position of the mover and we weren't stopped by anything, then move us to the end...
-		if(bMoved && !bStopped)
-		{
-			// Reset the position to the end of the movement...
-			MoveObjectTo(pState->m_pObj, *pState->m_pStartPos + pState->m_vDeltaPos);
-		}
-
-	}
-	// Recheck the path for object's that are pushing around other objects...
-	while(bPushAway && bCollide && !bStopped && nIterations++ < 10);
-
-	return bStopped;
-}
-
-
-// Collides the mover with one object.  Returns LTTRUE if the mover was stopped.
-// Approximation: the original inlines this into DetectAndProcessCollisions' first loop and
-// inlines DoSolidBBoxCollision into this out-of-line copy.
-// STUB: LITHTECH 0x00460cb0
-LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2)
-{
-	LTBOOL bWorldModel, bTestWorldModel, bPushAway, bStopped, bCollide;
-	LTVector vMin, vMax;
-
-	// Don't move objects that are already moving.
-	if(pTestObj->m_InternalFlags & IFLAG_MOVING)
-		return LTFALSE;
-
-	// Sphere physics does its own collisions.
-	if(pState->m_pObj->m_Flags2 & FLAG2_SPHEREPHYSICS)
-		return LTFALSE;
-
-	bWorldModel = IsWorldModel(pState->m_pObj);
-	bTestWorldModel = IsWorldModel(pTestObj);
-
-	// WorldModels don't collide with each other, and honor FLAG_GOTHRUWORLD.
-	if(bWorldModel)
-	{
-		if(bTestWorldModel || (pTestObj->m_Flags & FLAG_GOTHRUWORLD))
-			return LTFALSE;
-	}
-	else if(bTestWorldModel && (pState->m_pObj->m_Flags & FLAG_GOTHRUWORLD))
-	{
-		return LTFALSE;
-	}
-
-	// Possibly push them away from eachother.
-	bPushAway = (pTestObj->m_Flags & FLAG_SOLID) && (pState->m_pObj->m_Flags & FLAG_SOLID);
-	if(!bPushAway && bTestWorldModel)
-		bPushAway = IsSolidWorld(pTestObj);
-
-	// If it moves further than its size, check along the whole movement so it can't tunnel.
-	if(fabs(pState->m_vDeltaPos.x) > pState->m_pObj->m_Dims.x ||
-		fabs(pState->m_vDeltaPos.y) > pState->m_pObj->m_Dims.y ||
-		fabs(pState->m_vDeltaPos.z) > pState->m_pObj->m_Dims.z)
-	{
-		vMin = *pState->m_pStartPos - pState->m_pObj->m_Dims;
-		vMax = *pState->m_pStartPos + pState->m_pObj->m_Dims;
-		if(!DoBoxesIntersect(vMin, vMax, pTestObj->m_MinBox, pTestObj->m_MaxBox, 0.0f))
-		{
-			return CheckIntersectOnMovement(pState, pTestObj, bPushAway);
-		}
-	}
-
-	// Make sure the objects actually intersect before we do any collision and movement...
-	if(!DoObjectsIntersect(pState->m_pObj, pTestObj, &pState->m_vMoveMin,
-		&pState->m_vMoveMax, &pTestObj->m_MinBox, &pTestObj->m_MaxBox, 0.0f, LTNULL))
-	{
-		return LTFALSE;
-	}
-
-	if(!bPushAway)
-	{
-		// Notify the objects.
-		DoNonsolidCollision(pState->m_pAbstract, pTestObj, pState->m_pObj);
-		return LTFALSE; // Nothing moved.
-	}
-
-	if(!bWorldModel && !bTestWorldModel)
-	{
-		bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos);
-	}
-	else
-	{
-		bStopped = DoSolidWMCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos,
-			LTTRUE, bCollide);
-	}
-
-	if(bStopped)
-		pState->m_pObj->SetPos(pState->m_vDestPos);
-
-	return bStopped;
-}
-
 // Close in size; the sphere-physics box is unrolled per axis in the original and the inline
 // budget differs (IsWorldModel/DoObjectsIntersect/Mag/MagSqr are called out of line there).
 // STUB: LITHTECH 0x0045ddf0
@@ -938,7 +637,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 	qsort(objectArray.m_Objects, objectArray.m_nObjects, sizeof(IntersectingObject), CompareObjectDists);
 
 	nRestarts = 0;
-	if(!g_CV_NewPlayerPhysics)
+	if(!g_CV_NewStairStep)
 	{
 		for(i = objectArray.m_nObjects - 1; i >= 0 && nRestarts < 10; i--)
 		{
@@ -1060,7 +759,7 @@ void DoNonsolidCollision(MoveAbstract *pAbstract, LTObject *pObj1, LTObject *pOb
 
 // Collides the two solid objects using WorldModel physics for the one that is a WorldModel.
 // STUB: LITHTECH 0x0045eaf0
-LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision)
+inline LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision)
 {
 	LTVector pos1, pos2, vecTo, vDir;
 	LTBOOL bWorldModel;
@@ -1518,6 +1217,278 @@ void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *pvDeltaP
 
 
 
+// Finds the first place along the movement where the mover hits the test object.
+// Approximation of the Talon version (Jupiter's CheckIntersectOnMovement structure with the
+// Talon collision calls); not byte-matched yet.
+// Note (wave 5): the function order of this file is now the address order of the original (inline decisions depend on
+// the callee being defined before the caller).  With DoSolidWMCollision and DoSolidBBoxCollision `inline` the size is
+// 4080 (original ~4080, Ghidra extent 4096) and the shape diff is ~220 of ~1000 instructions: IsWorldModel's flag tests
+// (orig: one `test [obj+0x88],edx` with 0x4000 hoisted into edx, result spilled to [esp+0x54] with immediates), the frame
+// (orig sub esp,0x23c, 16 bytes less than ours) and register allocation remain.  DoSolidBBoxCollision can't be `inline`
+// until DetectAndProcessCollisions calls it out of line (the out-of-line copy would vanish: ERROR).
+// STUB: LITHTECH 0x0045fc60
+LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bPushAway)
+{
+	float t1, t2, tClosest, tFarthest;
+	int32 i, nIterations;
+	LTBOOL bCollide, bMoved, bStopped;
+	LTBOOL bWorldModel, bClosestIsT1;
+	LTVector vTempDestPos, vNewPos;
+	MoveState moveState;
+
+	nIterations = 0;
+	bWorldModel = IsWorldModel(pState->m_pObj, pTestObj);
+
+	do
+	{
+		// Loop over all the planes of the blocker.  Put the position of the mover on the plane and see if the
+		// objects collide...
+		bMoved = bCollide = bStopped = LTFALSE;
+		for(i = 0; i < 3 && !bCollide; i++)
+		{
+			// t == 0.0f is the start position.  There should've been no collision at the start position, so
+			// start this loop assuming no collisions...
+			t1 = t2 = 0.0f;
+
+			// Find parameterized value of movement...
+			if(pState->m_vDeltaPos[i] < 0.0f || pState->m_vDeltaPos[i] > 0.0f)
+			{
+				t1 = (pTestObj->m_MinBox[i] - (*(LTVector*)pState->m_pStartPos)[i]) / pState->m_vDeltaPos[i];
+				t1 = LTCLAMP(t1, 0.0f, 1.0f);
+				t2 = (pTestObj->m_MaxBox[i] - (*(LTVector*)pState->m_pStartPos)[i]) / pState->m_vDeltaPos[i];
+				t2 = LTCLAMP(t2, 0.0f, 1.0f);
+			}
+
+			if(t1 < t2)
+			{
+				bClosestIsT1 = LTTRUE;
+				tClosest = t1;
+				tFarthest = t2;
+			}
+			else
+			{
+				bClosestIsT1 = LTFALSE;
+				tClosest = t2;
+				tFarthest = t1;
+			}
+
+			// Check if the parameterized value is within range...
+			if(0.0f < tClosest || bWorldModel)
+			{
+				// Check for collisions at this plane if non-solid or if we are moving toward the test object's
+				// minimum plane...
+				if(!bPushAway || (bClosestIsT1 && pState->m_vDeltaPos[i] > 0.0f) || (!bClosestIsT1 && pState->m_vDeltaPos[i] < 0.0f))
+				{
+					bMoved = LTTRUE;
+					VEC_LERP(vNewPos, *pState->m_pStartPos, pState->m_vDestPos, tClosest);
+					MoveObjectTo(pState->m_pObj, vNewPos);
+
+					if(DoBoxesIntersect(pState->m_pObj->m_MinBox, pState->m_pObj->m_MaxBox,
+						pTestObj->m_MinBox, pTestObj->m_MaxBox, -0.01f))
+					{
+						bCollide = LTTRUE;
+					}
+				}
+			}
+
+			// Check if the parameterized value is within range...
+			// Check this position if it's closer to the starting position...
+			if(!bCollide && (0.0f < tFarthest || bWorldModel))
+			{
+				// Check for collisions at this plane if non-solid or if we are moving toward the test object's
+				// maximum plane...
+				if(!bPushAway || (bClosestIsT1 && pState->m_vDeltaPos[i] < 0.0f) || (!bClosestIsT1 && pState->m_vDeltaPos[i] > 0.0f))
+				{
+					bMoved = LTTRUE;
+					VEC_LERP(vNewPos, *pState->m_pStartPos, pState->m_vDestPos, tFarthest);
+					MoveObjectTo(pState->m_pObj, vNewPos);
+
+					if(DoBoxesIntersect(pState->m_pObj->m_MinBox, pState->m_pObj->m_MaxBox,
+						pTestObj->m_MinBox, pTestObj->m_MaxBox, -0.01f))
+					{
+						bCollide = LTTRUE;
+					}
+				}
+			}
+
+			if(bMoved && !bCollide)
+			{
+				bMoved = LTFALSE;
+
+				// Reset the position to the end of the movement...
+				MoveObjectTo(pState->m_pObj, *pState->m_pStartPos + pState->m_vDeltaPos);
+			}
+		}
+
+		if(bCollide)
+		{
+			// Possibly push them away from each other.
+			if(bPushAway)
+			{
+				// World model physics does complete movement volume collisions, so put the input object at the
+				// destination.  No tunneling is possible...
+				if(bWorldModel)
+				{
+					MoveObjectTo(pState->m_pObj, pState->m_vDestPos);
+
+					bStopped = DoSolidWMCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos,
+						pState->m_vDestPos, LTTRUE, bCollide);
+
+					if(bStopped)
+					{
+						MoveObjectTo(pState->m_pObj, pState->m_vDestPos);
+					}
+				}
+				else
+				{
+					LTVector vDestPos = pState->m_pObj->GetPos();
+					bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, vDestPos);
+					pState->m_pObj->SetPos(vDestPos);
+				}
+			}
+			else
+			{
+				// If we've got a world model, make sure we really hit it.
+				bStopped = LTTRUE;
+				if(bWorldModel)
+				{
+					// We have to copy destpos into a temp variable, cuz CollideAgainstWorld will
+					// change it...
+					vTempDestPos = pState->m_vDestPos;
+
+					if(pTestObj->HasWorldModel() && !(pTestObj->m_Flags & FLAG_BOXPHYSICS))
+					{
+						bStopped = CollideAgainstWorld(pState,
+							((WorldModelInstance*)pTestObj)->m_pValidBsp,
+							pTestObj,
+							pState->m_pObj, *(LTVector*)pState->m_pStartPos, vTempDestPos,
+							LTFALSE, LTTRUE);
+					}
+					else if(pState->m_pObj->HasWorldModel() && !(pState->m_pObj->m_Flags & FLAG_BOXPHYSICS))
+					{
+						bStopped = CollideAgainstWorld(pState,
+							((WorldModelInstance*)pState->m_pObj)->m_pValidBsp,
+							pState->m_pObj,
+							pTestObj, *(LTVector*)pState->m_pStartPos, vTempDestPos,
+							LTFALSE, LTTRUE);
+					}
+
+					// Adjust the delta position based on the collision
+					if(bStopped)
+						pState->m_vDeltaPos = vTempDestPos - *pState->m_pStartPos;
+				}
+				else
+				{
+					// Ok, it has box physics, do a simple collision.
+					DoNonsolidCollision(pState->m_pAbstract, pTestObj, pState->m_pObj);
+				}
+
+				bStopped = LTFALSE;
+			}
+		}
+
+		// If we messed with the position of the mover and we weren't stopped by anything, then move us to the end...
+		if(bMoved && !bStopped)
+		{
+			// Reset the position to the end of the movement...
+			MoveObjectTo(pState->m_pObj, *pState->m_pStartPos + pState->m_vDeltaPos);
+		}
+
+	}
+	// Recheck the path for object's that are pushing around other objects...
+	while(bPushAway && bCollide && !bStopped && nIterations++ < 10);
+
+	return bStopped;
+}
+
+
+// Collides the mover with one object.  Returns LTTRUE if the mover was stopped.
+// Approximation: the original inlines this into DetectAndProcessCollisions' first loop and
+// inlines DoSolidBBoxCollision into this out-of-line copy.
+// Wave 5: decoded from the original: it inlines IsWorldModel(pObj), IsWorldModel(pTestObj) and DoObjectsIntersect and, for
+// !bWorldModel && !bTestWorldModel, DoSolidBBoxCollision (so it is 1251 bytes); calls DoSolidWMCollision (0x45eaf0),
+// DoNonsolidCollision (0x45ea50) and CheckIntersectOnMovement out of line; the tunnel test builds vMin = start - dims and
+// vMax = dims + start. Its out-of-line COMDAT copy sits after CheckIntersectOnMovement's (MoveState ctor 0x460c60,
+// Inherit 0x460c80), i.e. it is defined after DetectAndProcessCollisions; the first (g_CV_NewStairStep == 0) loop of
+// DetectAndProcessCollisions carries an inline copy of this same logic (calling IsWorldModel(pTestObj) 0x45e960 and
+// DoObjectsIntersect 0x45e990 out of line, then DoSolidBBoxCollision/DoSolidWMCollision/DoNonsolidCollision/
+// CheckIntersectOnMovement out of line) and only the second loop calls MaybeCollide.
+// STUB: LITHTECH 0x00460cb0
+LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2)
+{
+	LTBOOL bWorldModel, bTestWorldModel, bPushAway, bStopped, bCollide;
+	LTVector vMin, vMax;
+
+	// Don't move objects that are already moving.
+	if(pTestObj->m_InternalFlags & IFLAG_MOVING)
+		return LTFALSE;
+
+	// Sphere physics does its own collisions.
+	if(pState->m_pObj->m_Flags2 & FLAG2_SPHEREPHYSICS)
+		return LTFALSE;
+
+	bWorldModel = IsWorldModel(pState->m_pObj);
+	bTestWorldModel = IsWorldModel(pTestObj);
+
+	// WorldModels don't collide with each other, and honor FLAG_GOTHRUWORLD.
+	if(bWorldModel)
+	{
+		if(bTestWorldModel || (pTestObj->m_Flags & FLAG_GOTHRUWORLD))
+			return LTFALSE;
+	}
+	else if(bTestWorldModel && (pState->m_pObj->m_Flags & FLAG_GOTHRUWORLD))
+	{
+		return LTFALSE;
+	}
+
+	// Possibly push them away from eachother.
+	bPushAway = (pTestObj->m_Flags & FLAG_SOLID) && (pState->m_pObj->m_Flags & FLAG_SOLID);
+	if(!bPushAway && bTestWorldModel)
+		bPushAway = IsSolidWorld(pTestObj);
+
+	// If it moves further than its size, check along the whole movement so it can't tunnel.
+	if(fabs(pState->m_vDeltaPos.x) > pState->m_pObj->m_Dims.x ||
+		fabs(pState->m_vDeltaPos.y) > pState->m_pObj->m_Dims.y ||
+		fabs(pState->m_vDeltaPos.z) > pState->m_pObj->m_Dims.z)
+	{
+		vMin = *pState->m_pStartPos - pState->m_pObj->m_Dims;
+		vMax = *pState->m_pStartPos + pState->m_pObj->m_Dims;
+		if(!DoBoxesIntersect(vMin, vMax, pTestObj->m_MinBox, pTestObj->m_MaxBox, 0.0f))
+		{
+			return CheckIntersectOnMovement(pState, pTestObj, bPushAway);
+		}
+	}
+
+	// Make sure the objects actually intersect before we do any collision and movement...
+	if(!DoObjectsIntersect(pState->m_pObj, pTestObj, &pState->m_vMoveMin,
+		&pState->m_vMoveMax, &pTestObj->m_MinBox, &pTestObj->m_MaxBox, 0.0f, LTNULL))
+	{
+		return LTFALSE;
+	}
+
+	if(!bPushAway)
+	{
+		// Notify the objects.
+		DoNonsolidCollision(pState->m_pAbstract, pTestObj, pState->m_pObj);
+		return LTFALSE; // Nothing moved.
+	}
+
+	if(!bWorldModel && !bTestWorldModel)
+	{
+		bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos);
+	}
+	else
+	{
+		bStopped = DoSolidWMCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos,
+			LTTRUE, bCollide);
+	}
+
+	if(bStopped)
+		pState->m_pObj->SetPos(pState->m_vDestPos);
+
+	return bStopped;
+}
+
 // Gets the overlap of two boxes.
 // FUNCTION: LITHTECH 0x004611a0
 void GetBoxIntersection(LTVector *pMin1, LTVector *pMax1, LTVector *pMin2, LTVector *pMax2,
@@ -1529,7 +1500,9 @@ void GetBoxIntersection(LTVector *pMin1, LTVector *pMax1, LTVector *pMin2, LTVec
 
 
 // Called by WorldTree::FindObjectsInBox.
-// Register allocation: pObject/pArray get ebx/esi here, edi/ebx in the original.
+// Register allocation: pObject/pArray get ebx/esi here, edi/ebx in the original (orig: esi holds the 0x400/server-flag
+// temporaries); the vCenter tail also differs (orig keeps the (vMax-vMin) temps in [esp+0x10..0x30] and calls nothing).
+// Tried: pArray before pObject, declaration order swaps, a local MoveState *pState (worse).
 // STUB: LITHTECH 0x00461260
 void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser)
 {
@@ -1622,132 +1595,6 @@ int CompareObjectDists(const void *pA, const void *pB)
 }
 
 
-// Inline budget: the original calls Mag() (inside dir.Norm()) and the LTVector(x,y,z) constructor (for
-// pTestObj->m_Velocity = pos2 - pos1) out of line.  Pending-call experiments reproduce the Mag call (extra inline
-// sites after Norm) but not the single ctor call without also moving the ctors in the min/max loop.
-// STUB: LITHTECH 0x00461ff0
-void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj)
-{
-	LTVector pos1, pos2;
-	LTVector dir, min, max, vTemp;
-	LTBOOL bRet;
-	MoveState moveState;
-	WorldModelInstance *pInst;
-	int32 betterNotUp;
-
-	// Don't worry about other WorldModels.
-	if(IsWorldModel(pTestObj))
-		return;
-
-	pInst = (WorldModelInstance*)pState->m_pObj;
-
-	// Don't worry about it if they don't even intersect.
-	if(!DoBoxesIntersect(pState->m_pObj->m_MinBox, pState->m_pObj->m_MaxBox, 
-		pTestObj->m_MinBox, pTestObj->m_MaxBox, -0.001f))
-		return;
-
-	if(!DoesBoxIntersectBSP(pInst->m_pValidBsp->GetRootNode(), pTestObj->m_MinBox, pTestObj->m_MaxBox))
-		return;
-
-	// Do a solid collision?
-	if((pState->m_pObj->m_Flags & FLAG_SOLID) && (pTestObj->m_Flags & FLAG_SOLID))
-	{
-		// pInputObj is pushing pTestObj.
-		pos2 = pTestObj->GetPos();
-		MatVMul_H(&pos1, pState->m_pWMObjectTransform, &pos2);
-
-		dir = pos1 - pos2;
-		if(dir.MagSqr() < 0.001f)
-			return;
-		
-		// This helps avoid error from small rotations.. make sure the starting position does not intersect
-		// the WorldModel.
-		dir = pTestObj->GetPos() - pState->m_pObj->GetPos();
-		dir.Norm();
-
-		betterNotUp = 200;
-		while(betterNotUp-- > 0)
-		{
-			min = pos1 - pTestObj->m_Dims;
-			max = pos1 + pTestObj->m_Dims;
-
-			if(!DoesBoxIntersectBSP(pInst->m_pValidBsp->GetRootNode(), min, max))
-				break;
-			
-			pos1 += dir;
-		}
-			
-		// Setup fake velocity for the collision response.
-		vTemp = pTestObj->m_Velocity;
-		pTestObj->m_Velocity = pos2 - pos1;
-		bRet = CollideAgainstWorld(pState, 
-			pInst->m_pValidBsp, 
-			pState->m_pObj,
-			pTestObj,
-			pos1, pos2, 
-			!(pTestObj->m_Flags & FLAG_NOSLIDING),
-			LTTRUE);
-
-		pTestObj->m_Velocity = vTemp;
-
-		if(bRet)
-		{
-			moveState.Inherit(pState, pTestObj);
-			moveState.m_BPriority = pTestObj->m_BPriority;
-			MoveObject(&moveState, pos2, MO_DETACHSTANDING|MO_SETCHANGEFLAG|MO_MOVESTANDINGONS);
-
-			// If they're still intersecting, this means the world model pushed the object into the world
-			// so send the object a crush message.
-			if(DoesBoxIntersectBSP(pInst->m_pValidBsp->GetRootNode(),
-				pTestObj->m_MinBox, pTestObj->m_MaxBox))
-			{
-				pState->m_pAbstract->DoCrush(pTestObj, pState->m_pObj);
-			}
-		}
-	}
-	else
-	{
-		DoNonsolidCollision(pState->m_pAbstract, pState->m_pObj, pTestObj);
-	}
-}
-
-
-// FUNCTION: LITHTECH 0x004624e0
-void CollideWorldModelCB(WorldTreeObj *pObj, void *pUser)
-{
-	MoveState *pState;
-	LTObject *pObject;
-
-
-	pState = (MoveState*)pUser;
-
-	if(pObj->GetObjType() != WTObj_DObject)
-		return;
-
-	pObject = (LTObject*)pObj;
-	if(pObject == pState->m_pObj)
-		return;
-
-	MaybeCollideWorldModel(pState, pObject);
-}
-
-
-// Gets the attachment's world transform.
-// The inlined quat_Mul emits out[QX] terms in a different order.
-// STUB: LITHTECH 0x00462510
-void GetAttachmentTransform(LTObject *pParent, Attachment *pAttachment, LTVector &vPos, LTRotation &rRot)
-{
-	LTMatrix mat;
-
-	vPos = pAttachment->m_Offset.m_Pos;
-	quat_ConvertToMatrix(pParent->m_Rotation.m_Quat, mat.m);
-	mat.Apply3x3(vPos);
-	vPos += pParent->GetPos();
-
-	rRot = pParent->m_Rotation * pAttachment->m_Offset.m_Rot;
-}
-
-
 // FUNCTION: LITHTECH 0x00461490
 LTBOOL ChangeObjectDimensions(MoveState *pState, LTVector *pNewDims, uint32 bCollide, LTBOOL bTrivialReject)
 {
@@ -1804,8 +1651,10 @@ LTBOOL ChangeObjectDimensions(MoveState *pState, LTVector *pNewDims, uint32 bCol
 }
 
 
-// Call pattern matches (Inherit's nested Setup is the out-of-line call at 0x0045f1a0).  Remaining diff: the original
-// keeps nDim in ebp and indexes vNewPos[nDim] as [esp+ebp*4+disp] each time; we hoist &vNewPos[nDim].
+// Size matches (752); 69 bytes differ: nDim/pObj swap ebp/ebx (orig: nDim in ebp), and the `vTemp` of the
+// "move it back down" branch sits at [esp+0x20] in the original (ours +0x30).  What fixed the rest: indexing the
+// vectors as `(&v.x)[nDim]` for the reads and the first write (a repeated `v[nDim]` through LTVector::operator[] gets its address CSE'd
+// into a register), and SetDims(pObj->m_Dims + vTemp) (operand order) which removes a 12 byte temp.
 // STUB: LITHTECH 0x00461700
 void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 {
@@ -1823,7 +1672,7 @@ void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 	fOldPos = vNewPos[nDim];
 
 	// Move the object in negative dir...
-	vNewPos[nDim] -= fDiff;
+	(&vNewPos.x)[nDim] -= fDiff;
 	moveState.Inherit(pState, pObj);
 	moveState.m_CustomTestObjects = pState->m_CustomTestObjects;
 	moveState.m_nCustomTestObjects = pState->m_nCustomTestObjects;
@@ -1831,7 +1680,7 @@ void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 
 	// Remember where we ended up
 	vTemp = pObj->GetPos();
-	fLow = vTemp[nDim];
+	fLow = (&vTemp.x)[nDim];
 
 	// Move the object in positive dir...
 	vNewPos = pObj->GetPos();
@@ -1841,7 +1690,7 @@ void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 
 	// Remember where we ended up
 	vTemp = pObj->GetPos();
-	fHigh = vTemp[nDim];
+	fHigh = (&vTemp.x)[nDim];
 
 	if(fOldPos + fDiff > fHigh)
 	{
@@ -1877,11 +1726,8 @@ void GrowDim(MoveState *pState, int32 nDim, float *pNewDim)
 	// Set the dim...
 	vTemp.Init();
 	vTemp[nDim] = fDiff;
-	pObj->SetDims(vTemp + pObj->m_Dims);
+	pObj->SetDims(pObj->m_Dims + vTemp);
 }
-
-
-// FUNCTION: LITHTECH 0x00461f80 ?Equals@LTRotation@@QBEIABV1@M@Z
 
 
 // Rotates the world model and moves objects out of the way.
@@ -2029,3 +1875,132 @@ void RotateWorldModel(MoveState *pState, LTRotation *pRotation, LTBOOL bDoCollis
 
 	pState->m_pAbstract->GetCollisionInfo() = pOldCollisionInfo;
 }
+
+// FUNCTION: LITHTECH 0x00461f80 ?Equals@LTRotation@@QBEIABV1@M@Z
+
+
+// Inline budget: the original calls Mag() (inside dir.Norm()) and the LTVector(x,y,z) constructor (for
+// pTestObj->m_Velocity = pos2 - pos1) out of line.  Pending-call experiments reproduce the Mag call (extra inline
+// sites after Norm) but not the single ctor call without also moving the ctors in the min/max loop.
+// STUB: LITHTECH 0x00461ff0
+void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj)
+{
+	LTVector pos1, pos2;
+	LTVector dir, min, max, vTemp;
+	LTBOOL bRet;
+	MoveState moveState;
+	WorldModelInstance *pInst;
+	int32 betterNotUp;
+
+	// Don't worry about other WorldModels.
+	if(IsWorldModel(pTestObj))
+		return;
+
+	pInst = (WorldModelInstance*)pState->m_pObj;
+
+	// Don't worry about it if they don't even intersect.
+	if(!DoBoxesIntersect(pState->m_pObj->m_MinBox, pState->m_pObj->m_MaxBox, 
+		pTestObj->m_MinBox, pTestObj->m_MaxBox, -0.001f))
+		return;
+
+	if(!DoesBoxIntersectBSP(pInst->m_pValidBsp->GetRootNode(), pTestObj->m_MinBox, pTestObj->m_MaxBox))
+		return;
+
+	// Do a solid collision?
+	if((pState->m_pObj->m_Flags & FLAG_SOLID) && (pTestObj->m_Flags & FLAG_SOLID))
+	{
+		// pInputObj is pushing pTestObj.
+		pos2 = pTestObj->GetPos();
+		MatVMul_H(&pos1, pState->m_pWMObjectTransform, &pos2);
+
+		dir = pos1 - pos2;
+		if(dir.MagSqr() < 0.001f)
+			return;
+		
+		// This helps avoid error from small rotations.. make sure the starting position does not intersect
+		// the WorldModel.
+		dir = pTestObj->GetPos() - pState->m_pObj->GetPos();
+		dir.Norm();
+
+		betterNotUp = 200;
+		while(betterNotUp-- > 0)
+		{
+			min = pos1 - pTestObj->m_Dims;
+			max = pos1 + pTestObj->m_Dims;
+
+			if(!DoesBoxIntersectBSP(pInst->m_pValidBsp->GetRootNode(), min, max))
+				break;
+			
+			pos1 += dir;
+		}
+			
+		// Setup fake velocity for the collision response.
+		vTemp = pTestObj->m_Velocity;
+		pTestObj->m_Velocity = pos2 - pos1;
+		bRet = CollideAgainstWorld(pState, 
+			pInst->m_pValidBsp, 
+			pState->m_pObj,
+			pTestObj,
+			pos1, pos2, 
+			!(pTestObj->m_Flags & FLAG_NOSLIDING),
+			LTTRUE);
+
+		pTestObj->m_Velocity = vTemp;
+
+		if(bRet)
+		{
+			moveState.Inherit(pState, pTestObj);
+			moveState.m_BPriority = pTestObj->m_BPriority;
+			MoveObject(&moveState, pos2, MO_DETACHSTANDING|MO_SETCHANGEFLAG|MO_MOVESTANDINGONS);
+
+			// If they're still intersecting, this means the world model pushed the object into the world
+			// so send the object a crush message.
+			if(DoesBoxIntersectBSP(pInst->m_pValidBsp->GetRootNode(),
+				pTestObj->m_MinBox, pTestObj->m_MaxBox))
+			{
+				pState->m_pAbstract->DoCrush(pTestObj, pState->m_pObj);
+			}
+		}
+	}
+	else
+	{
+		DoNonsolidCollision(pState->m_pAbstract, pState->m_pObj, pTestObj);
+	}
+}
+
+
+// FUNCTION: LITHTECH 0x004624e0
+void CollideWorldModelCB(WorldTreeObj *pObj, void *pUser)
+{
+	MoveState *pState;
+	LTObject *pObject;
+
+
+	pState = (MoveState*)pUser;
+
+	if(pObj->GetObjType() != WTObj_DObject)
+		return;
+
+	pObject = (LTObject*)pObj;
+	if(pObject == pState->m_pObj)
+		return;
+
+	MaybeCollideWorldModel(pState, pObject);
+}
+
+
+// Gets the attachment's world transform.
+// The inlined quat_Mul emits out[QX] terms in a different order.
+// STUB: LITHTECH 0x00462510
+void GetAttachmentTransform(LTObject *pParent, Attachment *pAttachment, LTVector &vPos, LTRotation &rRot)
+{
+	LTMatrix mat;
+
+	vPos = pAttachment->m_Offset.m_Pos;
+	quat_ConvertToMatrix(pParent->m_Rotation.m_Quat, mat.m);
+	mat.Apply3x3(vPos);
+	vPos += pParent->GetPos();
+
+	rRot = pParent->m_Rotation * pAttachment->m_Offset.m_Rot;
+}
+

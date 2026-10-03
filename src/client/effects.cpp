@@ -178,14 +178,14 @@ static void* Rotate_Init(SurfaceData *pSurfaceData, int argc, char **argv)
 	return pData;
 }
 
-// Close: the original keeps m00/m02 in FPU registers and sums each P/Q row loading Px before Pz
-// (here Pz is loaded first), and its frame is a 4x4 matrix (0x54 bytes).
+// Close (98 of 384 bytes differ, from 178 once tz = (1-cos)*z became its own local like tx/ty): the original sums each
+// P/Q row loading Px before Pz (here Pz is loaded first, whatever the source term order or operand order is).
 // STUB: LITHTECH 0x00435de0
 static void Rotate_Update(SurfaceData *pSurfaceData, void *pVoidData)
 {
 	SEData *pData = (SEData*)pVoidData;
 	float fSin, fCos, fOneMinusCos;
-	float tx, ty, sx, sy, sz;
+	float tx, ty, tz, sx, sy, sz;
 	LTMatrix mat;
 	LTVector *pAxis;
 
@@ -199,6 +199,7 @@ static void Rotate_Update(SurfaceData *pSurfaceData, void *pVoidData)
 	pAxis = &pData->m_Normal;
 	tx = fOneMinusCos * pAxis->x;
 	ty = fOneMinusCos * pAxis->y;
+	tz = fOneMinusCos * pAxis->z;
 	sx = fSin * pAxis->x;
 	sy = fSin * pAxis->y;
 	sz = fSin * pAxis->z;
@@ -211,7 +212,7 @@ static void Rotate_Update(SurfaceData *pSurfaceData, void *pVoidData)
 	mat.m[2][1] = ty * pAxis->z + sx;
 	mat.m[0][2] = tx * pAxis->z + sy;
 	mat.m[1][2] = ty * pAxis->z - sx;
-	mat.m[2][2] = fOneMinusCos * pAxis->z * pAxis->z + fCos;
+	mat.m[2][2] = tz * pAxis->z + fCos;
 
 	pSurfaceData->P.x = mat.m[0][0] * pData->m_P.x + mat.m[0][2] * pData->m_P.z + mat.m[0][1] * pData->m_P.y;
 	pSurfaceData->P.y = mat.m[1][0] * pData->m_P.x + mat.m[1][2] * pData->m_P.z + mat.m[1][1] * pData->m_P.y;

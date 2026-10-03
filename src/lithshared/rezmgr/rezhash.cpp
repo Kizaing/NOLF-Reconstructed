@@ -35,31 +35,6 @@ unsigned int CRezItmHashTableByName::HashFunc(REZCNAME pStr) {
   return (Count % GetNumBins());
 };
 
-// FUNCTION: LITHTECH 0x004b1ca0
-CRezItm* CRezItmHashTableByName::Find(REZCNAME sName, BOOL bIgnoreCase) {
-  ASSERT(sName != NULL);
-  if (sName == NULL) return NULL;
-  CRezItmHashByName* pItm = GetFirstInBin(HashFunc(sName));
-  if (bIgnoreCase) {
-    while (pItm != NULL) {
-      ASSERT(pItm->GetRezItm() != NULL);
-      ASSERT(pItm->GetRezItm()->GetName() != NULL);
-      if (stricmp(pItm->GetRezItm()->GetName(),sName) == 0) return pItm->GetRezItm();
-      pItm = pItm->NextInBin();
-    }
-  }
-  else {
-    while (pItm != NULL) {
-      ASSERT(pItm->GetRezItm() != NULL);
-      ASSERT(pItm->GetRezItm()->GetName() != NULL);
-      if (strcmp(pItm->GetRezItm()->GetName(),sName) == 0) return pItm->GetRezItm();
-      pItm = pItm->NextInBin();
-    }
-  }
-  return NULL;
-};
-
-
 // -----------------------------------------------------------------------------------------
 // CRezTypeHash
 
@@ -138,5 +113,28 @@ CRezDir* CRezDirHashTable::Find(REZCDIRNAME sName, BOOL bIgnoreCase) {
   return NULL;
 };
 
-
-
+// The linker kept this copy (placed after CRezDirHashTable::HashFunc) when it folded CRezDirHashTable::Find into
+// CRezItmHashTableByName::Find, so the surviving function sits last in the object.
+// FUNCTION: LITHTECH 0x004b1ca0
+CRezItm* CRezItmHashTableByName::Find(REZCNAME sName, BOOL bIgnoreCase) {
+  ASSERT(sName != NULL);
+  if (sName == NULL) return NULL;
+  CRezItmHashByName* pItm = GetFirstInBin(HashFunc(sName));
+  if (bIgnoreCase) {
+    while (pItm != NULL) {
+      ASSERT(pItm->GetRezItm() != NULL);
+      ASSERT(pItm->GetRezItm()->GetName() != NULL);
+      if (stricmp(pItm->GetRezItm()->GetName(),sName) == 0) return pItm->GetRezItm();
+      pItm = pItm->NextInBin();
+    }
+  }
+  else {
+    while (pItm != NULL) {
+      ASSERT(pItm->GetRezItm() != NULL);
+      ASSERT(pItm->GetRezItm()->GetName() != NULL);
+      if (strcmp(pItm->GetRezItm()->GetName(),sName) == 0) return pItm->GetRezItm();
+      pItm = pItm->NextInBin();
+    }
+  }
+  return NULL;
+};

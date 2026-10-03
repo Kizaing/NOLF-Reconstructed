@@ -1,6 +1,6 @@
 // Talon kernel/net/localdriver.cpp (Jupiter runtime/kernel/net/src/localdriver.cpp is a rewrite).
 // This object was built without optimization (frame pointers, int3 padding).
-// FLAGS: /Od /Ob1 /Oi /Gy /GX-
+// FLAGS: /Od /Ob1 /Oi /Gy /Gf /GX-
 #include <string.h>
 #include "localdriver.h"
 #include "packet.h"
@@ -58,11 +58,8 @@ CLocalDriver::CLocalDriver()
 	m_bPendingConnection = LTFALSE;
 }
 
-// FUNCTION: LITHTECH 0x00446780
-uint32 CLocalDriver::GetPacketOverhead()
-{
-	return 0;
-}
+// GetPacketOverhead is inline in the header (emitted with the vtable, before the deleting destructor).
+// FUNCTION: LITHTECH 0x00446780 ?GetPacketOverhead@CLocalDriver@@UAEKXZ
 
 // FUNCTION: LITHTECH 0x00446790 ??_GCLocalDriver@@UAEPAXI@Z
 // FUNCTION: LITHTECH 0x004467c0

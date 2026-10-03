@@ -16,6 +16,7 @@
 #include <set>
 #include <map>
 #include <string>
+#define SERVERDE_STL
 #include "serverde_impl.h"
 #include "stringmgr.h"
 #include "dhashtable.h"
@@ -26,15 +27,7 @@
 #include "impl_common.h"
 #include "packet.h"
 #include "game_serialize.h"
-
-// Talon object-creation property (CServerMgr::m_pCurProps list).
-struct PropEntry
-{
-	uint32		m_Type;			// 0x00 PT_
-	char		m_Name[0x50];	// 0x04
-	PropEntry	*m_pNext;		// 0x54
-	uint8		m_Data[4];		// 0x58 value: string, vector, float or char bool
-};
+#include "s_object.h"
 
 class ServerAppHandler
 {
@@ -418,9 +411,9 @@ LTRESULT CLTServer::ThreadLoadFile(char *pFilename, uint32 type)
 
 // FRAGILE: two reloads after SendToClient swap order depending on unrelated declarations (e.g.
 // CountPercent in counter.h, the STLport includes this unit now has, other agents' edits to shared headers):
-// symbol-table noise in VC6's register allocator, not a source difference. It matched at one point in wave 4
-// (with the STLport includes added) and flipped back after a concurrent header edit, so it stays a STUB.
-// STUB: LITHTECH 0x0047c1c0
+// symbol-table noise in VC6's register allocator, not a source difference. It matches again in wave 5 (after the
+// CLTServer/CServerMgr class changes); if it flips back, nothing in this function needs to change.
+// FUNCTION: LITHTECH 0x0047c1c0
 LTRESULT CLTServer::UnloadFile(char *pFilename, uint32 type)
 {
 	CHECK_PARAMS(pFilename, ILTPhysics::UnloadFile);
@@ -754,15 +747,13 @@ LTRESULT CLTServer::GetClientData(HCLIENT hClient, void *&pData, uint32 &nLength
 	return LT_OK;
 }
 
-// The child model link map at 0x280 (CLTServer::m_Pad280) is an STLport map: child model
+// The child model link map at 0x280 (CLTServer::m_ChildModelLinks) is an STLport map: child model
 // filename -> set of extra child model filenames (model_load.cpp reads it as pExtraChildModels).
-typedef std::set<std::string> ExtraChildSet;
-typedef std::map<std::string, ExtraChildSet> ExtraChildMap;
 
 // FUNCTION: LITHTECH 0x0047cd10
 void CLTServer::LinkModelToExtraChildModel(char *child_model_key, char **associated_chmdl, int size_chmld)
 {
-	ExtraChildSet &setChildren = (*(ExtraChildMap*)m_Pad280)[std::string(child_model_key)];
+	ExtraChildSet &setChildren = m_ChildModelLinks[std::string(child_model_key)];
 
 	for(int i=0; i < size_chmld; i++)
 		setChildren.insert(std::string(associated_chmdl[i]));
@@ -771,14 +762,14 @@ void CLTServer::LinkModelToExtraChildModel(char *child_model_key, char **associa
 // FUNCTION: LITHTECH 0x0047ce60
 void CLTServer::ResetModelToChildModelLink()
 {
-	ExtraChildMap &mapLinks = *(ExtraChildMap*)m_Pad280;
+	ExtraChildMap &mapLinks = m_ChildModelLinks;
 	mapLinks.clear();
 }
 
 // FUNCTION: LITHTECH 0x0047ced0
 void* CLTServer::GetChildModelLinkMap()
 {
-	return m_Pad280;
+	return &m_ChildModelLinks;
 }
 
 // FUNCTION: LITHTECH 0x0047cee0
@@ -788,6 +779,9 @@ LTRESULT CLTServer::SetModelFilenames(HOBJECT hObj, char *pFilename, char *pSkin
 }
 
 // Differs: ObjectCreateStruct: the original calls Clear() out of line from the constructor, then inlines the explicit Clear().
+// Three free pending inline calls right after the declaration (inline_ballast ... pending) make it MATCH, so the
+// original has three more inline call sites after the constructor's than our source has (Common() instead of
+// m_pCommonLT gives one; 2 more unknown).
 // STUB: LITHTECH 0x0047cef0
 LTRESULT CLTServer::SetObjectFilenames(HOBJECT hObj, char *pFilename, char *pSkinName)
 {
@@ -1183,11 +1177,15 @@ LTRESULT CLTServer::EndMessage(HMESSAGEWRITE hMessage)
 // si_ functions.
 // ----------------------------------------------------------------------- //
 
-// Scalar deleting destructor: ~CLTServer clears the child model link map (STLport, see above)
-// and destroys m_CommonLT.
-// (0x0047dbe0, ??_GCLTServer@@UAEPAXI@Z: not emitted until the vtable is, i.e. with the constructor.)
-CLTServer::~CLTServer()
+// Scalar deleting destructor: ~CLTServer (inline, in serverde_impl.h) clears the child model link map
+// (STLport, see above) and destroys the embedded interfaces. The original emits it here, where the vtable
+// is emitted; our compiler only emits the vtable (and so this function) in a unit that constructs the class.
+// FUNCTION: LITHTECH 0x0047dbe0 ??_GCLTServer@@UAEPAXI@Z
+// STANDIN: forces the CLTServer vtable and scalar deleting destructor into this unit (not in lithtech.exe);
+// the real constructor user is CreateLTServer in server_interface.cpp.
+ILTServer* standin_NewLTServer(CServerMgr *pServerMgr)
 {
+	return new CLTServer(pServerMgr);
 }
 
 // FindPoliesTouchingBox's search state.
@@ -1292,8 +1290,7 @@ struct SphereFindStruct
 	float		m_SphereTouchDiameter;	// 0x10
 };
 
-// Remaining diff (7 bytes): the original schedules `fsub [temp]` before the next load of the touch position (vecTo copy).
-// STUB: LITHTECH 0x0047de10
+// FUNCTION: LITHTECH 0x0047de10
 void SphereFindCallback(WorldTreeObj *pObj, void *pCBUser)
 {
 	if (pObj->GetObjType() != WTObj_DObject)
@@ -1305,7 +1302,8 @@ void SphereFindCallback(WorldTreeObj *pObj, void *pCBUser)
 	// (r1 + r2)^2, expanded.
 	LTVector vecTo = pServerObj->GetPos() - *pStruct->m_pSphereTouchPos;
 	float fRadius = pServerObj->m_Radius;
-	if (vecTo.MagSqr() < pServerObj->m_Radius * pServerObj->m_Radius + fRadius * pStruct->m_SphereTouchDiameter +
+	float fDistSqr = vecTo.MagSqr();
+	if (fDistSqr < pServerObj->m_Radius * pServerObj->m_Radius + fRadius * pStruct->m_SphereTouchDiameter +
 		pStruct->m_SphereTouchRadiusSqr)
 	{
 		ObjectLink *pLink = (ObjectLink*)sb_Allocate(&g_pServerMgr->m_ObjectLinkBank);
@@ -1787,26 +1785,28 @@ LTRESULT si_GetPropLongInt(char *pPropName, long *pRet)
 	return LT_NOTFOUND;
 }
 
-inline void EulerToRotation(LTVector vAngles, LTRotation *pRot)
-{
-	gr_EulerToRotation(vAngles.x, vAngles.y, vAngles.z, pRot);
-}
-
-// Differs: the original copies the euler angles through a 16-byte stack temporary.
-// STUB: LITHTECH 0x0047f100
+// The original copies the euler angles through a 16-byte float array on the stack.
+// FUNCTION: LITHTECH 0x0047f100
 LTRESULT si_GetPropRotation(char *pPropName, LTRotation *pRet)
 {
 	PropEntry *pProp = _FindProp(pPropName);
 	if (pProp && pProp->m_Type == PT_ROTATION)
 	{
-		EulerToRotation(*(LTVector*)pProp->m_Data, pRet);
+		float angles[4];
+		angles[0] = ((float*)pProp->m_Data)[0];
+		angles[1] = ((float*)pProp->m_Data)[1];
+		angles[2] = ((float*)pProp->m_Data)[2];
+		gr_EulerToRotation(angles[0], angles[1], angles[2], pRet);
 		return LT_OK;
 	}
 
 	return LT_NOTFOUND;
 }
 
-// Differs: the original copies the euler angles through a 16-byte stack temporary.
+// Differs: the original copies the euler angles through a 16-byte float array on the stack like
+// si_GetPropRotation, but only z goes through it (x and y come straight from the property on the FPU stack);
+// every array/struct form tried (float[4] with element or struct copies, LTVector temp, LTRotation temp) lets VC6
+// forward all three and drops the 16-byte frame.
 // STUB: LITHTECH 0x0047f160
 LTRESULT si_GetPropRotationEuler(char *pPropName, LTVector *pAngles)
 {
@@ -1907,31 +1907,6 @@ LPBASECLASS si_CreateObject(HCLASS hClass, ObjectCreateStruct *pStruct)
 		return LTNULL;
 
 	return g_pServerMgr->EZCreateObject((CClassData*)hClass, pStruct);
-}
-
-// Allocate/construct and deallocate/destruct objects of a class (Jupiter s_object.h).
-inline LPBASECLASS sm_AllocateObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass)
-{
-	LPBASECLASS pObject;
-	CClassData *pClassData;
-
-	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
-
-	pObject = (LPBASECLASS)sb_Allocate(&pClassData->m_ObjectBank);
-	pObject->m_hObject = 0;
-	pObject->m_pFirstAggregate = LTNULL;
-	pClass->m_ConstructFn(pObject);
-
-	return pObject;
-}
-
-inline void sm_FreeObjectOfClass(CServerMgr *pServerMgr, ClassDef *pClass, LPBASECLASS pObject)
-{
-	CClassData *pClassData;
-
-	pClassData = (CClassData*)pClass->m_pInternal[pServerMgr->m_ClassMgr.m_ClassIndex];
-	pClass->m_DestructFn(pObject);
-	sb_Free(&pClassData->m_ObjectBank, pObject);
 }
 
 // PRECREATE_STRINGPROP (2.0f) passed through sm_AddObjectToWorld's uint32 parameter.
@@ -2454,31 +2429,31 @@ LTRESULT si_GetLastCollision(CollisionInfo *pInfo)
 LTRESULT si_PlaySound(PlaySoundInfo *pPlaySoundInfo)
 {
 	HLTSOUND hSound;
-	return g_pServerMgr->m_SoundMgr.PlaySound(pPlaySoundInfo, hSound);
+	return g_pServerMgr->PlaySound(pPlaySoundInfo, hSound);
 }
 
 // FUNCTION: LITHTECH 0x0047fef0
 LTRESULT si_GetSoundDuration(HLTSOUND hSound, LTFLOAT *fDuration)
 {
-	return g_pServerMgr->m_SoundMgr.GetSoundDuration(hSound, *fDuration);
+	return g_pServerMgr->GetSoundDuration(hSound, *fDuration);
 }
 
 // FUNCTION: LITHTECH 0x0047ff10
 LTRESULT si_IsSoundDone(HLTSOUND hSound, LTBOOL *bDone)
 {
-	return g_pServerMgr->m_SoundMgr.IsSoundDone(hSound, *bDone);
+	return g_pServerMgr->IsSoundDone(hSound, *bDone);
 }
 
 // FUNCTION: LITHTECH 0x0047ff30
 LTRESULT si_KillSound(HLTSOUND hSound)
 {
-	return g_pServerMgr->m_SoundMgr.KillSound(hSound);
+	return g_pServerMgr->KillSound(hSound);
 }
 
 // FUNCTION: LITHTECH 0x0047ff50
 LTRESULT si_KillSoundLoop(HLTSOUND hSound)
 {
-	return g_pServerMgr->m_SoundMgr.KillSoundLoop(hSound);
+	return g_pServerMgr->KillSoundLoop(hSound);
 }
 
 // FUNCTION: LITHTECH 0x0047ff70
@@ -3338,3 +3313,12 @@ void si_SetupFunctionPointers(ILTServer *pServer)
 	pServer->GetFileList = si_GetFileList;
 	pServer->FreeFileList = ic_FreeFileList;
 }
+
+// Template code this object instantiated first (STLport string/set/map nodes of the child model link map).
+// FUNCTION: LITHTECH 0x00481b70 ?deallocate@?$_STL_alloc_proxy@PAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@_STL@@U12@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@@_STL@@QAEXPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@I@Z
+// FUNCTION: LITHTECH 0x00481cc0 ?_M_erase@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@@_STL@@AAEXPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@@Z
+// FUNCTION: LITHTECH 0x00481d60 ??1?$_Rb_tree_base@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@QAE@XZ
+// FUNCTION: LITHTECH 0x00481d90 ?insert_unique@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$_Identity@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@QAE?AU?$pair@U?$_Rb_tree_iterator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$_Nonconst_traits@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@_N@2@ABV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@2@@Z
+// FUNCTION: LITHTECH 0x00481f60 ?destroy_node@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@@_STL@@IAEXPAU?$_Rb_tree_node@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@@Z
+// FUNCTION: LITHTECH 0x00481fe0 ?_M_create_node@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$_Identity@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@IAEPAU?$_Rb_tree_node@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@ABV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@2@@Z
+// FUNCTION: LITHTECH 0x004820e0 ?_Construct@_STL@@YAXPAV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@1@ABV21@@Z

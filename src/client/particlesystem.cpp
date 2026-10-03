@@ -236,7 +236,9 @@ void ps_UpdateParticles(LTParticleSystem *pSystem, LTFLOAT t)
 }
 
 
-// Temporaries and FPU scheduling differ (0x18-byte frame in the original).
+// Temporaries and FPU scheduling differ (0x18-byte frame in the original; the original keeps halfBox in FPU registers
+// instead of a spilled local). Tried compound forms (`+=`, `*= 0.5f`), operand orders and a single sum: size 288 reachable
+// but never the same schedule.
 // STUB: LITHTECH 0x00469ea0
 void ps_UpdateParticleBoundingBox(LTParticleSystem *pSystem)
 {

@@ -437,6 +437,8 @@ inline void tmgr_RasterizeText_T(
 
 
 // One byte differs: the 16-bit foreground+background loop addresses [ecx+eax] where the original has [eax+ecx].
+// Tried without effect: declaration order of the template's locals, order of `++pSrcPos; ++destPos;` (worse), order of
+// the two pointer initialisations (worse), `while(xCounter--)`, `pSrcPos += srcX`, `srcX + ptr`, `!= 0`.
 // STUB: LITHTECH 0x0049bae0
 static void tmgr_DrawTextToSurface(CisSurface *pDest, LTRect *pSrcRect, LTRect *pDestRect,
 	HLTCOLOR hForeColor, HLTCOLOR hBackColor)

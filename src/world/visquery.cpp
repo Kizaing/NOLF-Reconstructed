@@ -33,7 +33,7 @@ typedef void (*VQLeafFn)(Leaf *pLeaf, void *pUser);
 
 
 // FUNCTION: LITHTECH 0x0049e6b0
-void vq_DefaultGetObjects(LTLink *pListHead, LTObject ***pppObjects, int *pnObjects)
+static void vq_DefaultGetObjects(LTLink *pListHead, LTObject ***pppObjects, int *pnObjects)
 {
 	LTLink *pCur;
 	LTObject *pObject;

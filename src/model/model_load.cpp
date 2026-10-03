@@ -537,10 +537,21 @@ LTRESULT Model::InitAllocations(ILTStream &file, LAlloc *pDelegate)
 
 // STUB: LITHTECH 0x00456390
 // Written to instantiate the same STLport code (0x004571a0-0x00459170); the control flow is not matched.
+// Wave 5 findings (3472 vs 3328 bytes):
+// - The original builds `childRequest` (stores in the order filename, file, fn, userdata, load, 0x18, trees, all, extra)
+//   BEFORE the ModelAllocations ctor call; ours now does too.
+// - Every error inside the child-model block does `err = N; jmp cleanup`, one shared cleanup that calls the four
+//   _Vector_base dtors (0x00457270) and then jumps to the common Term/return. Writing that as a `ChildError:` label
+//   inside the block (`goto ChildrenLoaded; ChildError: goto Error;`) matches the layout, but it makes VC6 inline the
+//   vector dtors and the _M_create_node copy, so 0x00457270 and 0x00458800 stop matching. Not kept.
+// - The original tests `pExtraChildren && find(pName) != end()` first (the operator[] branch is the if body); that
+//   flip also moves the _M_create_node copy, so it is not kept either.
+// - 0x00457e10 is the out-of-line 2-argument basic_string::_M_range_initialize<const char*>(f, l) with the
+//   forward-iterator body inlined; ours inlines the 2-argument dispatcher and calls the 3-argument copy instead.
+//   The original did not inline the dispatcher into the string(const char*) constructor at the two key temporaries.
 LTRESULT Model::Load(ModelLoadRequest *pRequest)
 {
 	ILTStream *pFile;
-	ModelAllocations allocs;
 	ModelLoadRequest childRequest;
 	Model *pChildModel;
 	ModelPiece *pPiece;
@@ -559,15 +570,17 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 	uint16 nLODDists;
 	uint8 reserved, err;
 
+	childRequest.m_pFilename = LTNULL;
 	childRequest.m_pFile = LTNULL;
 	childRequest.m_LoadChildFn = DefaultLoadChildFn;
 	childRequest.m_pLoadFnUserData = LTNULL;
-	childRequest.m_pExtraChildModels = LTNULL;
-	childRequest.m_pFilename = LTNULL;
 	childRequest.m_bLoadChildModels = LTTRUE;
 	childRequest.m_Unknown18 = LTTRUE;
 	childRequest.m_bTreesValid = LTTRUE;
 	childRequest.m_bAllChildrenLoaded = LTTRUE;
+	childRequest.m_pExtraChildModels = LTNULL;
+
+	ModelAllocations allocs;
 
 	if(!pRequest->m_pFile || (pRequest->m_bLoadChildModels && !pRequest->m_LoadChildFn))
 		return LT_INVALIDPARAMS;
@@ -815,6 +828,7 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 		if(childInfos[i])
 			delete childInfos[i];
 	}
+
 	}
 
 	// Animations.
@@ -920,9 +934,7 @@ Error:
 // FUNCTION: LITHTECH 0x00457800 ?_M_insert_overflow@?$vector@PBDV?$allocator@PBD@_STL@@@_STL@@IAEXPAPBDABQBDI@Z
 // FUNCTION: LITHTECH 0x00457970 ?_M_insert_overflow@?$vector@PAVChildInfo@@V?$allocator@PAVChildInfo@@@_STL@@@_STL@@IAEXPAPAVChildInfo@@ABQAV3@I@Z
 // FUNCTION: LITHTECH 0x00457af0 ?find@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@2@U?$_Select1st@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@@_STL@@QAE?AU?$_Rb_tree_iterator@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@U?$_Nonconst_traits@U?$pair@$$CBV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V?$set@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@2@@_STL@@@2@@2@ABV?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@2@@Z
-// Bytes match, but the call to basic_string::_M_range_initialize<char*> goes to 0x0042fa10 while the namemap knows
-// another copy of it at 0x004a59b0.
-// STUB: LITHTECH 0x00457bc0 ?_M_copy@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$_Identity@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@AAEPAU?$_Rb_tree_node@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@PAU32@0@Z
+// FUNCTION: LITHTECH 0x00457bc0 ?_M_copy@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$_Identity@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@AAEPAU?$_Rb_tree_node@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@PAU32@0@Z
 // FUNCTION: LITHTECH 0x00457ca0 ?_M_erase@?$_Rb_tree@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@V12@U?$_Identity@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@U?$less@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@V?$allocator@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@_STL@@AAEXPAU?$_Rb_tree_node@V?$basic_string@DV?$char_traits@D@_STL@@V?$allocator@D@2@@_STL@@@2@@Z
 // FUNCTION: LITHTECH 0x00457df0 ?_Construct@_STL@@YAXPAPBDABQBD@Z
 // FUNCTION: LITHTECH 0x00457ed0 ?_M_increment@?$_Rb_global@_N@_STL@@SAXPAU_Rb_tree_base_iterator@2@@Z

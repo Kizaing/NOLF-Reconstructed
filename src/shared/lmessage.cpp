@@ -235,12 +235,16 @@ LTRESULT LMessageImpl::ReadCompRotationFL(LTRotation &rot)
 }
 
 // The original calls CPacket::WriteType<uint8> out of line (0x00417c20).
+// Wave 5: with `#pragma inline_depth(1)` at the end of the file (template call sites take the end-of-file value)
+// this compiles to the original's 192 bytes, with the loop shaped `if(len != 0){ i = len; do{...}while(--i); }`
+// and `theByte` in the loop block. Left: the original reuses the dead pMsg argument slot for `len`/`theByte`
+// (frame is a single `push ecx`; ours needs `sub esp,8`) and stores m_Pos before loading the vtable for Release.
+// The pragma is not shipped: WriteMessage needs depth 2 (CMoArray::operator[] -> Get) in the same unit.
 // STUB: LITHTECH 0x00445cc0
 LTRESULT LMessageImpl::ReadMessageFL(ILTMessage* &pMsg)
 {
 	CPacket *pPacket;
 	uint16 len;
-	uint8 theByte;
 	uint32 i;
 
 	pPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
@@ -255,10 +259,15 @@ LTRESULT LMessageImpl::ReadMessageFL(ILTMessage* &pMsg)
 		return LT_OK;
 	}
 
-	for(i=len; i; i--)
+	if(len != 0)
 	{
-		ReadByteFL(theByte);
-		pPacket->WriteType(theByte);
+		i = len;
+		do
+		{
+			uint8 theByte;
+			ReadByteFL(theByte);
+			pPacket->WriteType(theByte);
+		} while(--i);
 	}
 
 	pPacket->AddRef();

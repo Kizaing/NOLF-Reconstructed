@@ -20,6 +20,7 @@
 #include "de_memory.h"
 #include "lthread.h"
 #include "sloaderthread.h"
+#include "cloaderthread.h"
 
 // What the server's leech on a model gets (s_object.cpp's sm_OnModelUnload).
 struct ModelUnloadRequest
@@ -52,8 +53,10 @@ LTRESULT sm_OnModelUnload(void *pUser, struct ModelUnloadMsg *pMsg, LTRESULT sta
 extern LeechDef g_ServerModelLeechDef;
 
 // Loads a child model (the model's path is the parent's directory).
-// Remaining diff: the two LT_MISSINGMODELFILE error tails swap places (the original keeps the first
-// copy of the shared epilogue, VC6 keeps the last).
+// Remaining diff: the two LT_MISSINGMODELFILE error tails swap places (the original's two jl to the shared
+// epilogue both go to the FIRST copy [pop x3; mov eax,0x2f; pop ebx] and the second tail's own fall-through copy
+// is [mov eax; pop x4]; VC6 here keeps the last copy), and the success path returns the eax of the
+// se_LoadChildModels test (no xor eax,eax). Tried returning/assigning the se_LoadChildModels result.
 // STUB: LITHTECH 0x004781d0
 LTRESULT se_LoadChildModel(ModelLoadRequest *pRequest, Model **ppModel)
 {
@@ -223,8 +226,9 @@ LTRESULT se_LoadModelData(CServerMgr *pServerMgr, const char *pFilename, UsedFil
 
 // A model finished loading: adds it to the cache, gives it to the objects that were waiting for
 // it and lets the client share it.
-// STUB: LITHTECH 0x00478780
-// Fragile: matched in wave 4, then the reloads of pServerMgr/pModel before `new` swapped after header changes.
+// FUNCTION: LITHTECH 0x00478780
+// Fragile (register allocation depends on the headers' symbol table): matched in wave 4, flipped in wave 5
+// when the packet/servermgr headers changed, matches again with sm_Allocate/FreeObjectOfClass moved into s_object.h.
 LTBOOL se_LoadChildModels(CServerMgr *pServerMgr, Model *pModel, UsedFile *pFile, uint32 flags)
 {
 	HHashElement *hElement;
@@ -270,14 +274,65 @@ LTBOOL se_LoadChildModels(CServerMgr *pServerMgr, Model *pModel, UsedFile *pFile
 	return hElement == LTNULL;
 }
 
+// Finds a model in the server's cache, or has it loaded: now when bNow is set, otherwise by the loader
+// thread (LT_INPROGRESS until it's there). Without bLoad it only registers the file.
+// FUNCTION: LITHTECH 0x004788c0
+LTRESULT se_GetModel(CServerMgr *pServerMgr, char *pFilename, Model **ppModel, UsedFile **ppFile,
+	LTBOOL bLoad, LTBOOL bNow)
+{
+	HHashElement *hElement;
+	LTRESULT dResult;
+
+	*ppModel = LTNULL;
+	*ppFile = LTNULL;
+
+	se_FixSlashes(pFilename);
+
+	// Already loaded?
+	hElement = hs_FindElement(pServerMgr->m_hModelTable, pFilename, strlen(pFilename));
+	if (hElement)
+	{
+		*ppModel = (Model*)hs_GetElementUserData(hElement);
+		return LT_OK;
+	}
+
+	if (!sf_AddUsedFile(&pServerMgr->m_FileMgr, pFilename, 0, ppFile))
+	{
+		RETURN_ERROR_PARAM(1, se_LoadModel, LT_MISSINGFILE, pFilename);
+	}
+
+	if (!bLoad)
+		return LT_INPROGRESS;
+
+	if (!bNow)
+	{
+		// Already loading it?
+		if (((CLoaderThread*)pServerMgr->m_LoaderThread)->IsLoadingFile((FileIdentifier*)*ppFile))
+			return LT_INPROGRESS;
+
+		LThreadMessage msg;
+
+		msg.m_ID = 0;							// SLT_LOADFILE
+		msg.m_Data[0].m_dwData = FT_MODEL;
+		msg.m_Data[1].m_pData = *ppFile;
+		((CServerLoaderThread*)pServerMgr->m_LoaderThread)->PostMessage(msg);
+		return LT_INPROGRESS;
+	}
+
+	dResult = se_LoadModelData(pServerMgr, pFilename, *ppFile, ppModel);
+	if (dResult == LT_OK)
+		se_LoadChildModels(pServerMgr, *ppModel, *ppFile, 1);
+
+	return dResult;
+}
+
 // Drops a model from the server's cache; objects using it fall back to the default model.
-// Register allocation: pServerMgr/pModel/nFound land in esi/edi/edx instead of edi/ebx/esi.
-// STUB: LITHTECH 0x00478a20
+// FUNCTION: LITHTECH 0x00478a20
 LTRESULT se_UncacheModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile *pFile)
 {
 	HHashElement *hElement;
 	Model *pModel;
-	LTLink *pCur;
+	LTLink *pCur, *pListHead;
 	ModelInstance *pInstance;
 	uint32 nFound;
 
@@ -290,14 +345,14 @@ LTRESULT se_UncacheModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile
 	delete pModel;
 
 	nFound = 0;
-	for (pCur=pServerMgr->m_ObjectMgr.m_ObjectLists[OT_MODEL].m_Head.m_pNext;
-		pCur != &pServerMgr->m_ObjectMgr.m_ObjectLists[OT_MODEL].m_Head; pCur=pCur->m_pNext)
+	pListHead = &pServerMgr->m_ObjectMgr.m_ObjectLists[OT_MODEL].m_Head;
+	for (pCur=pListHead->m_pNext; pCur != pListHead; pCur=pCur->m_pNext)
 	{
 		pInstance = (ModelInstance*)pCur->m_pData;
 		if (pInstance->GetModelDB() == pModel)
 		{
-			pInstance->m_AnimTracker.m_Flags |= AT_ALLOWINVALID;
 			pInstance->m_AnimTracker.SetModel(pServerMgr->m_pDefaultModel);
+			pInstance->m_AnimTracker.m_Flags |= AT_ALLOWINVALID;
 			nFound++;
 		}
 	}
@@ -309,8 +364,9 @@ LTRESULT se_UncacheModel(CServerMgr *pServerMgr, const char *pFilename, UsedFile
 }
 
 // Sets up a model object: its file, skins and animation trackers.
-// Remaining diff: register allocation (the original keeps pModel in ebx and pStruct in edi).
-// STUB: LITHTECH 0x00478ae0
+// The frame (pModel/pFile in the dead argument homes) only comes out right once se_GetModel is defined above.
+// pFilename is assigned lazily (after the first call, and after the default-model call succeeds).
+// FUNCTION: LITHTECH 0x00478ae0
 static LTRESULT se_InitModelObject(CServerMgr *pServerMgr, LTObject *pObject, ObjectCreateStruct *pStruct)
 {
 	ModelInstance *pInstance;
@@ -324,15 +380,16 @@ static LTRESULT se_InitModelObject(CServerMgr *pServerMgr, LTObject *pObject, Ob
 	pFileMgr = &pServerMgr->m_FileMgr;
 
 	pFilename = pStruct->m_Filename;
-	if (!sf_AddUsedFile(pFileMgr, pFilename, 0, &pObject->sd->m_pFile))
+	if (!sf_AddUsedFile(pFileMgr, pStruct->m_Filename, 0, &pObject->sd->m_pFile))
 	{
-		DEBUG_PRINT(1, ("Couldn't find model file %s.  Trying models/default.abc", pFilename));
+		DEBUG_PRINT(1, ("Couldn't find model file %s.  Trying models/default.abc", pStruct->m_Filename));
 
-		pFilename = "models\\default.abc";
-		if (!sf_AddUsedFile(pFileMgr, pFilename, 0, &pObject->sd->m_pFile))
+		if (!sf_AddUsedFile(pFileMgr, "models\\default.abc", 0, &pObject->sd->m_pFile))
 		{
 			RETURN_ERROR_PARAM(1, se_InitModel, LT_MISSINGFILE, pStruct->m_Filename);
 		}
+
+		pFilename = "models\\default.abc";
 	}
 
 	// Setup the skins.
@@ -431,7 +488,8 @@ static LTRESULT se_InitSprite(CServerMgr *pServerMgr, LTObject *pObject, ObjectC
 	return LT_OK;
 }
 
-// Register allocation: pServerMgr and the zero constant swap ebx/edi.
+// Register allocation: pServerMgr and the zero constant swap ebx/edi (the original: ebx = 0, edi = pServerMgr).
+// Wave 5 tried: local declaration order, pInstance in Setup, a MainWorld pointer local: no change.
 // STUB: LITHTECH 0x00478de0
 static LTRESULT se_InitWorldModel(CServerMgr *pServerMgr, LTObject *pObject, ObjectCreateStruct *pStruct)
 {

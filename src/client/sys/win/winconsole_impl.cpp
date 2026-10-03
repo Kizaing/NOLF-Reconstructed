@@ -972,7 +972,8 @@ void CConsole::EndNav()
 	SetState( STATE_NORMAL );
 }
 
-// The original stores the OptimizeSurface result before loading m_fBackgroundAlpha for the call.
+// The original stores the OptimizeSurface result before loading m_fBackgroundAlpha for the call. GetBackgroundAlpha()
+// goes through fld/fstp instead of an integer load (worse); a local, a dOpt temp and `this->` change nothing.
 // STUB: LITHTECH 0x00421a70
 LTRESULT CConsole::LoadBackground()
 {

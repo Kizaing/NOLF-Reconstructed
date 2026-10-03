@@ -6,6 +6,7 @@
 #include "ltbasedefs.h"
 
 class MoveAbstract;
+class MoveState;
 class WorldBsp;
 class LTObject;
 struct Node;
@@ -68,6 +69,60 @@ struct CollideInfo
 	LTVector	m_VelOffset;		// 0x20
 };
 
+
+// "NewCollision" and "NewStairStep" console variables (the table at 0x004d2424).
+// GLOBAL: LITHTECH 0x004d2164
+extern int32 g_CV_NewCollision;
+// 0 = the old (Talon) stair step and object collision path, else the newer one.
+// GLOBAL: LITHTECH 0x004d2168
+extern int32 g_CV_NewStairStep;
+
+
+// The objects a sphere move can hit (shared by moveobject.cpp's MoveObject and collision.cpp's MoveSphere).
+#define MAX_INTERSECTING_OBJECTS	128
+
+struct IntersectingObject
+{
+	LTObject	*m_pObject;
+	float		m_fDistSqr;		// From the start of the move to the overlap's center.
+};
+
+class IntersectingObjectArray
+{
+public:
+	MoveState			*m_pState;		// 0x00
+	int32				m_nObjects;		// 0x04
+	IntersectingObject	m_Objects[MAX_INTERSECTING_OBJECTS];	// 0x08
+
+	IntersectingObjectArray()
+	{
+		m_nObjects = 0;
+	}
+};
+
+// Talon sphere physics (FLAG2_SPHEREPHYSICS) move request, 0x140 bytes.
+struct SphereMoveInfo
+{
+	LTObject				*m_pObj;		// 0x00
+	MoveState				*m_pState;		// 0x04
+	IntersectingObjectArray	*m_pObjects;	// 0x08 the objects it can hit
+	LTVector				m_vStartPos;	// 0x0c
+	LTVector				m_vDestPos;		// 0x18 in: where it wants to go, out: where it ended up
+	float					m_fRadius;		// 0x24
+	float					m_fHitTime;		// 0x28
+	LTVector				m_vHitNormal;	// 0x2c
+	uint8					m_nIterations;	// 0x38
+	uint8					m_Pad39[3];
+	int32					m_nNormals;		// 0x3c
+	LTVector				m_Normals[10];	// 0x40
+	int32					m_nGroundNormals;	// 0xb8
+	LTVector				m_GroundNormals[10];	// 0xbc
+	int32					m_bGround;		// 0x134
+	uint8					m_Pad138[0x140 - 0x138];
+};
+
+// Moves a sphere physics object (0x00419d40).
+LTBOOL MoveSphere(SphereMoveInfo *pInfo);
 
 // Does this box intersect this BSP tree? (0x0041aed0)
 LTBOOL DoesBoxIntersectBSP(Node *pRoot, LTVector &vMin, LTVector &vMax);

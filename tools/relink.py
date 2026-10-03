@@ -3,7 +3,9 @@ r"""Relink spike: link target (and base) objects with data/import/resource stand
   python tools/build.py                       # first (in a worktree: set VC6CL=tools\vc6cl_wt.bat)
   python tools/relink.py                      # every unit from its target object   -> .text/.rdata/.data/.rsrc identical
   python tools/relink.py --mode mixed         # fully matched units from their base objects
-  python tools/relink.py --mode mixed --only client/cnet,shared/nexus [--report-data] [--stage prep]
+  python tools/relink.py --mode mixed --only client/cnet,shared/nexus [--report-data] [--stage prep] [--show-order]
+                                              (--show-order lists each unit's function emission order with the descents marked;
+                                               --data-detail lists each unit's data symbols with their exe addresses, '>>' = out of order)
   python tools/relink_cmp.py [new.exe]        # headers, per-section and per-byte comparison with the original
 
 What it builds in build/relink (RELINK_OUT overrides):
@@ -475,6 +477,9 @@ class Prepared:
         emit = sorted((k, value, va) for k, lst in funcs.items() if k in code for value, nm, va in lst if va in own)
         descents = sum(1 for x, y in zip(emit, emit[1:]) if y[2] < x[2])
         self.order_report[u.name] = (len(emit), descents)
+        names = {(k, value): nm for k, lst in funcs.items() for value, nm, va in lst}
+        self.order_detail = getattr(self, 'order_detail', {})
+        self.order_detail[u.name] = [(va, names[(k, value)]) for k, value, va in emit]
         # canonical names for the functions this object defines
         include = []
         for idx, s in enumerate(o.syms):
@@ -592,6 +597,32 @@ def data_report(prep):
     return out, tot
 
 
+def data_detail(prep, only=None):
+    """For every unit (or those in `only`): the data symbols the unit's code refers to, in (section, offset) order, with the
+    address the exe's code implies for each. Within one plain .data/.bss section the addresses must ascend; a '>>' marks
+    a symbol that sits below its predecessor in the exe, i.e. VC6 would have to define it earlier in the source."""
+    F = coffedit
+    for name, (o, refs) in sorted(prep.data_refs.items()):
+        if only and name not in only:
+            continue
+        syms = {}
+        for secno, value, tva, sname in refs:
+            syms[(secno, value, sname)] = tva
+        rows = sorted(syms.items())
+        if not rows:
+            continue
+        print('== data symbols of %s' % name)
+        prev, prevsec = 0, None
+        for (secno, value, sname), tva in rows:
+            sec = o.sections[secno - 1]
+            if secno != prevsec:
+                prev, prevsec = 0, secno
+            kind = 'bss' if sec.flags & F.SCN_CNT_UNINIT else 'data'
+            cls = 'comdat' if sec.flags & F.SCN_LNK_COMDAT else 'plain'
+            print('  %s sec%-3d %-6s %-6s +%-5x %08x  %s' % ('>>' if tva < prev and cls == 'plain' else '  ', secno, sec.name, cls, value, tva, sname))
+            prev = max(prev, tva) if cls == 'plain' else prev
+
+
 # ------------------------------------------------------------------------------------------ data stand-in
 
 def make_rsrc_obj(orig):
@@ -667,6 +698,8 @@ def main():
     ap.add_argument('--link-flag', action='append', default=[], help='extra LINK flag (repeatable)')
     ap.add_argument('--report-data', action='store_true', help='mixed mode: compare the base objects' + chr(39) + ' data sections with the exe')
     ap.add_argument('--only', help='mixed mode: comma-separated unit names allowed to use their base object')
+    ap.add_argument('--data-detail', action='store_true', help='mixed mode: per unit, every data symbol the code refers to, in the base object section/offset order with the address the exe gives it; ">>" marks a symbol whose address is below the previous one (the variable order differs from the original)')
+    ap.add_argument('--show-order', action='store_true', help='mixed mode: list, per unit, the base objects function emission order (VA, name) with ">>" at every descent')
     ap.add_argument('--order', action='store_true', help='pass /ORDER (not needed: object order = address order)')
     a = ap.parse_args()
     EXTRA_LINK_FLAGS.extend(a.link_flag)
@@ -687,9 +720,18 @@ def main():
             rep, tot = data_report(prep)
             json.dump(rep, open(os.path.join(OUT, 'data_report.json'), 'w'), indent=1)
             print('data sections of the base objects: %s' % json.dumps(tot, sort_keys=True))
+        if a.data_detail:
+            data_detail(prep, set(a.only.split(',')) if a.only else None)
         bad = {n: r for n, r in prep.order_report.items() if r[1]}
         print('units whose base object emits functions out of address order: %d of %d: %s' % (
             len(bad), len(prep.order_report), ', '.join('%s(%d/%d)' % (n, r[1], r[0]) for n, r in sorted(bad.items()))))
+        if a.show_order:
+            for n in sorted(bad):
+                print('== %s (emission order; >> = address goes down)' % n)
+                prev = 0
+                for va, nm in prep.order_detail[n]:
+                    print('  %s %08x %s' % ('>>' if va < prev else '  ', va, nm))
+                    prev = va
     print("sliced %d interleaved library objects" % len(prep.sliced))
     prep.write()
     print('objects %d, renamed %d, unresolved %d, data symbols %d' % (

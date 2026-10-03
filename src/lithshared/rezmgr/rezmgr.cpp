@@ -1999,5 +1999,6 @@ void CRezMgr::SetUserTitle(const char* sUserTitle)
 }
 
 
-// Out-of-line hash table destructor (rezhash.h inline, ICF-shared by the other table types):
-// FUNCTION: LITHTECH 0x004b0170 ??1CRezItmHashTableByID@@QAE@XZ
+// Out-of-line hash table destructor (rezhash.h inline, ICF-shared by the other table types; the surviving copy sits after
+// CRezDir::CRezDir, so it is the CRezDirHashTable one):
+// FUNCTION: LITHTECH 0x004b0170 ??1CRezDirHashTable@@QAE@XZ

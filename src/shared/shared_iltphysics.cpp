@@ -8,7 +8,7 @@
 
 // Talon world info flags (Jupiter de_world.h).
 #define WIF_MAINWORLD		(1<<2)
-#define WIF_PHYSICSBSP		(1<<3)
+#define WIF_UNKNOWN3		(1<<3)	// not WIF_PHYSICSBSP (1<<4, de_world.h): IsWorldObject tests bit 3 in Talon
 
 #define HObjToLTObj(hObj)	((LTObject*)(hObj))
 
@@ -139,7 +139,7 @@ LTRESULT ILTPhysics::IsWorldObject(HOBJECT hObj)
 
 	if(pObj && pObj->m_ObjectType == OT_WORLDMODEL &&
 		((((WorldModelInstance*)pObj)->m_pOriginalBsp->GetWorldInfoFlags() & WIF_MAINWORLD) ||
-		(((WorldModelInstance*)pObj)->m_pOriginalBsp->GetWorldInfoFlags() & WIF_PHYSICSBSP)))
+		(((WorldModelInstance*)pObj)->m_pOriginalBsp->GetWorldInfoFlags() & WIF_UNKNOWN3)))
 	{
 		return LT_YES;
 	}

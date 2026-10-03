@@ -465,8 +465,7 @@ HRESULT CLTDMFileStream::Close()
 	return S_OK;
 }
 
-// Identical to CLTDMMemStream::QueryInterface (folded).
-// FUNCTION: LITHTECH 0x0044bab0 ?QueryInterface@CLTDMFileStream@@UAGJABU_GUID@@PAPAX@Z
+// Identical to CLTDMMemStream::QueryInterface (folded); the linker kept the memory stream's copy (0x0044bab0).
 STDMETHODIMP CLTDMFileStream::QueryInterface( const IID &riid, void **ppvObj )
 {
     if (riid == IID_IUnknown || riid == IID_IStream) {
@@ -673,8 +672,8 @@ STDMETHODIMP CLTDMFileStream::Seek( LARGE_INTEGER dlibMove, unsigned long dwOrig
 
 
 // The E_NOTIMPL stubs below were folded with each other and with the memory stream's and loader's.
-// FUNCTION: LITHTECH 0x0044b9b0
-STDMETHODIMP CLTDMFileStream::SetSize( ULARGE_INTEGER /*libNewSize*/ )
+// FUNCTION: LITHTECH 0x0044b990
+STDMETHODIMP CLTDMFileStream::Commit( unsigned long /*grfCommitFlags*/ )
 {
 	return E_NOTIMPL;
 }
@@ -687,13 +686,12 @@ STDMETHODIMP CLTDMFileStream::CopyTo( IStream* /*pstm */, ULARGE_INTEGER /*cb*/,
 	return E_NOTIMPL;
 }
 
-// FUNCTION: LITHTECH 0x0044b990
-STDMETHODIMP CLTDMFileStream::Commit( unsigned long /*grfCommitFlags*/ )
+// FUNCTION: LITHTECH 0x0044b9b0
+STDMETHODIMP CLTDMFileStream::SetSize( ULARGE_INTEGER /*libNewSize*/ )
 {
 	return E_NOTIMPL;
 }
 
-// FUNCTION: LITHTECH 0x0044bcb0
 STDMETHODIMP CLTDMFileStream::Revert()
 {
 	return E_NOTIMPL;
@@ -782,6 +780,7 @@ HRESULT CLTDMMemStream::Close()
 	return S_OK;
 }
 
+// FUNCTION: LITHTECH 0x0044bab0 ?QueryInterface@CLTDMMemStream@@UAGJABU_GUID@@PAPAX@Z
 STDMETHODIMP CLTDMMemStream::QueryInterface( const IID &riid, void **ppvObj )
 {
     if (riid == IID_IUnknown || riid == IID_IStream) {
@@ -847,7 +846,6 @@ STDMETHODIMP CLTDMMemStream::Read( void* pv, ULONG cb, ULONG* pcbRead )
 	return E_FAIL ;
 }
 
-// FUNCTION: LITHTECH 0x0044c420
 STDMETHODIMP CLTDMMemStream::Write( const void* pv, ULONG cb, ULONG* pcbWritten )
 {
     return E_NOTIMPL;
@@ -900,6 +898,7 @@ STDMETHODIMP CLTDMMemStream::Commit( unsigned long /*grfCommitFlags*/ )
 	return E_NOTIMPL;
 }
 
+// FUNCTION: LITHTECH 0x0044bcb0
 STDMETHODIMP CLTDMMemStream::Revert()
 {
 	return E_NOTIMPL;
@@ -1322,6 +1321,7 @@ STDMETHODIMP CLTDMLoader::SetSearchDirectory(REFCLSID rguidClass, const char* sP
 }
 
 
+// FUNCTION: LITHTECH 0x0044c420
 STDMETHODIMP CLTDMLoader::ScanDirectory(
 	REFCLSID rguidClass,	// Class id identifies which class of objects this pertains to.
 	WCHAR *pszFileExtension,// File extension for type of file to look for.
@@ -1376,5 +1376,5 @@ STDMETHODIMP CLTDMLoader::EnumObject(
 // thunks were folded into the file stream's).
 // FUNCTION: LITHTECH 0x0044c430 ?AddRef@CLTDMFileStream@@W3AGKXZ
 // FUNCTION: LITHTECH 0x0044c440 ?Release@CLTDMFileStream@@W3AGKXZ
-// FUNCTION: LITHTECH 0x0044c450 ?QueryInterface@CLTDMFileStream@@W3AGJABU_GUID@@PAPAX@Z
+// FUNCTION: LITHTECH 0x0044c450 ?QueryInterface@CLTDMMemStream@@W3AGJABU_GUID@@PAPAX@Z
 // FUNCTION: LITHTECH 0x0044c460 ?Release@CLTDMMemStream@@W3AGKXZ

@@ -19,6 +19,10 @@
 #include "version_info.h"
 #include "musicmgr.h"
 #include "demomgr.h"
+#ifdef CLIENTMGR_REAL_MEMBERS
+#include "soundmgr.h"
+#include "cloaderthread.h"
+#endif
 
 // Talon client file manager handle (client_filemgr).
 struct ClientFileMgr;
@@ -117,7 +121,11 @@ public:
 	LTVector		m_vUnknown760;		// 0x0760 handed to the renderer (SceneDesc+0x38)
 	LTVector		m_GlobalLightScale;	// 0x076c (values 0-2)
 	LTVector		m_GlobalVertexTint;	// 0x0778 (values 0-1)
-	uint8			m_SoundMgr[0x910];	// 0x0784 CSoundMgr (soundmgr.h; 0x910 bytes), the client ILTSoundMgr
+#ifdef CLIENTMGR_REAL_MEMBERS
+	CSoundMgr		m_SoundMgr;			// 0x0784 (soundmgr.h; 0x910 bytes), the client ILTSoundMgr
+#else
+	uint8			m_SoundMgr[0x910];	// 0x0784 CSoundMgr (soundmgr.h), the client ILTSoundMgr
+#endif
 	SMusicMgr		m_MusicMgr;			// 0x1094
 	char			m_MusicDLLName[256];	// 0x1104
 	LTLink			m_TextureUsers;		// 0x1204 objects whose +0xc0 is a SharedTexture* (cm_TagUsedTextures; type unknown)
@@ -134,11 +142,15 @@ public:
 	struct ObjectMapEntry	*m_ObjectMap;	// 0x12ec (indexed by object ID; servermgr.h)
 	uint32			m_ObjectMapSize;	// 0x12f0
 	RateTracker		m_FramerateTracker;	// 0x12f4
-	uint8			m_Pad1300[0x1364 - 0x1300];
+#ifdef CLIENTMGR_REAL_MEMBERS
+	CDebugGraphMgr	m_DebugGraphMgr;	// 0x1300 (0x64 bytes)
+#else
+	uint8			m_Pad1300[0x1364 - 0x1300];	// the CDebugGraphMgr
+#endif
 	float			m_LastTime;			// 0x1364 m_CurTime of the previous frame (demomgr)
 	float			m_FrameTime;		// 0x1368
 	float			m_CurTime;			// 0x136c (pd_InitialServerUpdate)
-	uint8			m_Pad1370[0x1374 - 0x1370];
+	uint32			m_Unknown1370;		// 0x1370
 	struct SurfaceSprite	*m_SurfaceSprites;	// 0x1374 animated world textures (clientshell.h)
 	ConsoleState	m_ServerConsoleMirror;	// 0x1378
 	uint8			m_Commands[2][255];	// 0x13bc command states per input slot
@@ -165,9 +177,15 @@ public:
 	const char		*m_ResTrees[20];	// 0x1648 (Init)
 	uint32			m_nResTrees;		// 0x1698
 	CDemoMgr		m_DemoMgr;			// 0x169c (demomgr.h)
-	// CLoaderThread (cloaderthread.h, 0x64 bytes). Kept opaque here: lthread.h needs <windows.h>
-	// before StdLith, which not every includer of this header has. Use LOADERTHREAD(pMgr).
+	// CLoaderThread (cloaderthread.h, 0x64 bytes). Kept opaque unless the includer defines
+	// CLIENTMGR_REAL_MEMBERS (only clientmgr.cpp, which builds the inline constructor and destructor):
+	// lthread.h needs <windows.h> before StdLith, which not every includer of this header has.
+	// Use LOADERTHREAD(pMgr).
+#ifdef CLIENTMGR_REAL_MEMBERS
+	CLoaderThread	m_LoaderThread;		// 0x16b8
+#else
 	uint8			m_LoaderThread[0x64];	// 0x16b8
+#endif
 	class Model		*m_pDefaultModel;	// 0x171c ref-counted Model made by cm_Init (name unknown)
 	VideoMgr		*m_pVideoMgr;		// 0x1720
 	ILTCursor		*m_pCursorMgr;		// 0x1724
@@ -175,6 +193,7 @@ public:
 	uint16			m_CurTextureFrameCode;	// 0x22bc (IncCurTextureFrameCode)
 	uint8			m_Pad22be[0x22c0 - 0x22be];
 	ILTDirectMusicMgr	*m_pDirectMusicMgr;	// 0x22c0
+	uint32			m_Unknown22c4;		// 0x22c4
 };
 
 // Layout checks: a member that moves breaks the build here instead of silently shifting offsets.
@@ -210,7 +229,14 @@ CM_CHECKOFFSET(m_pDefaultModel, 0x171c)
 CM_CHECKOFFSET(m_FormatMgr, 0x1728)
 CM_CHECKOFFSET(m_pDirectMusicMgr, 0x22c0)
 
+CM_CHECKOFFSET(m_Unknown22c4, 0x22c4)
+typedef char CM_CheckSize[(sizeof(CClientMgr) == 0x22c8) ? 1 : -1];
+
+#ifdef CLIENTMGR_REAL_MEMBERS
+#define LOADERTHREAD(pMgr)	(&(pMgr)->m_LoaderThread)
+#else
 #define LOADERTHREAD(pMgr)	((CLoaderThread*)(pMgr)->m_LoaderThread)
+#endif
 
 // GLOBAL: LITHTECH 0x004defac
 extern CClientMgr *g_pClientMgr;

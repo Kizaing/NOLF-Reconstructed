@@ -21,9 +21,6 @@ struct VisQueryInfo
 	uint32			m_FrameCode;	// 0x1c the world tree's frame code
 };
 
-// Collects the objects of a list that haven't been seen this query (0x0049e6b0).
-void vq_DefaultGetObjects(LTLink *pListHead, LTObject ***pppObjects, int *pnObjects);
-
 // GLOBAL: LITHTECH 0x004e6270
 extern VisQueryInfo *g_pCurVisQuery;
 
