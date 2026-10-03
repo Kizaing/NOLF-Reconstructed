@@ -524,7 +524,10 @@ def resolve(objs, exe, gh, log):
                 pool = by_obj[a.ob.id] + by_fam[FAMILY.get(a.ob.lib, a.ob.lib)]
                 fits = []
                 for x in pool:
-                    if x.va is None and x.status is None and len(x.data) <= 4096 and x.matches_at(exe, g)                             and not overlaps(x, g):
+                    # a tiny section (a 1-byte ret) can be marked 'dup' because every byte-search hit overlaps other
+                    # code; right after accepted code of its own object it is still placeable (fpinit's __fpclear)
+                    if x.va is None and (x.status is None or (x.status == 'dup' and x.ob.id == a.ob.id)) \
+                            and len(x.data) <= 4096 and x.matches_at(exe, g)                             and not overlaps(x, g):
                         bad, good, st = contradictions(x, g, True)
                         if not bad:
                             fits.append((-st, x.ob.id != a.ob.id, -len(x.data), rank(x), id(x), x))
@@ -821,7 +824,7 @@ def main():
     out = {'units': sorted(units.values(), key=lambda u: u['name']),
            'names': {'%08x' % k: v for k, v in sorted(names.items())},
            'source_built_matches': {k: dict(sorted(v.items())) for k, v in sorted(srcbuilt.items())}}
-    json.dump(out, open(a.out, 'w'), indent=1)
+    json.dump(out, open(a.out, 'w', newline=''), indent=1)
     print('\n'.join(rep[:60]))
     print('... full report: %s' % a.report)
 

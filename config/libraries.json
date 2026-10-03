@@ -10225,6 +10225,7 @@
    "comp_id": "10/8047",
    "functions": {
     "004b42e0": "__fpmath",
+    "004b42f7": "__fpclear",
     "004b42f8": "__cfltcvt_init"
    },
    "sections": {
@@ -10238,6 +10239,21 @@
       [
        0,
        "__fpmath",
+       2,
+       32
+      ]
+     ]
+    ],
+    "004b42f7": [
+     5,
+     1,
+     "exact",
+     "gapfill",
+     ".text",
+     [
+      [
+       0,
+       "__fpclear",
        2,
        32
       ]
@@ -16990,6 +17006,7 @@
   "004b27f0": "??1?$_Mpunct@G@std@@UAE@XZ",
   "004b2800": "??_D?$basic_istream@DU?$char_traits@D@std@@@std@@QAEXXZ",
   "004b42e0": "__fpmath",
+  "004b42f7": "__fpclear",
   "004b42f8": "__cfltcvt_init",
   "004b4330": "__ftol",
   "004b4357": "__purecall",
