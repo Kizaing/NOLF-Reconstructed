@@ -1013,12 +1013,10 @@ void CServerMgr::ProcessLoaderMessages()
 	}
 }
 
-// Close: VC6 saves ebx/ebp later and loads updateFlags into al first (+1 byte shift).
-// Wave 6: the original pushes ebp (i) with ebx (nSteps) before the RUNNINGWORLD test and pops both after the
-// ShowGameTime block; ours keeps ebp to the inner block. Tried `== 0`, `~x & 1`, a combined `!(a || b)`: 9 aligned.
-// Wave 7 phase 2: audit: behaviour matches (9 aligned).
-// PARKED: callee-saved push placement (ebx/ebp saved before the RUNNINGWORLD test in the exe); behaviour identical
-// STUB: LITHTECH 0x00483520
+// Matched by tools/permute.py: the paused/non-active branch comes first, the single-step loop is written as
+// i = 0; if (i < 1) do { ... i++; } while (i < 1), fFrameTime lives in the running branch and curTime is read
+// through a local copy (that gives the exe's early ebx/ebp pushes before the RUNNINGWORLD test).
+// FUNCTION: LITHTECH 0x00483520
 LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 {
 	float fFrameTime;
@@ -1031,7 +1029,8 @@ LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 	m_TrueFrameTime = curTime - m_LastTime;
 	m_LastTime = curTime;
 
-	m_NetMgr.Update("Server: ", curTime, LTTRUE);
+	float fCurTime = curTime;
+	m_NetMgr.Update("Server: ", fCurTime, LTTRUE);
 
 	// Clear the profiling counters.
 	g_Ticks_MoveObject = 0;
@@ -1048,8 +1047,14 @@ LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 
 	if (m_State == SERV_RUNNINGWORLD)
 	{
-		if (!(updateFlags & UPDATEFLAG_NONACTIVE) && !(m_ServerFlags & SFLAG_PAUSED))
+		if ((updateFlags & UPDATEFLAG_NONACTIVE) || (m_ServerFlags & SFLAG_PAUSED))
 		{
+			m_LastTime = fCurTime;
+			sm_UpdateClientStates(this);
+		}
+		else
+		{
+			float fFrameTime;
 			// Restart the target time if the update rate changed.
 			if (g_ServerFPS != m_LastServerFPS)
 			{
@@ -1073,38 +1078,38 @@ LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 
 			m_GameTime += m_FrameTime;
 
-			for (i=0; i < 1; i++)
+			i=0;
+			if (i < 1)
 			{
-				UpdateSounds(m_FrameTime);
-
-				// Debug frame stepping.
-				if ((m_InternalFlags & SIFLAG_FRAMESTEP) && !(m_InternalFlags & SIFLAG_FRAMESTEPRUN))
+				do
 				{
-					if (m_nFramesToSkip == 0)
+					UpdateSounds(m_FrameTime);
+
+					// Debug frame stepping.
+					if ((m_InternalFlags & SIFLAG_FRAMESTEP) && !(m_InternalFlags & SIFLAG_FRAMESTEPRUN))
 					{
-						for (;;)
+						if (m_nFramesToSkip == 0)
 						{
+							for (;;)
+							{
+							}
 						}
+						--m_nFramesToSkip;
 					}
-					--m_nFramesToSkip;
-				}
 
-				if (m_ClassMgr.m_pServerShell)
-					m_ClassMgr.m_pServerShell->Update(m_FrameTime);
+					if (m_ClassMgr.m_pServerShell)
+						m_ClassMgr.m_pServerShell->Update(m_FrameTime);
 
-				UpdateObjects();
+					UpdateObjects();
 
-				m_TrueFrameTime = 0.0f;
-				++m_FrameCode;
+					m_TrueFrameTime = 0.0f;
+					++m_FrameCode;
+					i++;
+				} while (i < 1);
 			}
 
 			m_nTargetTimeSteps += nSteps;
 			m_TargetTime = (float)m_nTargetTimeSteps * fFrameTime + m_TargetTimeBase;
-		}
-		else
-		{
-			m_LastTime = curTime;
-			sm_UpdateClientStates(this);
 		}
 
 		sm_FinishUpdateFrame(this);

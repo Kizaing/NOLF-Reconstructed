@@ -130,28 +130,18 @@ LTRESULT CLTTexMod::GetTextureHandle(char *pFilename, HTEXTURE &hTexture, const 
 static LTBOOL texmod_IsValidTexture(SharedTexture *pTexture);
 
 
-// GetTextureHandle matches with SetRefCount(GetRefCount() + 1) (xor-on-memory with two reads); the same idiom here
-// gives the right size, but the original reads m_RefCount once, merges (old & 0x7fff) - 1 in registers, stores the
-// word and tests the merged value (15 aligned). Tried: the ST_REFS bitfield view (folds the mask into a lea, 11
-// aligned but 16 bytes short), single-expression merges, a uint16 inline setter, a count local, `!(m_RefCount & mask)`.
-// Wave 7 phase 2: audit: only `data -1 +1`, the FN_NAME function static (0x4d7cc0, unnamed in the exe): behaviour
-// matches. The exe (+0x4e..+0x6b) is a register bitfield store: x = m_RefCount; y = (x & 0x7fff) - 1;
-// m_RefCount = ((x ^ y) & 0x7fff) ^ x, tested in the register before the word store. Ours (SetRefCount) is the
-// xor-on-memory form with two reads (144 bytes, 15 aligned). Every register form tried (ST_REFS bitfield = GetRefCount()-1
-// or ST_REFS-1, `--`, a uint16/uint32/int count, single-expression and xor merges, file-local setters with bitfield or
-// mask bodies, each with a GetRefCount() or ST_REFS test) drops the `and ecx, 0x7fff` and gives `lea eax, [ecx-1]`
-// (128 bytes, 11 aligned). Untried: a bitfield declared in SharedTexture itself (shared header de_world.h) with the
-// count field not at bit 0 or a signed field type.
-// PARKED: bitfield decrement codegen (the exe keeps the and-mask before dec); no source form found; behaviour identical
-// STUB: LITHTECH 0x0049b0c0
+// Matched by tools/permute.py: the handle is used through a const local copy (hTex); SetRefCount(GetRefCount() - 1)
+// then compiles to the exe's register form (and 0x7fff before the dec) instead of the xor-on-memory form.
+// FUNCTION: LITHTECH 0x0049b0c0
 LTRESULT CLTTexMod::ReleaseTextureHandle(const HTEXTURE hTexture)
 {
 	FN_NAME(LTTexMod::ReleaseTextureHandle);
 
-	CHECK_PARAMS2(texmod_IsValidTexture(hTexture));
+	const HTEXTURE hTex = hTexture;
+	CHECK_PARAMS2(texmod_IsValidTexture(hTex));
 
-	hTexture->SetRefCount(hTexture->GetRefCount() - 1);
-	if(hTexture->GetRefCount() == 0)
+	hTex->SetRefCount(hTex->GetRefCount() - 1);
+	if(hTex->GetRefCount() == 0)
 	{
 		if(hTexture->m_pEngineData)
 			dtx_Destroy((TextureData*)hTexture->m_pEngineData);

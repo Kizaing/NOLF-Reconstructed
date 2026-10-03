@@ -436,32 +436,24 @@ inline void tmgr_RasterizeText_T(
 }
 
 
-// One byte differs: the 16-bit foreground+background loop addresses [ecx+eax] where the original has [eax+ecx].
-// Phase 2 also tried: `!= 0`, the inverted test (7), `*pSrcPos++` in the test (50), a ternary store (61).
-// Tried without effect: declaration order of the template's locals, order of `++pSrcPos; ++destPos;` (worse), order of
-// the two pointer initialisations (worse), `while(xCounter--)`, `pSrcPos += srcX`, `srcX + ptr`, `!= 0`.
-// Wave 7 phase 2: audit: behaviour matches (no call/constant difference). Also tried `&((uint16*)pSrcLine)[srcX]`,
-// braced if/else bodies, `pSrcPos[0]` (all still 1), `*pSrcPos == 0` with swapped arms (7). The remaining
-// instruction is at +0x3ba, the 16-bit fg+bg loop: VC6 rewrites pSrcPos as destPos + (2*srcX - pDestLine +
-// pSrcLine) and our base/index order is [ecx(destPos) + eax(delta)], the exe's [eax + ecx]. Our template is
-// Jupiter's text verbatim. Untried: the template definition order in the file (symbol-table order), a Pixel16
-// copy with a different member order (shared header interface_helpers.h).
-// PARKED: one commutative address operand order ([ecx+eax] vs [eax+ecx]) in the inlined 16-bit tmgr_RasterizeText_T
-// STUB: LITHTECH 0x0049bae0
+// Matched by tools/permute.py: the last transparency test reads a copy of hBackColor taken before the bitmap
+// check, and bIsVisible/pSrcLine are declared at their first use (that fixes the [eax+ecx] operand order in the
+// inlined 16-bit tmgr_RasterizeText_T).
+// FUNCTION: LITHTECH 0x0049bae0
 static void tmgr_DrawTextToSurface(CisSurface *pDest, LTRect *pSrcRect, LTRect *pDestRect,
 	HLTCOLOR hForeColor, HLTCOLOR hBackColor)
 {
 	LTRect srcRect, destRect;
-	LTBOOL bIsVisible;
-	uint8 *pSrcLine;
 	uint8 *pDestLine;
 	long destPitch;
 	GenericColor gcForeColor, gcBackColor;
 
+	HLTCOLOR hBackColorCopy = hBackColor;
 	if(!g_pTextBitmapBits)
 		return;
 
 	// Clip the rectangles..
+	int bIsVisible;
 	bIsVisible = cis_ClipRectsNonScaled(
 		g_TextBitmapWidth, g_TextBitmapHeight,
 		pSrcRect->left, pSrcRect->top, pSrcRect->right, pSrcRect->bottom,
@@ -475,6 +467,7 @@ static void tmgr_DrawTextToSurface(CisSurface *pDest, LTRect *pSrcRect, LTRect *
 	if(!pDestLine)
 		return;
 
+	uint8 *pSrcLine;
 	pSrcLine = (uint8*)g_pTextBitmapBits;
 	pSrcLine += srcRect.top*g_TextBitmapPitch;
 	pDestLine += destRect.top*destPitch + destRect.left*g_nScreenPixelBytes;
@@ -504,7 +497,7 @@ static void tmgr_DrawTextToSurface(CisSurface *pDest, LTRect *pSrcRect, LTRect *
 				gcBackColor, (Pixel32*)LTNULL);
 		}
 	}
-	else if(IsColorTransparent(hBackColor))
+	else if(IsColorTransparent(hBackColorCopy))
 	{
 		if(g_ScreenFormat.m_eType == BPP_16)
 		{

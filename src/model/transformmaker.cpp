@@ -197,26 +197,17 @@ float TransformMaker::BlendTransform(uint32 iAnim, uint32 iNode, float fTotalWei
 }
 
 
-// Remaining diff (13 bytes): the original pushes &m_mRelation (lea esi+0x144) before it computes
-// &m_pChildInfo->m_Relation[iNode] (lea ebp after the push); ours computes the relation pointer first. Tried:
-// m_pRelation/pRelation assigned before/after ConvertToMatrix, a local LTMatrix pointer, direct quat_ConvertToMatrix.
-// Wave 6 tried: the assignment inside the call expression, GetArray()[iNode], GetArray() + iNode, Get(iNode), a
-// ChildInfo local, and a statement hill-climb: no change (6 aligned mismatches; edx/eax swap plus the lea order).
-// Wave 7 phase 2: audit: only `data -2 +2`, the function static mScratchMat (0x4e6230, unnamed in the exe): no
-// behaviour difference. 6 aligned at +0x13b..+0x156 (edx/eax swapped for m_pChildInfo / iNode*28 and the lea of
-// &m_mRelation issued before the relation pointer). Tried: the relation assignment inside quat_ConvertToMatrix's
-// argument (same 6; without the pRelation local it is SIZE 576), Jupiter's pNode = GetNode() at the top or after
-// InitTransform (42-43), the relation computed before the first MatMul (21).
-// PARKED: register choice (edx/eax) and one lea order around ConvertToMatrix(m_mRelation); 6 aligned
-// STUB: LITHTECH 0x0049cd00
+// Matched by tools/permute.py: the locals in this declaration order, the loop counter declared at its loop, and
+// the node offset passed to SetTranslation through a named copy and a reference to it (that gives the exe's
+// register choice and lea order around ConvertToMatrix(m_mRelation)).
+// FUNCTION: LITHTECH 0x0049cd00
 void TransformMaker::Recurse(uint32 iNode, LTMatrix *pParentT)
 {
-	uint32 i;
-	LTMatrix *pMyGlobal;
-	ModelNode *pNode;
-	float fWeight, fPrevWeight;
 	NodeRelation *pRelation;
 	static LTMatrix mScratchMat;
+	float fWeight, fPrevWeight;
+	ModelNode *pNode;
+	LTMatrix *pMyGlobal;
 
 	for(;;)
 	{
@@ -235,6 +226,7 @@ void TransformMaker::Recurse(uint32 iNode, LTMatrix *pParentT)
 			fWeight = 0.0f;
 		}
 
+		uint32 i;
 		for(i=1; i < m_nAnims; i++)
 		{
 			fWeight += BlendTransform(i, iNode, fWeight, m_Anims[i].m_bNormalize);
@@ -249,7 +241,9 @@ void TransformMaker::Recurse(uint32 iNode, LTMatrix *pParentT)
 		// from the animation.
 		if(pNode->m_Flags & MNODE_ROTATIONONLY)
 		{
-			m_mTemp.SetTranslation(pNode->m_vOffsetFromParent);
+			LTVector vOffset = pNode->m_vOffsetFromParent;
+			LTVector &vOffsetRef = vOffset;
+			m_mTemp.SetTranslation(vOffsetRef);
 		}
 		else
 		{
