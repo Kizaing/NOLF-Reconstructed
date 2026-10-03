@@ -1,15 +1,25 @@
-r"""Relink spike: link build/target (and base) objects with a data stand-in into build/relink/lithtech.exe.
+r"""Relink spike: link target (and base) objects with data/import/resource stand-ins into build/relink/lithtech.exe.
 
-  python tools/build.py          # first: base + target objects, build/{namemap,symva,objvas,objsym}.json
-  python tools/relink.py [--mode targets|mixed] [--stage prep|link|all]
+  python tools/build.py                       # first (in a worktree: set VC6CL=tools\vc6cl_wt.bat)
+  python tools/relink.py                      # every unit from its target object   -> .text/.rdata/.data/.rsrc identical
+  python tools/relink.py --mode mixed         # fully matched units from their base objects
+  python tools/relink.py --mode mixed --only client/cnet,shared/nexus [--report-data] [--stage prep]
+  python tools/relink_cmp.py [new.exe]        # headers, per-section and per-byte comparison with the original
 
-Stages
-  prep     copy every target object to build/relink/obj with its symbols made linkable (unique external names,
-           references resolved by VA, import references renamed to the import library's names), write the data
-           stand-in object (build/relink/standin.obj: .rdata/.data/.bss copied from the original exe, public
-           symbols at the original addresses), the import libraries and the /ORDER file.
-  link     run LINK.EXE.
-Set VC6CL is not needed here; the compiler is only used by build.py.
+What it builds in build/relink (RELINK_OUT overrides):
+  obj/*.obj      the target objects, made linkable: unique external names (a COMDAT leader gets '@<va>' when its
+                 name is used at several addresses, and a leading '_' so that /ORDER can name it), every reference
+                 resolved by address (the target objects only know a name that is unique per object), imports
+                 renamed to __imp__<name>; library objects whose COMDATs sit between other objects' sections are cut
+                 into one object per section so that object order = address order; text that no object covers
+                 (import thunks, DirectInput tables, unwind funclets, NOP padding) comes from gap/<va> objects.
+  standin.obj    .rdata (after the IAT), .data and .bss copied from the exe, with a public symbol at every address a
+                 target or base object refers to.
+  idata.obj      .idata$2..$6 with the exe's import tables and an __imp__<name> symbol at every IAT slot.
+  rsrc.obj       the exe's .rsrc.
+  base__*.obj    (mixed) the unit's base object with its data sections dropped, relocations re-pointed at the
+                 address the exe's own bytes imply, functions renamed to the names the target objects use.
+LINK: /NODEFAULTLIB /BASE:0x400000 /FIXED /SUBSYSTEM:WINDOWS,4.0 /OPT:REF,NOICF, one /INCLUDE per function.
 """
 import argparse
 import json
@@ -29,7 +39,6 @@ OUT = os.path.normpath(os.environ.get('RELINK_OUT') or os.path.join(BUILD, 'reli
 EXE = r'E:\AVP2Source\bin\lithtech.exe'
 MSVC = r'E:\MSVC6\VC98\Bin'
 LINK = os.path.join(MSVC, 'LINK.EXE')
-LIBX = os.path.join(MSVC, 'LIB.EXE')
 IMAGE_BASE = 0x400000
 
 RDATA_LO = 0x4C6480        # first byte after the import address table, 16-aligned
