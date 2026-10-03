@@ -865,19 +865,19 @@ void GetSpherePosTestPolys(SphereMoveInfo *pInfo, WorldPoly **pPolies, int *pnPo
 void OrientMovement(SphereMoveInfo *pInfo);
 
 // Moves a sphere physics object (FLAG2_SPHEREPHYSICS), sliding it along the polygons it hits.
-// Close: 2 of 1136 bytes differ (the x87 operand order of the x term of the crease test
-// `vNormal.Dot(m_Normals[i])` is `fld v.x; fmul this.x`, ours the other way round); everything else matches,
-// including the layout. What got it here: `do {...} while(1)` with the sphere-test failure as a `break` to the
+// The x87 operand order of the crease test's x term (`fld v.x; fmul this.x`) came out right once the remaining
+// fraction is inline in `vDelta * (1.0f - fTime)` instead of an fRemain local: an earlier statement decides it
+// (README, wave 6). Also needed: `do {...} while(1)` with the sphere-test failure as a `break` to the
 // orient code after the loop (a `for(;;)` with the return inside the loop duplicates the loop head), the two "gave
 // up" exits (a normal that is too short, 10 iterations) each restoring pDest and sharing one block, positive
 // forms (`!(x > c)`, `fTime <= m_fHitTime`), a `bool` bFound (byte register), `0 < m_nIterations` for the return
 // (`cmp al,dl; sbb; neg`), the crease test as `vNormal.Dot(m_Normals[i])` (the stack copy is of the normal list's
 // entry), and `m_vDestPos = m_vStartPos` for the exits (member to member loads all three words first).
-// STUB: LITHTECH 0x00419d40
+// FUNCTION: LITHTECH 0x00419d40
 LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 {
 	LTVector vNormal(0.0f, 0.0f, 0.0f);
-	float fTime, fRemain, fDot;
+	float fTime, fDot;
 	int bWall, nPolies, i;
 	bool bFound;
 	LTVector vSlide, vDelta, vRemain, vHitNormal, vUp, vRight, vForward;
@@ -920,8 +920,7 @@ LTBOOL MoveSphere(SphereMoveInfo *pInfo)
 		}
 
 		vDelta = *pDest - *pStart;
-		fRemain = 1.0f - fTime;
-		vRemain = vDelta * fRemain;
+		vRemain = vDelta * (1.0f - fTime);
 		fDot = vNormal.Dot(vRemain);
 		vSlide = vNormal * fDot;
 
