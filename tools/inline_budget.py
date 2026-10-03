@@ -80,12 +80,21 @@ TOOLS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TOOLS)
 sys.path.insert(0, TOOLS)
 import build  # noqa: E402
-from coffobj import undecorate  # noqa: E402
+from coffobj import undecorate as _undecorate  # noqa: E402
+import threading as _threading  # noqa: E402
+_und_lock = _threading.Lock()
+
+
+def undecorate(name, flags=0x1000):
+    """coffobj.undecorate shares one ctypes buffer: serialise it (the cost probes run in threads)."""
+    with _und_lock:
+        return _undecorate(name, flags)
 
 VC6CL = os.environ.get('VC6CL') or r'E:\AVP2Source\scripts\vc6cl.bat'
 COST_CACHE = os.path.join(ROOT, 'build', 'inline_costs.json')
 NAMEMAPS = [os.path.join(ROOT, 'build', 'namemap.json'), r'E:\AVP2Source\decomp\build\namemap.json']
 FLOOR, FREE, MAXDEPTH = 1000, 40, 8
+INTDIV = bool(os.environ.get('IB_INTDIV'))     # experiment: truncate every share to an integer
 # compiler-generated inline candidates whose cost can't be probed with a call expression (toy-measured)
 FIXED_COSTS = {'??_H@YGXPAXIHP6EX0@Z@Z': 49,     # `vector constructor iterator' (arrays of classes with ctors)
                '??_I@YGXPAXIHP6EX0@Z@Z': 64}     # `vector destructor iterator' (arrays of classes with dtors)
@@ -108,24 +117,30 @@ def compile_asm(unit, text, flags=None):
     tmpd = tempfile.mkdtemp(prefix='ib_')
     asm, obj = os.path.join(tmpd, 'a.asm'), os.path.join(tmpd, 'a.obj')
     open(cpp, 'w', newline='', encoding='latin1').write(text)
+    # cl's intermediate files go to a private TMP: parallel compiles otherwise collide ("Broken pipe", truncated
+    # listings that look like inlined calls)
+    env = dict(os.environ, TMP=tmpd, TEMP=tmpd)
     try:
         fl = unit.flags if flags is None else flags
         args = [VC6CL] + build.COMMON_FLAGS + fl + ['/FAs', '/Fa' + asm, '/Fo' + obj, '/Tp' + cpp]
-        r = subprocess.run(['cmd', '/c'] + args, capture_output=True, text=True, cwd=os.path.dirname(cpp))
-        if not os.path.exists(asm) or r.returncode != 0:
+        for attempt in range(3):
+            r = subprocess.run(['cmd', '/c'] + args, capture_output=True, text=True, cwd=os.path.dirname(cpp),
+                               env=env)
+            text_asm = open(asm, encoding='latin1', errors='replace').read() if os.path.exists(asm) else ''
+            if r.returncode == 0 and text_asm.rstrip().endswith('END'):
+                return text_asm
             errs = [l for l in r.stdout.splitlines() if ' error ' in l or 'fatal error' in l]
-            raise CompileError(errs or r.stdout.splitlines()[-5:])
-        return open(asm, encoding='latin1', errors='replace').read()
+            if errs and not any('C1083' in e or 'C1001' in e or 'Broken pipe' in e for e in errs):
+                raise CompileError(errs)
+        raise CompileError(errs or r.stdout.splitlines()[-5:])
     finally:
         for p in (cpp, asm, obj):
             try:
                 os.remove(p)
             except OSError:
                 pass
-        try:
-            os.rmdir(tmpd)
-        except OSError:
-            pass
+        import shutil
+        shutil.rmtree(tmpd, ignore_errors=True)
 
 
 class CompileError(Exception):
@@ -485,7 +500,7 @@ def measure_costs(unit, text, callees, log=print, jobs=6):
         # split into batches compiled in parallel
         nb = max(1, min(jobs, (len(keys) + 7) // 8))
         batches = [keys[i::nb] for i in range(nb)]
-        with concurrent.futures.ThreadPoolExecutor(nb * 2) as ex:
+        with concurrent.futures.ThreadPoolExecutor(int(os.environ.get('IB_THREADS', nb * 2))) as ex:
             fc = [ex.submit(bsearch_parallel, b, 0, BW - 42, rnd_cost) for b in batches]
             fe = [ex.submit(bsearch_parallel, b, 0, 20000, rnd_expr) for b in batches]
             wc, we = {}, {}
@@ -557,6 +572,8 @@ def simulate(sites, limit, costs, depth=1):
             continue
         used += charge
         child = (avail - charge) / (1.0 + s.pending)
+        if INTDIV:
+            child = int(child)
         used += simulate(s.children, child, costs, depth + 1)
     return used
 
