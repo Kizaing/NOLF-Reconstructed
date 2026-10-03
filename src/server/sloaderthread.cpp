@@ -5,6 +5,7 @@
 // FLAGS: /O2 /GX-
 #include "bdefs.h"
 #include "sloaderthread.h"
+#include "sserializehelper.h"
 #include "servermgr.h"
 #include "packet.h"
 #include "stringmgr.h"

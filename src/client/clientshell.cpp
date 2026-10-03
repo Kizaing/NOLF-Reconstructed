@@ -4,7 +4,6 @@
 // (SurfaceSprite) and surface effects animate texture coordinates every frame.
 #include <windows.h>
 #include <string.h>
-#define SERVERMGR_LOADERTHREAD
 #include "bdefs.h"
 #include "clientshell.h"
 #include "clientmgr.h"

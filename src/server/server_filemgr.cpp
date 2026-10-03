@@ -1,6 +1,7 @@
 // Jupiter runtime/server/src/server_filemgr.cpp
 // Talon's file manager is a struct in CServerMgr driven by sf_ functions, and its resource
 // trees are kept in a plain LTLink list.
+#include <windows.h>		// before the StdLith headers (servermgr.h brings in lthread.h)
 #include <string.h>
 #include "bdefs.h"
 #include "server_filemgr.h"

@@ -1,5 +1,6 @@
 // Jupiter runtime/server/src/smoveabstract.cpp
 // Talon's SMoveAbstract keeps its CServerMgr and inlines the s_object helpers.
+#include <windows.h>		// before the StdLith headers (servermgr.h brings in lthread.h)
 #include "bdefs.h"
 #include "ltengineobjects.h"
 #include "smoveabstract.h"

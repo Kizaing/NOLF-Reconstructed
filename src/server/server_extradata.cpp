@@ -307,7 +307,7 @@ LTRESULT se_GetModel(CServerMgr *pServerMgr, char *pFilename, Model **ppModel, U
 	if (!bNow)
 	{
 		// Already loading it?
-		if (((CLoaderThread*)pServerMgr->m_LoaderThread)->IsLoadingFile((FileIdentifier*)*ppFile))
+		if (((CLoaderThread*)&pServerMgr->m_LoaderThread)->IsLoadingFile((FileIdentifier*)*ppFile))
 			return LT_INPROGRESS;
 
 		LThreadMessage msg;
@@ -315,7 +315,7 @@ LTRESULT se_GetModel(CServerMgr *pServerMgr, char *pFilename, Model **ppModel, U
 		msg.m_ID = 0;							// SLT_LOADFILE
 		msg.m_Data[0].m_dwData = FT_MODEL;
 		msg.m_Data[1].m_pData = *ppFile;
-		((CServerLoaderThread*)pServerMgr->m_LoaderThread)->PostMessage(msg);
+		pServerMgr->m_LoaderThread.PostMessage(msg);
 		return LT_INPROGRESS;
 	}
 
