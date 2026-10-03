@@ -1471,9 +1471,9 @@ inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnu
 		bPushAway = IsSolidWorld(pTestObj);
 
 	// If it moves further than its size, check along the whole movement so it can't tunnel.
-	if(fabs(pState->m_vDeltaPos.x) > pState->m_pObj->m_Dims.x ||
-		fabs(pState->m_vDeltaPos.y) > pState->m_pObj->m_Dims.y ||
-		fabs(pState->m_vDeltaPos.z) > pState->m_pObj->m_Dims.z)
+	if(pState->m_pObj->m_Dims.x < fabs(pState->m_vDeltaPos.x) ||
+		pState->m_pObj->m_Dims.y < fabs(pState->m_vDeltaPos.y) ||
+		pState->m_pObj->m_Dims.z < fabs(pState->m_vDeltaPos.z))
 	{
 		vMin = *pState->m_pStartPos - pState->m_pObj->m_Dims;
 		vMax = *pState->m_pStartPos + pState->m_pObj->m_Dims;
@@ -1490,27 +1490,29 @@ inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnu
 		return LTFALSE;
 	}
 
-	if(!bPushAway)
+	if(bPushAway)
+	{
+		if(!bWorldModel && !bTestWorldModel)
+		{
+			bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos);
+		}
+		else
+		{
+			bStopped = DoSolidWMCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos,
+				LTTRUE, bCollide);
+		}
+
+		if(bStopped)
+			pState->m_pObj->SetPos(pState->m_vDestPos);
+
+		return bStopped;
+	}
+	else
 	{
 		// Notify the objects.
 		DoNonsolidCollision(pState->m_pAbstract, pTestObj, pState->m_pObj);
 		return LTFALSE; // Nothing moved.
 	}
-
-	if(!bWorldModel && !bTestWorldModel)
-	{
-		bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos);
-	}
-	else
-	{
-		bStopped = DoSolidWMCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos,
-			LTTRUE, bCollide);
-	}
-
-	if(bStopped)
-		pState->m_pObj->SetPos(pState->m_vDestPos);
-
-	return bStopped;
 }
 
 // Gets the overlap of two boxes.

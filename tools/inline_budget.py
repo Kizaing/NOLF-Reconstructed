@@ -4,6 +4,7 @@ r"""VC6 inline-budget model and oracle (wave 7).
       -v          print the whole site tree (default: top level + every site whose decision differs)
       --exe       compare the predicted out-of-line calls with the exe's (default on for annotated functions)
       --sweep     find the budget range for which the model reproduces the exe's out-of-line calls
+      --solve     what-if: smallest budget change and/or extra free pending sites (accessors) reproducing the exe
       --no-cost   don't measure callee costs (only B(F) and the tree)
       -j N        parallel compiles (default 6)
       --alias VA=MANGLED   name an exe address no matched function has named yet (repeatable)
@@ -66,7 +67,8 @@ COST_CACHE = os.path.join(ROOT, 'build', 'inline_costs.json')
 NAMEMAPS = [os.path.join(ROOT, 'build', 'namemap.json'), r'E:\AVP2Source\decomp\build\namemap.json']
 FLOOR, FREE, MAXDEPTH = 1000, 40, 8
 # compiler-generated inline candidates whose cost can't be probed with a call expression (toy-measured)
-FIXED_COSTS = {'??_H@YGXPAXIHP6EX0@Z@Z': 49}     # `vector constructor iterator' (arrays of classes with ctors)
+FIXED_COSTS = {'??_H@YGXPAXIHP6EX0@Z@Z': 49,     # `vector constructor iterator' (arrays of classes with ctors)
+               '??_I@YGXPAXIHP6EX0@Z@Z': 64}     # `vector destructor iterator' (arrays of classes with dtors)
 OPT_FLAGS = re.compile(r'^/(O[12xdgitysab]\w*|Gy|Ob\d)$')
 _ctr = [0]
 _ctr_lock = threading.Lock()
@@ -150,7 +152,9 @@ def find_function(key):
                 cands.append((u, a))
     if not cands:
         raise SystemExit('no annotated function %s' % key)
-    cands.sort(key=lambda ua: ua[1].name != key)       # exact (qualified) name first
+    # exact (qualified) name first; of several annotations naming one definition (a standalone annotation of a
+    # compiler-generated copy just above it), the one closest to the definition
+    cands.sort(key=lambda ua: (ua[1].name != key, -ua[1].line if va is None else 0))
     return cands[0]
 
 
@@ -629,7 +633,8 @@ def apply_variant(text, ann, repls):
     return text, a
 
 
-def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6, quiet=False, variant=None):
+def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6, quiet=False, variant=None,
+            solve=False):
     log = (lambda *a: None) if quiet else print
     unit, ann = find_function(key)
     text = open(unit.path, encoding='latin1').read()
@@ -670,7 +675,63 @@ def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6
         report(res, verbose)
     if sweep and 'exe' in res:
         do_sweep(res, sites, costs, B)
+    if solve and 'exe' in res:
+        do_solve(res, sites, costs, B)
     return res
+
+
+def do_solve(res, sites, costs, B, max_extra=6, db_range=300):
+    """What-if search: the budget changed by dB (a different own size or extra charges before the first site) and/or
+    k extra free pending sites (accessor calls) inserted before top-level site j. Lists the smallest changes that make
+    the model reproduce the exe's out-of-line calls."""
+    want = res['exe']
+    B = B or FLOOR
+    sols = []
+    fake = 'FREE@__ib_pending'
+    costs = dict(costs)
+    costs[fake] = {'cost': 0}
+    n = len(sites)
+    for k in range(0, max_extra + 1):
+        for j in (range(n + 1) if k else [n]):
+            trial = sites[:j] + [Site(fake, 1) for _ in range(k)] + sites[j:]
+            for db in range(-db_range, db_range + 1, 2):
+                simulate(trial, max(FLOOR, B + db), costs)
+                p = refused_multiset(trial)
+                p.pop(fake, None)
+                if all(p.get(x, 0) == want.get(x, 0) for x in set(p) | set(want)):
+                    sols.append((k, abs(db), db, j))
+        if len(sols) >= 1 and k >= 3 + min(s[0] for s in sols):
+            break
+    simulate(sites, B, costs)
+    if not sols:
+        print('solve: no combination of <= %d extra pending sites and |dB| <= %d reproduces the exe' % (max_extra, db_range))
+        return
+    sols.sort()
+    shown = {}
+    for k, adb, db, j in sols:
+        key = (k, j)
+        if key in shown:
+            shown[key][1] = min(shown[key][1], db)
+            shown[key][2] = max(shown[key][2], db)
+            continue
+        shown[key] = [k, db, db, j]
+    print('solve: changes that reproduce the exe (k extra free pending sites before top-level site j, budget change dB;'
+          ' an accessor call itself adds ~4-8u of own size):')
+    groups = {}
+    for k, lo, hi, j in shown.values():
+        groups.setdefault((k, lo, hi), []).append(j)
+    for (k, lo, hi), js in sorted(groups.items(), key=lambda g: (g[0][0], min(abs(g[0][1]), abs(g[0][2])))):
+        js.sort()
+        rngs = []
+        for j in js:
+            if rngs and j == rngs[-1][1] + 1:
+                rngs[-1][1] = j
+            else:
+                rngs.append([j, j])
+        where = ', '.join(('%d-%d' % (a, b) if a != b else '%d' % a) for a, b in rngs) if k else '-'
+        first = js[0]
+        print('  k=%d dB in [%d, %d] (own size %+d..%+d u)  before top-level sites %s  (site %d = %s)' % (
+            k, lo, hi, lo // 2, hi // 2, where, first, short(sites[first].callee) if first < n else 'end'))
 
 
 def walk_all(sites):
@@ -850,7 +911,8 @@ def main(argv):
         print(__doc__)
         return
     for k in keys:
-        analyse(k, verbose='-v' in flags, sweep='--sweep' in flags, costs_on='--no-cost' not in flags, jobs=jobs)
+        analyse(k, verbose='-v' in flags, sweep='--sweep' in flags, costs_on='--no-cost' not in flags, jobs=jobs,
+                solve='--solve' in flags)
 
 
 if __name__ == '__main__':
