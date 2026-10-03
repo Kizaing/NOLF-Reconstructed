@@ -10,6 +10,7 @@ r"""lithtech.exe decomp build driver.
   python tools/build.py parked [-a]     write PARKED.md: every parked STUB (-a: every STUB) with its scores, audit and notes
   python tools/build.py relink         layout gate: mixed relink of every fully matched unit (tools/relink_gate.py)
   python tools/build.py base <obj>      rebuild one base object (objdiff's "custom make" entry point)
+  python tools/build.py report          progress/lithtech_1.0.9.6/report.json from the last full build (decomp.dev)
 
 Source annotations (reccmp style), on the line(s) directly before a definition:
   // FUNCTION: LITHTECH 0x0044cc80 [?mangled]   function that should match byte for byte
@@ -837,9 +838,28 @@ def write_objdiff_json(units_json):
     json.dump(cfg, open(os.path.join(ROOT, 'objdiff.json'), 'w'), indent=2)
 
 
-def objdiff_report():
-    out = os.path.join(BUILD, 'report.json')
-    r = subprocess.run([OBJDIFF, 'report', 'generate', '-p', ROOT, '-o', out, '-f', 'json-pretty'],
+REPORT_VERSION = 'lithtech_1.0.9.6'     # decomp.dev version id: the CI artifact is <REPORT_VERSION>_report
+PUBLISHED_REPORT = os.path.join(ROOT, 'progress', REPORT_VERSION, 'report.json')
+
+
+def publish_report():
+    """build.py report: regenerate the objdiff report from the last full build into progress/<version>/report.json
+    (committed; .github/workflows/progress.yml uploads it for decomp.dev, since CI can't build without VC6 and
+    lithtech.exe)."""
+    if not os.path.exists(os.path.join(ROOT, 'objdiff.json')):
+        print('no objdiff.json: run a full `python tools/build.py` first')
+        return 1
+    os.makedirs(os.path.dirname(PUBLISHED_REPORT), exist_ok=True)
+    rep = objdiff_report(PUBLISHED_REPORT, 'json')
+    if rep is None:
+        return 1
+    print('wrote %s: commit and push it to update decomp.dev' % rel(PUBLISHED_REPORT))
+    return 0
+
+
+def objdiff_report(out=None, fmt='json-pretty'):
+    out = out or os.path.join(BUILD, 'report.json')
+    r = subprocess.run([OBJDIFF, 'report', 'generate', '-p', ROOT, '-o', out, '-f', fmt],
                        capture_output=True, text=True)
     if r.returncode != 0:
         print('objdiff report failed:\n' + r.stderr[-2000:])
@@ -919,6 +939,8 @@ def main(argv):
     if cmd == 'relink':         # layout gate over the last full build's objects (tools/relink_gate.py)
         import relink_gate
         return relink_gate.main()
+    if cmd == 'report':         # progress/<version>/report.json for decomp.dev, from the last full build
+        return publish_report()
     if cmd == 'base':           # objdiff passes the base object path
         want = os.path.normcase(os.path.abspath(os.path.join(ROOT, argv[1])))
         if want.startswith(os.path.normcase(os.path.join(BUILD, 'base', 'lib') + os.sep)):

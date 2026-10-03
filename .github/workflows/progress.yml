@@ -1,0 +1,36 @@
+# Progress report for decomp.dev.
+#
+# The build needs VC6 SP5 + Processor Pack, lithtech.exe and the Talon SDK / lithshared / Jupiter headers, none of
+# which can be in this repository, so CI does not build: `python tools/build.py` followed by
+# `python tools/build.py report` writes progress/lithtech_1.0.9.6/report.json locally, it is committed, and this
+# workflow uploads it as the artifact decomp.dev reads (<version>_report).
+name: Progress
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [lithtech_1.0.9.6]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the report
+        run: |
+          f=progress/${{ matrix.version }}/report.json
+          test -s "$f" || { echo "missing $f: run python tools/build.py report and commit it"; exit 1; }
+          python3 -c "import json,sys; m=json.load(open(sys.argv[1]))['measures']; print('code %.2f%%, functions %s/%s, complete units %s/%s' % (m['matched_code_percent'], m['matched_functions'], m['total_functions'], m['complete_units'], m['total_units']))" "$f"
+
+      - name: Upload progress report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.version }}_report
+          path: progress/${{ matrix.version }}/report.json
