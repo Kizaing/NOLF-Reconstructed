@@ -12,10 +12,10 @@
 static CMultiLinkList<CPacket*> g_FreePackets;
 
 // GLOBAL: LITHTECH 0x004e4610
-static int g_PacketInitCount;
+static int g_PacketInitCount = 0;
 
 // GLOBAL: LITHTECH 0x004e4614
-static uint32 g_nPacketsAllocated;
+static uint32 g_nPacketsAllocated = 0;
 
 
 // FUNCTION: LITHTECH 0x004690b0

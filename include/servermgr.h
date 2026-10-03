@@ -176,24 +176,14 @@ struct ClientRef
 	char		m_ClientName[1];	// 0x12 (variable length)
 };
 
-class CServerSoundMgr : public ILTSoundMgr
-{
-public:
-	virtual LTRESULT	PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hResult);
-	virtual LTRESULT	GetSoundDuration(HLTSOUND hSound, LTFLOAT &fDuration);
-	virtual LTRESULT	IsSoundDone(HLTSOUND hSound, LTBOOL &bDone);
-	virtual LTRESULT	KillSound(HLTSOUND hSound);
-	virtual LTRESULT	KillSoundLoop(HLTSOUND hSound);
-	virtual LTRESULT	KillSoundFade(HLTSOUND hSound, LTFLOAT fFadeOutTime);
-};
-
 class CSoundData;
 struct UsedFile;
 class LThreadMessage;
 
-// Talon: CServerMgr derives from CNetHandler (vtable at 0x00) and from the server's ILTSoundMgr
-// implementation (a second base at 0x04, hence the pointer adjustment in CLTServer's constructor).
-class CServerMgr : public CNetHandler, public CServerSoundMgr
+// Talon: CServerMgr derives from CNetHandler (vtable at 0x00) and implements ILTSoundMgr itself (a second
+// base at 0x04, hence the pointer adjustment in CLTServer's constructor). The exe keeps ILTSoundMgr's own
+// all-_purecall vtable (0x004c6e14), which CServerMgr's inline constructor stores first.
+class CServerMgr : public CNetHandler, public ILTSoundMgr
 {
 public:
 	// Inline in the original (clientshell.cpp's CreateServerMgr builds it).
@@ -219,6 +209,14 @@ public:
 	HOBJECT		GetGlobalLightObject()	{ return (HOBJECT)m_pGlobalLightObject; }
 	class CPacket*	AllocPacket();				// 0x00486f60
 	void		SetupPacketMessage(class CPacket *pPacket);	// 0x00486fc0
+
+	// ILTSoundMgr (slots of the vtable at 0x04; the server's sound functions).
+	virtual LTRESULT	PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hResult);	// 0x00485a40
+	virtual LTRESULT	GetSoundDuration(HLTSOUND hSound, LTFLOAT &fDuration);		// 0x00485cf0
+	virtual LTRESULT	IsSoundDone(HLTSOUND hSound, LTBOOL &bDone);				// 0x00485d50
+	virtual LTRESULT	KillSound(HLTSOUND hSound);									// 0x00485dd0
+	virtual LTRESULT	KillSoundLoop(HLTSOUND hSound);								// 0x00485e70
+	virtual LTRESULT	KillSoundFade(HLTSOUND hSound, LTFLOAT fFadeOutTime);		// 0x00485f90
 
 	// CNetHandler (slots of the vtable at 0x00; s_net.cpp).
 	virtual LTBOOL	NewConnectionNotify(CBaseConn *id, LTBOOL bIsLocal);	// 0x00473ee0

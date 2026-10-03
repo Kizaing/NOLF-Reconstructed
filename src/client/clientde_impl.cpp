@@ -85,7 +85,7 @@ void		linesystem_RemoveLine(HLOCALOBJ hObj, HLTLINE hLine);		// 0x004457f0
 
 // Forces the screen clear flag on in ClearScreen (a console variable).
 // GLOBAL: LITHTECH 0x004e371c
-extern int g_CV_ForceClear;
+extern int32 g_CV_ForceClear;
 
 // Global pan textures (sky shadow, fog), indexed by the GLOBALPAN_ values.
 struct GlobalPanInfo

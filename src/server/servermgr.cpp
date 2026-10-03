@@ -79,8 +79,6 @@ uint32 g_ObjectMemory;
 extern uint32 g_Ticks_MoveObject;
 // GLOBAL: LITHTECH 0x004e455c
 extern uint32 g_nMoveObjectCalls;
-// GLOBAL: LITHTECH 0x004e3804
-extern uint32 g_Counter3804;
 // GLOBAL: LITHTECH 0x004e5da0
 uint32 g_SphereFindTicks;
 // GLOBAL: LITHTECH 0x004e5db0
@@ -1036,8 +1034,7 @@ LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 	// Clear the profiling counters.
 	g_Ticks_MoveObject = 0;
 	g_nMoveObjectCalls = 0;
-	g_nIntersectCalls = 0;
-	g_Counter3804 = 0;
+	g_IntersectTicks = g_nIntersectCalls = 0;
 	g_IntersectLineLen = 0.0f;
 	g_SphereFindTicks = 0;
 	g_SphereFindCount = 0;
@@ -2186,14 +2183,12 @@ LTRESULT sm_RemoveObjectFromWorld(CServerMgr *pServerMgr, LPBASECLASS pBaseClass
 
 
 // ----------------------------------------------------------------------- //
-// The server's ILTSoundMgr (CServerMgr's second base class).
+// CServerMgr's ILTSoundMgr implementation (its second base class).
 // ----------------------------------------------------------------------- //
 
-// The CServerMgr that owns this sound manager.
-#define SOUNDMGR_SERVERMGR()	((CServerMgr*)((uint8*)this - 4))
 
 // FUNCTION: LITHTECH 0x00485a40
-LTRESULT CServerSoundMgr::PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hResult)
+LTRESULT CServerMgr::PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hResult)
 {
 	CServerEvent *pEvent;
 	CSoundData *pSoundData;
@@ -2207,7 +2202,7 @@ LTRESULT CServerSoundMgr::PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hRe
 		return LT_INVALIDPARAMS;
 
 	// Need a world to compress positions...
-	if (!SOUNDMGR_SERVERMGR()->m_World.m_bLoaded)
+	if (!m_World.m_bLoaded)
 		return LT_ERROR;
 
 	// Check if sound attached to object and someone forgot the handle to the object...
@@ -2215,7 +2210,7 @@ LTRESULT CServerSoundMgr::PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hRe
 		return LT_ERROR;
 
 	// Get pointer to file...
-	if (sf_AddUsedFile(&SOUNDMGR_SERVERMGR()->m_FileMgr, pPlaySoundInfo->m_szSoundName, 0, &pFile) == 0)
+	if (sf_AddUsedFile(&m_FileMgr, pPlaySoundInfo->m_szSoundName, 0, &pFile) == 0)
 	{
 		DEBUG_PRINT(2, ("Missing sound file %s", pPlaySoundInfo->m_szSoundName));
 		return LT_MISSINGFILE;
@@ -2250,13 +2245,13 @@ LTRESULT CServerSoundMgr::PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hRe
 			!(pPlaySoundInfo->m_dwFlags & PLAYSOUND_LOOP))
 		{
 			// Check if file data already read...
-			pSoundData = SOUNDMGR_SERVERMGR()->GetSoundData(pFile);
+			pSoundData = GetSoundData(pFile);
 			if (!pSoundData)
 				return LT_ERROR;
 		}
 
 		// Create the instance of the sound on the server...
-		pSoundTrack = (CSoundTrack*)sb_Allocate(&SOUNDMGR_SERVERMGR()->m_SoundTrackBank);
+		pSoundTrack = (CSoundTrack*)sb_Allocate(&m_SoundTrackBank);
 		if (!pSoundTrack)
 			return LT_ERROR;
 
@@ -2267,22 +2262,22 @@ LTRESULT CServerSoundMgr::PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hRe
 			pPlaySoundInfo->m_hSound = LTNULL;
 
 		// Initialize the soundtrack...
-		if (!pSoundTrack->Init(pPlaySoundInfo, SOUNDMGR_SERVERMGR()->m_GameTime, pFile, pSoundData))
+		if (!pSoundTrack->Init(pPlaySoundInfo, m_GameTime, pFile, pSoundData))
 		{
 			// Undo all of it...
 			pPlaySoundInfo->m_hSound = LTNULL;
-			sb_Free(&SOUNDMGR_SERVERMGR()->m_SoundTrackBank, pSoundTrack);
+			sb_Free(&m_SoundTrackBank, pSoundTrack);
 			return LT_ERROR;
 		}
 
 		// Put in sound list...
-		dl_AddHead(&SOUNDMGR_SERVERMGR()->m_SoundTrackList, &pSoundTrack->m_Link, pSoundTrack);
+		dl_AddHead(&m_SoundTrackList, &pSoundTrack->m_Link, pSoundTrack);
 	}
 	// Handle sound that the server doesn't need to care about...
 	else
 	{
 		// Setup a sound event.
-		pEvent = CreateServerEvent(SOUNDMGR_SERVERMGR(), EVENT_PLAYSOUND);
+		pEvent = CreateServerEvent(this, EVENT_PLAYSOUND);
 		PLAYSOUNDINFO_COPY(pEvent->m_PlaySoundInfo, *pPlaySoundInfo);
 		pEvent->m_pUsedFile = pFile;
 	}
@@ -2292,7 +2287,7 @@ LTRESULT CServerSoundMgr::PlaySound(PlaySoundInfo *pPlaySoundInfo, HLTSOUND &hRe
 }
 
 // FUNCTION: LITHTECH 0x00485cf0
-LTRESULT CServerSoundMgr::GetSoundDuration(HLTSOUND hSound, LTFLOAT &fDuration)
+LTRESULT CServerMgr::GetSoundDuration(HLTSOUND hSound, LTFLOAT &fDuration)
 {
 	CSoundTrack *pSoundTrack;
 
@@ -2307,7 +2302,7 @@ LTRESULT CServerSoundMgr::GetSoundDuration(HLTSOUND hSound, LTFLOAT &fDuration)
 }
 
 // FUNCTION: LITHTECH 0x00485d50
-LTRESULT CServerSoundMgr::IsSoundDone(HLTSOUND hSound, LTBOOL &bDone)
+LTRESULT CServerMgr::IsSoundDone(HLTSOUND hSound, LTBOOL &bDone)
 {
 	CSoundTrack *pSoundTrack;
 
@@ -2322,7 +2317,7 @@ LTRESULT CServerSoundMgr::IsSoundDone(HLTSOUND hSound, LTBOOL &bDone)
 }
 
 // FUNCTION: LITHTECH 0x00485dd0
-LTRESULT CServerSoundMgr::KillSound(HLTSOUND hSound)
+LTRESULT CServerMgr::KillSound(HLTSOUND hSound)
 {
 	CSoundTrack *pSoundTrack;
 
@@ -2344,7 +2339,7 @@ LTRESULT CServerSoundMgr::KillSound(HLTSOUND hSound)
 }
 
 // FUNCTION: LITHTECH 0x00485e70
-LTRESULT CServerSoundMgr::KillSoundLoop(HLTSOUND hSound)
+LTRESULT CServerMgr::KillSoundLoop(HLTSOUND hSound)
 {
 	CSoundTrack *pSoundTrack;
 
@@ -2360,7 +2355,7 @@ LTRESULT CServerSoundMgr::KillSoundLoop(HLTSOUND hSound)
 	}
 
 	// Tell the clients to stop looping it.
-	SetSoundTrackChangeFlags(SOUNDMGR_SERVERMGR(), pSoundTrack, CF_KILLSOUNDLOOP);
+	SetSoundTrackChangeFlags(this, pSoundTrack, CF_KILLSOUNDLOOP);
 
 	pSoundTrack->m_fTimeLeft = 0.0f;
 	pSoundTrack->SetRemove(LTTRUE);
@@ -2368,7 +2363,7 @@ LTRESULT CServerSoundMgr::KillSoundLoop(HLTSOUND hSound)
 }
 
 // FUNCTION: LITHTECH 0x00485f90
-LTRESULT CServerSoundMgr::KillSoundFade(HLTSOUND hSound, LTFLOAT fFadeOutTime)
+LTRESULT CServerMgr::KillSoundFade(HLTSOUND hSound, LTFLOAT fFadeOutTime)
 {
 	CSoundTrack *pSoundTrack;
 
@@ -2383,7 +2378,7 @@ LTRESULT CServerSoundMgr::KillSoundFade(HLTSOUND hSound, LTFLOAT fFadeOutTime)
 		RETURN_ERROR(1, CServerMgr::KillSoundFade, LT_ERROR);
 	}
 
-	SetSoundTrackChangeFlags(SOUNDMGR_SERVERMGR(), pSoundTrack, CF_KILLSOUNDLOOP);
+	SetSoundTrackChangeFlags(this, pSoundTrack, CF_KILLSOUNDLOOP);
 
 	pSoundTrack->m_fTimeLeft = 0.0f;
 	pSoundTrack->SetRemove(LTTRUE);
