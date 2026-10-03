@@ -25,7 +25,7 @@ from coffedit import Coff, Sec, Sym  # noqa: E402
 import mktarget  # noqa: E402
 
 BUILD = os.path.join(ROOT, 'build')
-OUT = os.path.join(BUILD, 'relink')
+OUT = os.path.normpath(os.environ.get('RELINK_OUT') or os.path.join(BUILD, 'relink'))     # backslashes: LINK's response file treats '/' as an option
 EXE = r'E:\AVP2Source\bin\lithtech.exe'
 MSVC = r'E:\MSVC6\VC98\Bin'
 LINK = os.path.join(MSVC, 'LINK.EXE')
@@ -57,6 +57,28 @@ def run(args, **kw):
 def load_json(name):
     with open(os.path.join(BUILD, name)) as f:
         return json.load(f)
+
+
+def inventory():
+    """(units, full, standin): build.py's Unit list (annotations bound to the base objects' symbols), the names of the
+    units whose every function matches and that can use their base object, and the units with // STANDIN: code."""
+    import io
+    import contextlib
+    import build as B
+    units = B.find_units()
+    exe, symtab, libs = B.Exe(B.EXE), B.SymTab(), B.Libraries()
+    with contextlib.redirect_stdout(io.StringIO()):
+        results, _ = B.run_check(units, exe, symtab, False, '\0nomatch', libs)
+    status = {(r.a.unit.name, r.a.va): (r.status, r.a.kind) for r in results}
+    objvas = load_json('objvas.json')
+    standin = {u.name for u in units if any(B.STANDIN_RE.match(l) for l in open(u.path, encoding='latin1'))}
+    full = []
+    for u in units:
+        vas = objvas.get(u.name, [])
+        if vas and u.name not in standin and os.path.exists(u.base_obj) \
+                and all(status.get((u.name, va)) == ('MATCH', 'FUNCTION') for va in vas):
+            full.append(u.name)
+    return units, full, standin
 
 
 # ------------------------------------------------------------------------------------------ original exe
@@ -115,30 +137,42 @@ def make_idata_obj(orig):
 
 # ------------------------------------------------------------------------------------------ target objects
 
-def slice_section(o, secno):
-    """A new object holding only section `secno` (1-based) of `o`. Symbols defined in other sections that this one
-    refers to become undefined externals."""
-    sec = o.sections[secno - 1]
+def subset_sections(o, secnos):
+    """A new object holding only the sections `secnos` (1-based) of `o`. Symbols defined in other sections that these
+    refer to become undefined externals."""
     n = Coff()
-    n.sections = [Sec(sec.name, sec.data, [], sec.flags, sec.nlines)]
-    n.sections[0].size = sec.size
+    newno = {}
+    for k in secnos:
+        sec = o.sections[k - 1]
+        n.sections.append(Sec(sec.name, sec.data, [], sec.flags, sec.nlines))
+        n.sections[-1].size = sec.size
+        newno[k] = len(n.sections)
     symmap = {}
     for idx, s in enumerate(o.syms):
-        if s is not None and s.sec == secno:
+        if s is not None and s.sec in newno:
             symmap[idx] = len(n.syms)
-            n.syms.append(Sym(s.name, s.value, 1, s.typ, s.cls, s.aux))
+            n.syms.append(Sym(s.name, s.value, newno[s.sec], s.typ, s.cls, s.aux))
             n.syms.extend([None] * s.naux)
-    for off, si, t in sec.relocs:
-        if si not in symmap:
-            s = o.syms[si]
-            symmap[si] = len(n.syms)
-            if s.sec > 0:                       # defined in another section: now an undefined external
-                n.syms.append(Sym(s.name, 0, 0, s.typ, coffedit.CLS_EXTERNAL))
-            else:
-                n.syms.append(Sym(s.name, s.value, s.sec, s.typ, s.cls, s.aux))
-                n.syms.extend([None] * s.naux)
-        n.sections[0].relocs.append([off, symmap[si], t])
+    for k in secnos:
+        for off, si, t in o.sections[k - 1].relocs:
+            if si not in symmap:
+                s = o.syms[si]
+                symmap[si] = len(n.syms)
+                if s.sec > 0:                       # defined in a section that was left out: now an undefined external
+                    n.syms.append(Sym(s.name, 0, 0, s.typ, coffedit.CLS_EXTERNAL))
+                else:
+                    n.syms.append(Sym(s.name, s.value, s.sec, s.typ, s.cls, s.aux))
+                    n.syms.extend([None] * s.naux)
+            n.sections[newno[k] - 1].relocs.append([off, symmap[si], t])
     return n
+
+
+def slice_section(o, secno):
+    return subset_sections(o, [secno])
+
+
+class BaseFail(Exception):
+    pass
 
 
 def is_section_sym(s):
@@ -154,6 +188,7 @@ class Prepared:
         for name, v in self.objvas.items():
             if v:
                 self.objs[name] = Coff.load(os.path.join(BUILD, 'target', name + '.obj'))
+        self.unit_of, self.orig_vas = {}, {}
         self.add_gaps()
         self.order = sorted((min(v), k) for k, v in self.objvas.items() if v and k in self.objs)
 
@@ -285,18 +320,17 @@ class Prepared:
     def slice_interleaved(self):
         """Library objects whose sections sit between other objects' sections (COMDATs the original linker placed
         elsewhere) are cut into one object per section, so that link order = address order."""
-        spans = sorted((min(v), max(v) + 1, n) for n, v in self.objvas.items() if n in self.objs and v)
-        hit, reach = set(), None
-        for lo, hi, n in spans:
-            if reach and lo < reach[0]:
-                hit.update((n, reach[1]))
-            if not reach or hi > reach[0]:
-                reach = (hi, n)
-        hit.discard(None)
+        allsec = sorted((va, n) for n, v in self.objvas.items() if n in self.objs for va in v)
+        first, last = {}, {}
+        for i, (va, n) in enumerate(allsec):
+            first.setdefault(n, i)
+            last[n] = i
+        hit = [n for n in first if any(allsec[i][1] != n for i in range(first[n] + 1, last[n]))]
         self.sliced = sorted(hit)
         for name in self.sliced:
             o = self.objs.pop(name)
             vas = self.objvas.pop(name)
+            self.orig_vas[name] = vas
             # a static symbol that another section of the object refers to must become external
             for idx, s in enumerate(o.syms):
                 if s is not None and s.cls == coffedit.CLS_STATIC and s.sec > 0 and not is_section_sym(s) \
@@ -307,9 +341,147 @@ class Prepared:
                 new = slice_section(o, i + 1)
                 key = '%s#%08x' % (name, va)
                 self.objs[key] = new
+                self.unit_of[key] = name
                 self.objvas[key] = [va]
                 self.leader[(key, 1)] = self.leader[(name, i + 1)]
         self.order = sorted((min(v), k) for k, v in self.objvas.items() if v and k in self.objs)
+
+    # ---------------------------------------------------------------------------------------- base objects
+    def canon_target(self, tva):
+        """Symbol name for the address a relocation of base code points at (None if it can't be named)."""
+        orig = self.orig
+        if tva in orig.slots:
+            dll, ent, ordn = orig.slots[tva]
+            return imp_symbol(ent if ent else '%s_ord%d' % (dll, ordn))
+        if orig.text_lo <= tva < orig.text_hi:
+            return self.text_name.get(tva)
+        nm = self.data_name.get(tva)
+        if nm is None:
+            nm = 'dat_%08x' % tva
+            while nm in self.used_names:
+                nm += '_'
+            self.data_name[tva] = nm
+            self.used_names.add(nm)
+        return nm
+
+    def use_base(self, units, full, only=None):
+        """Replace the target objects of fully matched units by their (preprocessed) base objects.
+
+        Base code keeps its bytes. Every relocation that leaves the object is re-pointed at the symbol the exe's own
+        bytes imply (target address = field - addend), named like the target objects name that address; the object's
+        data sections are dropped (the stand-in holds the data); its functions are renamed to the canonical names."""
+        img = self.orig.img
+        self.used_names = set(self.text_name.values()) | set(self.data_name.values())
+        self.base = {}                # unit name -> (Coff, [function names to /INCLUDE])
+        self.base_failed = {}
+        self.order_report = {}
+        self.data_refs = {}
+        byname = {u.name: u for u in units}
+        claimed = {self.leader[(n, k)] for n in self.objs if self.unit_of.get(n, n) not in full
+                   for k in range(1, len(self.objs[n].sections) + 1) if (n, k) in self.leader}
+        for name in full:
+            if only and name not in only:
+                continue
+            u = byname[name]
+            try:
+                self.base[name] = self.prep_base_unit(u, claimed)
+            except BaseFail as e:
+                self.base_failed[name] = str(e)
+        self.order = [(va, k) for va, k in self.order if self.unit_of.get(k, k) not in self.base]
+        self.order += [(min(self.orig_vas.get(n) or self.objvas[n]), n) for n in self.base]
+        self.order.sort()
+
+    def prep_base_unit(self, u, claimed):
+        img = self.orig.img
+        o = Coff.load(u.base_obj)
+        F = coffedit
+        code = [i + 1 for i, s in enumerate(o.sections) if s.flags & F.SCN_CNT_CODE]
+        if not code:
+            raise BaseFail('no code section')
+        # function symbols with an annotation -> VA
+        fva = {}
+        for a in u.annots:
+            if a.kind == 'FUNCTION' and a.symbol is not None:
+                fva[a.symbol.name] = a.va
+        funcs = {}                    # section no -> sorted [(offset, symbol name, va)]
+        for idx, s in enumerate(o.syms):
+            if s is not None and s.sec in code and s.typ == 0x20 and not is_section_sym(s):
+                if s.name in fva:
+                    funcs.setdefault(s.sec, []).append((s.value, s.name, fva[s.name]))
+        for k in funcs:
+            funcs[k].sort()
+        # code sections without an annotated function of this unit are copies the exe doesn't have there
+        # (unreferenced inline functions, or functions the exe has in a library object / another unit's range)
+        own = set(self.orig_vas.get(u.name) or self.objvas[u.name])
+        code = [k for k in code if any(va in own for _, _, va in funcs.get(k, []))]
+        if not code:
+            raise BaseFail('no annotated function in any code section')
+
+        def va_at(secno, off):
+            best = None
+            for value, nm, va in funcs.get(secno, []):
+                if value <= off:
+                    best = (value, va)
+            if best is None:
+                raise BaseFail('relocation at section %d +%x precedes every annotated function' % (secno, off))
+            return best[1] + off - best[0]
+
+        newsym = {}
+        data_refs = []
+
+        def sym_for(name, typ=0):
+            if name not in newsym:
+                newsym[name] = len(o.syms)
+                o.syms.append(Sym(name, 0, 0, typ, F.CLS_EXTERNAL))
+            return newsym[name]
+
+        import struct
+        for secno in code:
+            sec = o.sections[secno - 1]
+            for rel in sec.relocs:
+                off, si, t = rel
+                S = o.syms[si]
+                if t not in (mktarget.IMAGE_REL_I386_DIR32, mktarget.IMAGE_REL_I386_REL32):
+                    raise BaseFail('relocation type %x' % t)
+                if S.sec in code or S.sec == -1 or S.name == '__except_list':
+                    continue          # switch tables, calls between COMDAT functions, absolute symbols (__except_list = fs:[0])
+                fva_ = va_at(secno, off)
+                field = struct.unpack('<I', img.read(fva_, 4))[0]
+                addend = struct.unpack('<I', sec.data[off:off + 4])[0]
+                if t == mktarget.IMAGE_REL_I386_DIR32:
+                    tva = (field - addend) & 0xffffffff
+                else:
+                    tva = (fva_ + 4 + struct.unpack('<i', struct.pack('<I', field))[0] - struct.unpack('<i', struct.pack('<I', addend))[0]) & 0xffffffff
+                if tva < IMAGE_BASE or tva >= 0x500000:
+                    raise BaseFail('reloc +%x in section %d (%s) to %s has address %08x (field %08x, addend %08x)' % (
+                        off, secno, o.sections[secno - 1].name, S.name, tva, field, addend))
+                nm = self.canon_target(tva)
+                if nm is None:
+                    raise BaseFail('reloc +%x in section %d targets %08x, which no target object names' % (off, secno, tva))
+                if S.sec > 0 and not (o.sections[S.sec - 1].flags & F.SCN_CNT_CODE):
+                    data_refs.append((S.sec, S.value, tva, S.name))
+                rel[1] = sym_for(nm, 0x20 if t == mktarget.IMAGE_REL_I386_REL32 else 0)
+        # does the object emit its functions in the original's address order? (COMDAT sections are placed in object
+        # order, a plain .text keeps source order)
+        emit = sorted((k, value, va) for k, lst in funcs.items() if k in code for value, nm, va in lst if va in own)
+        descents = sum(1 for x, y in zip(emit, emit[1:]) if y[2] < x[2])
+        self.order_report[u.name] = (len(emit), descents)
+        # canonical names for the functions this object defines
+        include = []
+        for idx, s in enumerate(o.syms):
+            if s is None or s.sec not in code or is_section_sym(s) or s.typ != 0x20:
+                continue
+            va = fva.get(s.name)
+            cn = self.text_name.get(va) if va else None
+            if cn and cn not in claimed:
+                claimed.add(cn)
+                s.name = cn
+            else:
+                s.name = '%s@%s' % (s.name, u.name.replace('/', '_'))
+            s.cls = F.CLS_EXTERNAL
+            include.append((s.name, va if cn and s.name == cn else None))
+        self.data_refs[u.name] = (o, data_refs)
+        return subset_sections(o, code), include, fva
 
     def write(self):
         d = os.path.join(OUT, 'obj')
@@ -330,17 +502,85 @@ class Prepared:
             p = os.path.join(d, name.replace('/', '__') + '.obj')
             o.save(p)
             self.paths[name] = p
+        for name, (o, include, fva) in getattr(self, 'base', {}).items():
+            p = os.path.join(d, 'base__' + name.replace('/', '__') + '.obj')
+            o.save(p)
+            self.paths[name] = p
         order = []
         for name in self.objs:
+            if self.unit_of.get(name, name) in getattr(self, 'base', {}):
+                continue
             for sva, secno, size in self.sections(name):
                 order.append((sva, self.leader[(name, secno)]))
         order.sort()
         self.leaders = order
+        self.includes = [n for _, n in order] + [n for (o, inc, fva) in getattr(self, 'base', {}).values() for n, _ in inc]
+        order += [(va, n) for (o, inc, fva) in getattr(self, 'base', {}).values() for n, va in inc if va]
+        order.sort()
         with open(os.path.join(OUT, 'order.txt'), 'w', newline='') as f:
             for _, n in order:
                 f.write((n if n.startswith('?') else n[1:]) + '\n')
         with open(os.path.join(OUT, 'leaders.json'), 'w') as f:
             json.dump(order, f)
+
+
+def data_report(prep):
+    """How do the base objects' own data sections compare with the original's data? Section addresses come from the
+    exe itself (target address of every code relocation that points into the section, minus the symbol's offset)."""
+    img = prep.orig.img
+    F = coffedit
+    out, tot = {}, {}
+
+    def bump(k, n=1):
+        tot[k] = tot.get(k, 0) + n
+
+    for name, (o, refs) in sorted(prep.data_refs.items()):
+        secva, conflicts = {}, 0
+        for secno, value, tva, sname in refs:
+            va = tva - value
+            if secno in secva and secva[secno] != va:
+                conflicts += 1
+            secva.setdefault(secno, va)
+        rows = []
+        for i, sec in enumerate(o.sections, 1):
+            if sec.flags & F.SCN_CNT_CODE or sec.name == '.drectve' or sec.name.startswith('.debug'):
+                continue
+            uninit = bool(sec.flags & F.SCN_CNT_UNINIT)
+            size = sec.size
+            va = secva.get(i)
+            kind = 'comdat' if sec.flags & F.SCN_LNK_COMDAT else 'plain'
+            row = dict(sec=i, name=sec.name, size=size, kind=kind, uninit=uninit, va=va)
+            if va is not None and not uninit and size:
+                try:
+                    got = img.read(va, size)
+                    masked = set()
+                    for off, si, t in sec.relocs:
+                        masked.update(range(off, off + 4))
+                    bad = [k for k in range(size) if k not in masked and got[k] != sec.data[k]]
+                    row['bad'] = len(bad)
+                    row['first_bad'] = bad[0] if bad else None
+                except ValueError:
+                    row['bad'] = -1
+            rows.append(row)
+            bump('sections_' + kind)
+            bump('bytes_' + kind, size)
+            if va is None:
+                bump('unlocated_sections')
+                bump('unlocated_bytes', size)
+            elif uninit or not size:
+                bump('located_bss_sections')
+            elif row.get('bad') == 0:
+                bump('content_identical_sections')
+                bump('content_identical_bytes', size)
+            else:
+                bump('content_differs_sections')
+                bump('content_differs_bytes', size)
+        loc = sorted((r['va'], r['size'], r['sec']) for r in rows if r['va'] is not None and r['size'])
+        inversions = sum(1 for a, b in zip(sorted(loc, key=lambda x: x[2]), sorted(loc, key=lambda x: x[2])[1:]) if b[0] < a[0])
+        out[name] = dict(sections=rows, conflicts=conflicts, order_inversions=inversions,
+                         located=len(loc), total=len(rows))
+        bump('unit_section_order_inversions', inversions)
+    return out, tot
 
 
 # ------------------------------------------------------------------------------------------ data stand-in
@@ -374,6 +614,7 @@ def make_standin(prep):
     for i, s in enumerate(c.sections):      # section symbols
         c.syms.append(Sym(s.name, 0, i + 1, 0, F.CLS_STATIC, F.section_aux(s.size, 0)))
         c.syms.append(None)
+    c.syms.append(Sym('__except_list', 0, -1, 0, F.CLS_EXTERNAL))      # fs:[0], defined in LIBCMT's exsup.obj
     bad = []
     for va, nm in sorted(prep.data_name.items()):
         if RDATA_LO <= va < RDATA_HI:
@@ -403,7 +644,7 @@ def do_link(prep, standin, idata, mode):
     # /OPT:REF drops the import libraries' unreferenced thunks (the original has few of them); /INCLUDE keeps every
     # target function, whose callers are partly stand-in data (vtables) that carries no relocations
     rsp += EXTRA_LINK_FLAGS
-    rsp += ['/INCLUDE:' + n for _, n in prep.leaders]
+    rsp += ['/INCLUDE:' + n for n in prep.includes]
     rsp += ['"%s"' % o for o in objs]
     with open(os.path.join(OUT, 'link.rsp'), 'w', newline='') as f:
         f.write('\n'.join(rsp) + '\n')
@@ -415,6 +656,8 @@ def main():
     ap.add_argument('--mode', default='targets')
     ap.add_argument('--stage', default='all')
     ap.add_argument('--link-flag', action='append', default=[], help='extra LINK flag (repeatable)')
+    ap.add_argument('--report-data', action='store_true', help='mixed mode: compare the base objects' + chr(39) + ' data sections with the exe')
+    ap.add_argument('--only', help='mixed mode: comma-separated unit names allowed to use their base object')
     ap.add_argument('--order', action='store_true', help='pass /ORDER (not needed: object order = address order)')
     a = ap.parse_args()
     EXTRA_LINK_FLAGS.extend(a.link_flag)
@@ -426,6 +669,18 @@ def main():
     print('gap objects %d (%d bytes)' % (len(prep.gaps), sum(h - l for l, h in prep.gaps)))
     prep.run()
     prep.slice_interleaved()
+    if a.mode == 'mixed':
+        units, full, standin = inventory()
+        print('fully matched units: %d (stand-in units kept as targets: %s)' % (len(full), sorted(standin)))
+        prep.use_base(units, full, set(a.only.split(',')) if a.only else None)
+        print('base objects used: %d; fell back to target: %s' % (len(prep.base), prep.base_failed))
+        if a.report_data:
+            rep, tot = data_report(prep)
+            json.dump(rep, open(os.path.join(OUT, 'data_report.json'), 'w'), indent=1)
+            print('data sections of the base objects: %s' % json.dumps(tot, sort_keys=True))
+        bad = {n: r for n, r in prep.order_report.items() if r[1]}
+        print('units whose base object emits functions out of address order: %d of %d: %s' % (
+            len(bad), len(prep.order_report), ', '.join('%s(%d/%d)' % (n, r[1], r[0]) for n, r in sorted(bad.items()))))
     print("sliced %d interleaved library objects" % len(prep.sliced))
     prep.write()
     print('objects %d, renamed %d, unresolved %d, data symbols %d' % (
