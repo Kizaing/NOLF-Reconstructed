@@ -319,6 +319,7 @@ def bind_symbols(units, obj):
                          and (s.name == a.mangled if a.mangled else undecorate(s.name) == a.name)]
                 names = sorted({s.name for s in cands})
                 a.symbol = names[0] if len(names) == 1 else None
+                a.static = bool(cands) and all(s.cls == 3 for s in cands)     # file-static data: per-unit name
                 a.error = None if a.symbol else 'GLOBAL %s: %d symbol candidates %s' % (a.name, len(names), names[:4])
                 continue
             cands = [s for s in o.functions() if (s.name == a.mangled if a.mangled else undecorate(s.name) == a.name)]
@@ -358,7 +359,7 @@ def build_namemap(units, symtab):
             n = a.symbol.name if hasattr(a.symbol, 'name') else a.symbol
             if not n:
                 continue
-            is_static = getattr(a.symbol, 'cls', 2) == 3
+            is_static = getattr(a.symbol, 'cls', 2) == 3 or getattr(a, 'static', False)
             names = mine if is_static else name2va
             if va2name.get(a.va, n) != n or names.get(n, a.va) != a.va:
                 problems.append('%s: %s @%08x conflicts with %s @%08x' % (a.where(), n, a.va, va2name.get(a.va), names.get(n, 0)))

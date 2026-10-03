@@ -2263,8 +2263,8 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 		return LTTRUE;
 
 	// Set up the iterative test parameters
-	vFullStart = g_BoxOffset + g_P0;
-	vFullEnd = g_BoxOffset + g_P1;
+	vFullStart = g_P0 + g_BoxOffset;
+	vFullEnd = g_P1 + g_BoxOffset;
 	vDirection = vFullEnd - vFullStart;
 	fVelocityLeft = vDirection.Mag();
 	if (!fVelocityLeft)
@@ -2413,7 +2413,7 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 				else
 				{
 					if (nRetryHitCount != pInfo->m_nHits)
-						theCylinder.m_vEnd = g_BoxOffset + g_P0;
+						theCylinder.m_vEnd = g_P0 + g_BoxOffset;
 					break;
 				}
 			}
