@@ -1362,7 +1362,10 @@ void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTabl
 // after it in the exe (+0x5), and the `and eax, 0xff` of the blue byte is scheduled first in the exe (+0x1ae), last in
 // ours. Tried (no change): a block-scoped `LTRGB color`, a block-scoped newColor, the LTVector(r,g,b) constructor,
 // `(float)(int)` casts. Untried: a different source for the six range[] lines (e.g. a min/max LTVector pair).
-// PARKED: register/scheduling only (prologue load order, one byte-mask placement; 6 aligned)
+// Hand pass 2: reading pPos->x into a local first (fX) gives the exe's prologue (pPos loaded before pTable): 6 -> 4
+// aligned. Left: `and eax, 0xff` (the blue byte) right after the `color = *pSample` store in the exe, last in ours;
+// statement orders around the colour read, int temporaries and inline setters taking int/uint8/float don't move it.
+// PARKED: scheduling only (one byte-mask placement; 4 aligned)
 // STUB: LITHTECH 0x0042ab60
 void w_LightTableAddLight(LTVector *pPos, LTVector *pColor, float radius, CLightTable *pTable)
 {
@@ -1371,8 +1374,10 @@ void w_LightTableAddLight(LTVector *pPos, LTVector *pColor, float radius, CLight
 	float radiusSqr, distSqr, scale;
 	LTVector samplePos, newColor;
 	LTRGB *pSample, color;
+	float fX;
 
-	range[0][0] = (int)((pPos->x - radius - pTable->m_LookupStart.x) * pTable->m_InvBlockSize.x);
+	fX = pPos->x;
+	range[0][0] = (int)((fX - radius - pTable->m_LookupStart.x) * pTable->m_InvBlockSize.x);
 	range[0][1] = (int)((pPos->x + radius - pTable->m_LookupStart.x) * pTable->m_InvBlockSize.x);
 	range[1][0] = (int)((pPos->y - radius - pTable->m_LookupStart.y) * pTable->m_InvBlockSize.y);
 	range[1][1] = (int)((pPos->y + radius - pTable->m_LookupStart.y) * pTable->m_InvBlockSize.y);

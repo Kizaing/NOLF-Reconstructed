@@ -292,13 +292,7 @@ static inline WorldPoly* w_GetPolyFromHPoly(MainWorld *pWorld, HPOLY hPoly)
 }
 
 
-// The original pushes edi after the parameter check; this pushes it in the prologue.
-// Wave 6 tried: oldFlags declared at its first use, the check written out as an if block: 5 aligned.
-// Wave 7 tried: a switch on flagType (with and without default), the CHECK_PARAMS2 expanded, the body in a
-// block: 5 aligned. The audit's data difference is only the FN_NAME pointer (0x004d5df4) not being named yet.
-// Wave 7 phase 2: audit: only the unnamed FN_NAME pointer (0x004d5df4).
-// PARKED: edi pushed in the prologue instead of after the parameter check (6 aligned); behaviour identical
-// STUB: LITHTECH 0x00479ec0
+// FUNCTION: LITHTECH 0x00479ec0
 LTRESULT ServerCommonLT::SetObjectFlags(HOBJECT hObj, const ObjFlagType flagType, uint32 dwFlags)
 {
 	FN_NAME(ServerCommonLT::SetObjectFlags);
@@ -308,42 +302,42 @@ LTRESULT ServerCommonLT::SetObjectFlags(HOBJECT hObj, const ObjFlagType flagType
 
 	if (flagType == OFT_Flags)
 	{
-		if (hObj->m_Flags == dwFlags)
-			return LT_OK;
-
-		// They changed a FLAGS_.
-		hObj->m_InternalFlags |= IFLAG_APPLYPHYSICS;
-
-		// If we're going to nonsolid, get rid of anything standing on us.
-		if ((hObj->m_Flags & FLAG_SOLID) && !(dwFlags & FLAG_SOLID))
+		if (hObj->m_Flags != dwFlags)
 		{
-			DetachObjectStanding(hObj);
+			// They changed a FLAGS_.
+			hObj->m_InternalFlags |= IFLAG_APPLYPHYSICS;
+
+			// If we're going to nonsolid, get rid of anything standing on us.
+			if ((hObj->m_Flags & FLAG_SOLID) && !(dwFlags & FLAG_SOLID))
+			{
+				DetachObjectStanding(hObj);
+			}
+
+			// Only tell clients if it changes a flag relevant to them.
+			if ((hObj->m_Flags ^ dwFlags) & CLIENT_FLAGMASK)
+			{
+				SetObjectChangeFlags(m_pServerMgr, hObj, CF_FLAGS);
+			}
+
+			oldFlags = hObj->m_Flags;
+			hObj->m_Flags = dwFlags;
+
+			// If they turned on real world model physics, retransform the world model.
+			if (hObj->HasWorldModel() && (oldFlags & FLAG_BOXPHYSICS) && !(dwFlags & FLAG_BOXPHYSICS))
+			{
+				RetransformWorldModel((WorldModelInstance*)hObj);
+			}
+
+			sm_UpdateInBspStatus(m_pServerMgr, hObj);
 		}
-
-		// Only tell clients if it changes a flag relevant to them.
-		if ((hObj->m_Flags ^ dwFlags) & CLIENT_FLAGMASK)
-		{
-			SetObjectChangeFlags(m_pServerMgr, hObj, CF_FLAGS);
-		}
-
-		oldFlags = hObj->m_Flags;
-		hObj->m_Flags = dwFlags;
-
-		// If they turned on real world model physics, retransform the world model.
-		if (hObj->HasWorldModel() && (oldFlags & FLAG_BOXPHYSICS) && !(dwFlags & FLAG_BOXPHYSICS))
-		{
-			RetransformWorldModel((WorldModelInstance*)hObj);
-		}
-
-		sm_UpdateInBspStatus(m_pServerMgr, hObj);
 	}
 	else
 	{
-		if (hObj->m_Flags2 == dwFlags)
-			return LT_OK;
-
-		hObj->m_Flags2 = dwFlags;
-		SetObjectChangeFlags(m_pServerMgr, hObj, CF_FLAGS);
+		if (hObj->m_Flags2 != dwFlags)
+		{
+			hObj->m_Flags2 = dwFlags;
+			SetObjectChangeFlags(m_pServerMgr, hObj, CF_FLAGS);
+		}
 	}
 
 	return LT_OK;

@@ -791,15 +791,7 @@ static void ReadAnimInfoSet(CClientShell *pShell, CPacket *pPacket, AnimInfoSet 
 
 
 // A new object's type, filenames and special effect data.
-// Wave 6: longSFXMark is a uint8 (Jupiter's type; the original tests it with `and al, 0x80`): SIZE 144 -> DIFF 61
-// aligned, same size and shared tail. Left: register allocation. The original loads pStruct into ebx once and
-// the m_CreateFlags word once before the 0x20 test (ours reloads pStruct from the stack in the else branch), and
-// keeps the constant 2 in edi only from the FILE_SERVERFILE store on (ours puts it in ebx from the start).
-// Tried: if/else bodies swapped or braced, a ternary (1008 bytes), hillclimb (no move helps).
-// Wave 7 phase 2: inline_budget: our out-of-line calls equal the exe's. The audit's `exe only: 2, 2, 2, 2` are
-// the immediates the exe uses where ours has the constant 2 in a register (register allocation).
-// PARKED: register allocation only (pStruct/ebx, the constant 2 in edi; 61 aligned); behaviour identical
-// STUB: LITHTECH 0x0048bfe0
+// FUNCTION: LITHTECH 0x0048bfe0
 static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct, CPacket *pSFXData)
 {
 	LTBOOL bSFXMessage;
@@ -849,6 +841,8 @@ static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct
 	}
 	else if(objectType == OT_MODEL)
 	{
+		// (The original sets the type again here.)
+		pStruct->m_Filename.m_FileType = FILE_SERVERFILE;
 		pStruct->m_Filename.m_FileID = pPacket->ReadType((uint16*)0);
 		for(i=0; i < MAX_MODEL_TEXTURES; i++)
 		{
@@ -858,8 +852,8 @@ static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct
 	}
 	else if(objectType == OT_SPRITE)
 	{
-		pStruct->m_Filename.m_FileType = FILE_SERVERFILE;
 		pStruct->m_Filename.m_FileID = pPacket->ReadType((uint16*)0);
+		pStruct->m_Filename.m_FileType = FILE_SERVERFILE;
 	}
 
 	pStruct->m_pSetup->m_ObjectType = objectType;

@@ -1606,15 +1606,14 @@ void GetBoxIntersection(LTVector *pMin1, LTVector *pMax1, LTVector *pMin2, LTVec
 
 
 // Called by WorldTree::FindObjectsInBox.
-// Register allocation: pObject/pArray get ebx/esi here, edi/ebx in the original (orig: esi holds the 0x400/server-flag
-// temporaries); the vCenter tail also differs (orig keeps the (vMax-vMin) temps in [esp+0x10..0x30] and calls nothing).
-// Tried: pArray before pObject, declaration order swaps, a local MoveState *pState (worse).
-// Wave 7 phase 2: ALIGNED 84 (64 ignoring stack offsets); audit: behaviour matches, no inline candidates. The code
-// is the exe's instruction for instruction under a register permutation (exe pObject=edi, pArray=ebx, 0x400 in esi;
-// ours ebx/esi/edi) plus the vMin/vMax slots (exe 0x1c/0x28, ours 0x10/0x1c). Tried: Jupiter's type test on
-// pTreeObj before the cast (either assignment order), no iObject local (89), vCenter.DistSqr / VEC_DISTSQR / one
-// expression for the distance (84/85/84).
-// PARKED: register permutation only (pObject/pArray/0x400 temp); behaviour matches
+// Hand pass 2: the tail is `vCenter = (vMax - vMin) * 0.5f; vCenter += vMin;` and VEC_DISTSQR against the start
+// position (the exe keeps the half extent in its own slot, copies it for `+=`'s by-value argument and subtracts
+// *m_pStartPos straight from memory; operator-/DistSqr copy the start position instead): 84 -> 33 aligned, the tail and
+// the frame (vCenter 0x10, vMin 0x1c, vMax 0x28) now identical. Left: a register permutation (exe pObject=edi,
+// pArray=ebx, the 0x400/m_bServer/pState temporaries in esi; ours ebx/esi/edi). A whole-function `MoveState *pState`
+// puts pObject in edi but takes ebx for itself (31); block- or tail-scoped pState/pMoveObj locals, the type test on
+// pTreeObj and Jupiter's if/else around the body (62+) don't help.
+// PARKED: register permutation only (pObject/pArray/temporaries); behaviour matches
 // STUB: LITHTECH 0x00461260
 void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser)
 {
@@ -1671,8 +1670,9 @@ void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser)
 	// Sort by the distance to the center of the overlap with the movement box.
 	GetBoxIntersection(&pObject->m_MinBox, &pObject->m_MaxBox, 
 		&pArray->m_pState->m_vMoveMin, &pArray->m_pState->m_vMoveMax, &vMin, &vMax);
-	vCenter = vMin + (vMax - vMin) * 0.5f;
-	pArray->m_Objects[iObject].m_fDistSqr = (vCenter - *pArray->m_pState->m_pStartPos).MagSqr();
+	vCenter = (vMax - vMin) * 0.5f;
+	vCenter += vMin;
+	pArray->m_Objects[iObject].m_fDistSqr = VEC_DISTSQR(vCenter, *pArray->m_pState->m_pStartPos);
 	pArray->m_nObjects++;
 }
 

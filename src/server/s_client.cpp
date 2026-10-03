@@ -1554,19 +1554,9 @@ inline LTBOOL IsClientInTrouble(Client *pClient)
 
 
 // Sends the client everything it needs to see this frame.
-// Wave 7: the force-update loop has sm_AddObjectChangeInfo's body written out (through updateInfo's members),
-// the forced objects go through forceUpdate.m_Objects, and the floats and `size` are declared in their blocks:
-// SIZE (321 aligned) -> DIFF 2048 bytes, 11 aligned, every stack offset right. Remaining: `GetRate() /
-// (float)g_CV_SendBandwidth` is fild + fdivp in the original (fidiv here; tried a float/int local, `/=`, double,
-// volatile, inline helpers taking float or int), and after the inlined AddObjectIdToSentList's dfree the original
-// reloads pObject (esi) before i (edi).
-// Wave 7 phase 2: inline_budget: our out-of-line calls equal the exe's (5 ~CPacketRef); the model itself
-// predicts 6 (the UpdateInfo destructors' CPacketRef sites at 28-32u limits). Tried for the fild/fdivp pair
-// (+0x19e): no cast, `(float)(long)`, a double divide, a RateTracker* local, the divisor converted first into
-// fScale (24 aligned), GetRate() into fScale first: all 11 aligned. The second difference is the reload order
-// of esi/edi after the inlined AddObjectIdToSentList's dfree (+0x58d).
-// PARKED: x87 fild+fdivp vs fidiv for GetRate()/g_CV_SendBandwidth and one reload order (11 aligned); behaviour identical
-// STUB: LITHTECH 0x00472510
+// The bandwidth divisor is a float product (`* 1.0f`): a plain (float) cast folds into fidiv, the exe has fild + fdivp.
+// The force-update loop has its own counter (j): with i reused, the reloads after the inlined AddObjectIdToSentList swap.
+// FUNCTION: LITHTECH 0x00472510
 void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 {
 	UpdateInfo updateInfo;
@@ -1579,6 +1569,7 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 	CServerEvent *pEvent;
 	ObjInfo *pObjInfo;
 	uint32 i;
+	uint32 j;
 
 	// If the client's queue is backed up, wait until it's ok.
 	if (IsClientInTrouble(pClient))
@@ -1606,7 +1597,7 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 
 		if (g_CV_SendBandwidth > 0)
 		{
-			fScale = pServerMgr->m_NetMgr.m_SendBPS.GetRate() / (float)g_CV_SendBandwidth;
+			fScale = pServerMgr->m_NetMgr.m_SendBPS.GetRate() / (g_CV_SendBandwidth * 1.0f);
 			if (fScale > 0.75f)
 			{
 				fScale += 0.25f;
@@ -1706,9 +1697,9 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 	if (pClientObject)
 		pClientObject->sd->m_pObject->EngineMessageFn(MID_GETFORCEUPDATEOBJECTS, &forceUpdate, 0.0f);
 
-	for (i=0; i < forceUpdate.m_nObjects; i++)
+	for (j=0; j < forceUpdate.m_nObjects; j++)
 	{
-		pObject = (LTObject*)forceUpdate.m_Objects[i];
+		pObject = (LTObject*)forceUpdate.m_Objects[j];
 		if (!pObject)
 			continue;
 
