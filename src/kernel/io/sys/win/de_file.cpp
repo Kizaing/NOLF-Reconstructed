@@ -871,6 +871,7 @@ int df_GetRawInfo(HLTFileTree *hTree, const char *pName, char* sFileName, unsign
 // Wave 6 also tried: a ternary / `if(...) seekOffset = -1;` with one Read call (19 bytes differ, still 6 aligned),
 // m_SeekOffset read before EnterCriticalSection, an inverted condition, unbraced bodies, a CRezItm* local,
 // Jupiter/DosFileStream's `if(sizeRead == size) {...} else {memset...}` (worse).
+// Wave 7 tried (no change): seekOffset declared at function scope, a CRezItm* local, a BYTE* local at the top.
 // STUB: LITHTECH 0x004273e0 ?Read@RezFileStream@@UAEKPAXK@Z
 // FUNCTION: LITHTECH 0x00427ac0 ?AllocVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00427b30 ?AllocVoid@?$ObjectBank@VRezFileStream@@VLCriticalSection@@@@UAEPAXXZ

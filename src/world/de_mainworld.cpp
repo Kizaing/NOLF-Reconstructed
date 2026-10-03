@@ -581,11 +581,15 @@ inline void w_LoadProgress(WorldLoadInfo *pInfo, LTBOOL bProgress)
 // offsets): 12-byte STREAM_READs of the vectors, the 4-byte poly size alignment, dead colour reads into locals,
 // the error block inside `if (ErrorStatus() != LT_OK)`, an `int j` for the node sides, a pointer local for the
 // light anim refs, the w_LoadProgress inline (its 11 sites plus the 3 `>>` of a point keep m_PolyAnimRefs.SetSize's
-// _DeleteAndDestroyArray out of line, as in the exe). Left: the exe's frame is 4 bytes bigger (one more scalar
-// slot; most stack offsets are off by 4), the bitfield stores of Surface::m_Flags (29 bits) and the lightmap plane
-// bits of WorldPoly::m_Flags (xor/and/xor through memory), the x87 order of the two Dot products, register
-// choices around the progress calls and the terrain section memory sum, and the PBlockTable failure's
-// `return LoadWorld_InvalidFile` is not tail-merged into the error block.
+// _DeleteAndDestroyArray out of line, as in the exe). Wave 7: `(v - O).Dot(P)` (the exe sums the terms z, y, x)
+// and the PBlockTable failure jumping to the error block's return (the exe tail-merges it: `goto Invalid`; the
+// size now matches) took it to 280 (105 ignoring stack offsets). Left: the exe's frame is 4 bytes bigger: it packs
+// the sub-dword locals into one more slot (bHasEffect, colorB and colorG each alone; iLeaf+colorR, lmWidth+lmHeight
+// paired; ours pairs colorG+colorB, iLeaf+lmWidth, colorR+lmHeight). Names and declaration order don't change the
+// layout (/FAs listings; toys show the order follows first use); colorG as uint16 fixes most offsets but reads 2
+// bytes. Also left: the Surface::m_Flags / WorldPoly::m_Flags stores (the exe re-reads memory: xor/and/xor; bitfield
+// views and explicit xor forms compile to our CSE'd code), the x87 order of the first Dot, register choices around
+// the progress calls and the terrain section memory sum.
 // STUB: LITHTECH 0x00428ac0
 LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgress,
 	WorldBsp **ppBsp, uint32 *pLoadTicks, uint32 *pPrecalcTicks, LTBOOL bUsePlaneTypes)
@@ -908,8 +912,8 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgres
 			STREAM_READ(pVert[k].m_Color[0]);
 			pVert[k].m_Color[3] = 0xFF;
 
-			pVert[k].m_U = P.Dot(*pVert[k].m_Vec - O);
-			pVert[k].m_V = Q.Dot(*pVert[k].m_Vec - O);
+			pVert[k].m_U = (*pVert[k].m_Vec - O).Dot(P);
+			pVert[k].m_V = (*pVert[k].m_Vec - O).Dot(Q);
 		}
 
 		// Render the second ring if there is one.
@@ -973,7 +977,7 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgres
 	w_LoadProgress(pInfo, bProgress);
 
 	if (!pBsp->m_PBlockTable.Load(pStream))
-		return LoadWorld_InvalidFile;
+		goto Invalid;
 
 	pBsp->m_MemoryUse += pBsp->m_PBlockTable.m_nBlocks * sizeof(PBlock);
 
@@ -1004,6 +1008,7 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgres
 	{
 Error:;
 		delete pBsp;
+Invalid:;
 		return LoadWorld_InvalidFile;
 	}
 

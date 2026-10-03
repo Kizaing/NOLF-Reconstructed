@@ -18,7 +18,6 @@
 #include "classbind.h"
 #include "serverde_impl.h"
 
-#define IFLAG_INACTIVE_MASK		0x38
 #define IFLAG_FROMCLIENTREF		(1<<7)	// Created from a client reference (keepalive).
 
 void w_RemoveObjectFromLeaf(LTObject *pObj);	// 0x00430680
@@ -302,11 +301,8 @@ void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 }
 
 
-// The out-of-line copy of the s_object.h inline. sm_UpdateObject (its only caller in the original) is
-// still a STUB that inlines it, so nothing emits the copy yet.
+// The out-of-line copy of the s_object.h inline, emitted after sm_UpdateObject (which calls it out of line).
 // FUNCTION: LITHTECH 0x00477540 ?SetObjectChangeFlags@@YAKPAVCServerMgr@@PAVLTObject@@K@Z
-// STANDIN: forces the out-of-line SetObjectChangeFlags (not in lithtech.exe)
-LTRESULT (*g_pfnSetObjectChangeFlags)(CServerMgr *pServerMgr, LTObject *pObj, uint32 flags) = SetObjectChangeFlags;
 
 // Model string key callback. Talon can append (or substitute) an extra command string.
 // FUNCTION: LITHTECH 0x00477640

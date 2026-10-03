@@ -51,6 +51,13 @@ inline LTBOOL InsideConvex(WorldPoly *pPoly, LTVector *pPt)
 // Wave 5: inline_scan finds that 8 units of ballast before any statement up to the VEC_LERP changes the diff
 // (982 -> 905 bytes) but never matches; `*pNormal ^ vTemp` (an extra nesting level) makes it worse (1248 bytes).
 // In the original the Cross result is built straight into edgePlane (ctor `this` = the plane), not in a temp.
+// Wave 7: the original calls Cross's constructor, Norm's Mag and both Dots out of line (ours: Mag and the DistTo Dot).
+// Keeping the vTemp statement and also writing `pNormal->Cross(*pPrev->m_Vec - currVec)` (a dead vTemp: one more inline
+// site) gives the original's size and constructor call (172 aligned, 90 ignoring stack offsets) with Norm out of line,
+// but that is dead code, not the original's source; Cross(*pPrev - currVec) alone changes nothing. DistSqr forms are
+// worse (388+). `vTemp = currVec - *pPrev; Cross(-vTemp)` (one more inline site, wrong arithmetic) gives exactly the
+// original's call list (ctor, Mag, Dot, Dot): the original has one more inline site in the loop than ours. LTPlane's
+// Normal() accessor for the m_Dist Dot puts the ctor out of line but inlines both Dots (209/123).
 // STUB: LITHTECH 0x004442a0
 static LTBOOL InternalIntersectLineNode(
 	Node *pRoot,

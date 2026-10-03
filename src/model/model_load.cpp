@@ -499,20 +499,28 @@ LTBOOL Model::LoadWeightSets(ILTStream &file)
 
 
 // STUB: LITHTECH 0x00456390
-// Written to instantiate the same STLport code (0x004571a0-0x00459170); the control flow is not matched.
-// Wave 5 findings (3472 vs 3328 bytes):
-// - The original builds `childRequest` (stores in the order filename, file, fn, userdata, load, 0x18, trees, all, extra)
-//   BEFORE the ModelAllocations ctor call; ours now does too.
-// - Every error inside the child-model block does `err = N; jmp cleanup`, one shared cleanup that calls the four
-//   _Vector_base dtors (0x00457270) and then jumps to the common Term/return. Writing that as a `ChildError:` label
-//   inside the block (`goto ChildrenLoaded; ChildError: goto Error;`) matches the layout, but it makes VC6 inline the
-//   vector dtors and the _M_create_node copy, so 0x00457270 and 0x00458800 stop matching. Not kept.
-// - The original tests `pExtraChildren && find(pName) != end()` first (the operator[] branch is the if body); that
-//   flip also moves the _M_create_node copy, so it is not kept either.
-// - 0x00457e10 is the out-of-line 2-argument basic_string::_M_range_initialize<const char*>(f, l) with the
-//   forward-iterator body inlined; ours inlines the 2-argument dispatcher and calls the 3-argument copy instead.
-//   The original did not inline the dispatcher into the string(const char*) constructor at the two key temporaries.
-//   (Our Load now calls that copy at three sites too and it matches; 0x00457e10 is annotated below.)
+// Wave 7 decoded the child-model block from the exe (was SIZE 3472 vs 3328; now 3312, 246 aligned mismatches,
+// 131 ignoring stack offsets):
+// - Behaviour fix: for a child model listed in the extra child map the exe evaluates `(*pExtraChildren)[pName]`
+//   twice (begin(), then end()) but never compares: it always adds exactly one extra model (the set's first name)
+//   and moves on, i.e. the original's test was discarded (written here as Talon's stray `;`). Ours looped over the
+//   whole set.
+// - The extra-map branch is the if body (`pExtraChildren && find(pName) != end()`); the copy into the new
+//   ChildInfo is ChildInfo's implicit operator= (CMoArray::operator= -> CopyArray2 out of line, then the seven
+//   members); InitChildInfo gets childRequest.m_pFilename; the `m_nChildModels > 1` test follows the
+//   m_bAllChildrenLoaded store (Jupiter's order). This removed the member/function-pointer stand-ins that forced
+//   CopyArray2/_Construct out of line (the exe's _Construct calls are the loop-2 push_backs, not a third-loop copy).
+// - iExtra is declared where it is assigned (a function-scope iterator is zero-initialised in the prologue; the exe
+//   has no such store; frame 0x154 -> 0x150).
+// Left: the exe calls _Construct out of line in all four loop-2 push_backs and ~string out of line after the
+// find() test (ours inlines the first push_back's _Construct and the string dtor, but calls map::lower_bound out of
+// line at the second operator[] where the exe inlines it): inline budget. Every child-block error does
+// `err = N; jmp cleanup`, one shared block after the "Animation" error that calls the four _Vector_base dtors
+// (0x00457270) and jumps to Error; ours puts the shared dtor block at the first error. A `ChildError:` label inside
+// the block (`goto ChildrenLoaded; ChildError: goto Error;`, or an `if(0)` block) is much worse (577) and breaks
+// 0x00457df0 and 0x00458800.
+// Earlier waves: childRequest is built before the ModelAllocations ctor; 0x00457e10 is the out-of-line 2-argument
+// basic_string::_M_range_initialize<const char*>.
 LTRESULT Model::Load(ModelLoadRequest *pRequest)
 {
 	ILTStream *pFile;
@@ -522,13 +530,9 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 	ModelAnim *pAnim;
 	ChildInfo *pChildInfo, *pInfo;
 	ExtraChildMap *pExtraChildren;
-	ExtraChildSet::iterator iExtra;
 	char *pFilename;
 	const char *pName;
 	ModelNode *pErrNode;
-	BOOL (CMoArray<NodeRelation>::*CopyRelations)(const CMoArray<NodeRelation> &other, LAlloc *pAlloc);
-	void (*ConstructName)(const char **p, const char* const &val);
-	void (*ConstructInfo)(ChildInfo **p, ChildInfo* const &val);
 	LTRESULT dResult;
 	uint32 i, j, iCurAnim, nAnims, nChildModels, nPieces, nWeights, nLoads;
 	uint16 nLODDists;
@@ -696,33 +700,30 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 		childInfos.push_back(pChildInfo);
 	}
 
-	// The original calls these out of line (it ran out of inline budget).
-	CopyRelations = &CMoArray<NodeRelation>::CopyArray2;
-	ConstructName = &_STL::_Construct;
-	ConstructInfo = &_STL::_Construct;
-
 	for(i=0; i < nChildModels-1; i++)
 	{
 		pName = fileNames[i];
 		pChildInfo = childInfos[i];
 
-		if(!pExtraChildren || pExtraChildren->find(pName) == pExtraChildren->end())
+		if(pExtraChildren && pExtraChildren->find(pName) != pExtraChildren->end())
 		{
-			childFileNames.push_back(pName);
-			childInfoList.push_back(pChildInfo);
-			nLoads++;
-		}
-		else
-		{
-			iExtra = (*pExtraChildren)[pName].begin();
-			while(iExtra != (*pExtraChildren)[pName].end())
+			// (sic) the stray ';' discards the test: the exe evaluates the second operator[] but always adds
+			// exactly one extra model (the set's first name) per child model.
+			ExtraChildSet::iterator iExtra = (*pExtraChildren)[pName].begin();
+			if(iExtra != (*pExtraChildren)[pName].end());
 			{
 				m_Unknown190 = 1;
 				childFileNames.push_back(AddString((*iExtra).c_str()));
 				childInfoList.push_back(pChildInfo);
-				++iExtra;
 				nLoads++;
+				iExtra++;
 			}
+		}
+		else
+		{
+			childFileNames.push_back(pName);
+			childInfoList.push_back(pChildInfo);
+			nLoads++;
 		}
 	}
 
@@ -743,16 +744,16 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 				err = 21;
 				goto ChildError;
 			}
-
-			if(pChildModel && pChildModel->m_nChildModels > 1)
-			{
-				err = 18;
-				goto ChildError;
-			}
 		}
 
 		if(!pChildModel)
 			pRequest->m_bAllChildrenLoaded = LTFALSE;
+
+		if(pChildModel && pChildModel->m_nChildModels > 1)
+		{
+			err = 18;
+			goto ChildError;
+		}
 
 		pInfo = LNew(GetAlloc(), ChildInfo);
 		if(!pInfo)
@@ -761,18 +762,9 @@ LTRESULT Model::Load(ModelLoadRequest *pRequest)
 			goto ChildError;
 		}
 
-		(pInfo->m_Relation.*CopyRelations)(childInfoList[i]->m_Relation, &g_DefAlloc);
-		ConstructName(&childFileNames[i], childFileNames[i]);
-		ConstructInfo(&childInfoList[i], childInfoList[i]);
-		pInfo->m_Unknown14 = childInfoList[i]->m_Unknown14;
-		pInfo->m_AnimOffset = childInfoList[i]->m_AnimOffset;
-		pInfo->m_pFilename = childInfoList[i]->m_pFilename;
-		pInfo->m_ModelStamp = childInfoList[i]->m_ModelStamp;
-		pInfo->m_pParentModel = childInfoList[i]->m_pParentModel;
-		pInfo->m_pModel = childInfoList[i]->m_pModel;
-		pInfo->m_bTreesValid = childInfoList[i]->m_bTreesValid;
+		*pInfo = *childInfoList[i];
 
-		if(!InitChildInfo(i+1, pInfo, pChildModel, childFileNames[i]))
+		if(!InitChildInfo(i+1, pInfo, pChildModel, childRequest.m_pFilename))
 		{
 			err = 20;
 			goto ChildError;

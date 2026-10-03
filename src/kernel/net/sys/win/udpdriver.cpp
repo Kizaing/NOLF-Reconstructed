@@ -519,6 +519,9 @@ char* tcp_GetLastError()
 // uint32 (compared as an int) and SendTo takes `&m_Queries[i].m_Addr` (the original recomputes it after the
 // calls). Aligned 166 -> 9: the original doesn't keep 0 in ebx across the receive loop (ours re-zeroes ebx after
 // the send loop for the CPacketRef null tests and the ReadType dummy argument).
+// Wave 7: a 2-round hillclimb finds no improving move. StartQuery has the same symptom (a zero kept in a
+// callee-saved register, which also turns `inc dword ptr [m_nElements]` into load/inc/store), so the cause is
+// probably shared.
 // STUB: LITHTECH 0x00498240
 LTRESULT CUDPDriver::UpdateQuery()
 {
@@ -846,8 +849,8 @@ LTRESULT CUDPDriver::JoinSession(NetSession *pSession)
 // of line, as in the original; 7 free calls in the accept block do the same). The QUERY reply as a CPacketRef too
 // is 95. Left: the reject path's `SendTo; Release; return` tail, which the original cross-jumps into the QUERY
 // reply's identical tail (ours loads the Release vtable into eax there, the QUERY tail into edx, so they don't
-// merge), and register order in the conn-request/disconnect IP prints. The InsertBefore STANDIN stays until this
-// matches.
+// merge), and register order in the conn-request/disconnect IP prints. It calls AddHead's InsertBefore out of line
+// as the original does, which emits the InsertBefore copy (wave 7: the stand-in that forced it is gone).
 // STUB: LITHTECH 0x00498cb0
 void CUDPDriver::HandleDriverPacket(CPacket *pPacket, sockaddr_in *pSender)
 {
@@ -1394,7 +1397,3 @@ CBaseDriver* udp_CreateDriver()
 // FUNCTION: LITHTECH 0x0049acb0 ?BaseDelete@@YAXPAVLAlloc@@PAVCUDPQuery@@K@Z
 // FUNCTION: LITHTECH 0x0049ad00 ?BaseNew@@YAPAVCUDPQuery@@PAVLAlloc@@PAV1@K@Z
 // FUNCTION: LITHTECH 0x0049ad70 ??_GCUDPQuery@@QAEPAXI@Z
-
-// Forces the out-of-line CMultiLinkList<CUDPConn*>::InsertBefore copy annotated above (not in lithtech.exe).
-// STANDIN: forces the out-of-line CMultiLinkList<CUDPConn*>::InsertBefore (not in lithtech.exe)
-MPOS (CMultiLinkList<CUDPConn*>::*g_pfnUDPConnInsertBefore)(MPOS, CUDPConn*, CMLLNode*) = &CMultiLinkList<CUDPConn*>::InsertBefore;

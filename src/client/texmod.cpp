@@ -199,8 +199,9 @@ LTRESULT CLTTexMod::GetTextureInfo(const HTEXTURE hTexture, TextureInfo &info)
 
 
 // STUB: LITHTECH 0x0049b260
-// The format test is an early `!= BPP_32` error whose ERR(1, LT_NOTINITIALIZED) VC merges with the final one: that
-// gives the original's layout and leaves the two LT_INVALIDPARAMS blocks merged only from the call on (README, wave 6).
+// The rectangle/lock type test is a CHECK_PARAMS2 (wave 7: the original prints "LT_INVALIDPARAMS" there, ERR printed
+// "60"; same score). The format test is an early `!= BPP_32` error whose ERR(1, LT_NOTINITIALIZED) VC merges with the
+// final one: that gives the original's layout and leaves the two LT_INVALIDPARAMS blocks merged only from the call on.
 // Remaining diff (8 aligned): in the alpha-mask branch the original loads &pData, stores, then loads &lPitch after
 // `pop edi`; we load both references first. Tried `!= LTNULL`, a TextureMipData local, swapping the two stores, a
 // plain `if` instead of `else if`, `lockType == TLOCK_BUMPMAP &&`. Phase 2: a nested `if(!m_AlphaMask) ERR` (36), a
@@ -225,32 +226,29 @@ LTRESULT CLTTexMod::LockTexture(const HTEXTURE hTexture, const LTRect *pRect,
 		pRect = &rect;
 	}
 
-	if(pRect->right > pRect->left && pRect->bottom > pRect->top &&
-		(lockType == TLOCK_TEXTURE || lockType == TLOCK_BUMPMAP))
+	CHECK_PARAMS2(pRect->right > pRect->left && pRect->bottom > pRect->top &&
+		(lockType == TLOCK_TEXTURE || lockType == TLOCK_BUMPMAP));
+
+	pTextureData->SetupPFormat(&format);
+	if(format.m_eType != BPP_32)
 	{
-		pTextureData->SetupPFormat(&format);
-		if(format.m_eType != BPP_32)
-		{
-			ERR(1, LT_NOTINITIALIZED);
-		}
-
-		if(lockType == TLOCK_TEXTURE)
-		{
-			pData = pTextureData->m_Mips[0].m_Data;
-			lPitch = pTextureData->m_Mips[0].m_Pitch;
-			return LT_OK;
-		}
-		else if(pTextureData->m_Mips[0].m_AlphaMask)
-		{
-			pData = pTextureData->m_Mips[0].m_AlphaMask;
-			lPitch = pTextureData->m_Mips[0].m_AlphaPitch;
-			return LT_OK;
-		}
-
 		ERR(1, LT_NOTINITIALIZED);
 	}
 
-	ERR(2, LT_INVALIDPARAMS);
+	if(lockType == TLOCK_TEXTURE)
+	{
+		pData = pTextureData->m_Mips[0].m_Data;
+		lPitch = pTextureData->m_Mips[0].m_Pitch;
+		return LT_OK;
+	}
+	else if(pTextureData->m_Mips[0].m_AlphaMask)
+	{
+		pData = pTextureData->m_Mips[0].m_AlphaMask;
+		lPitch = pTextureData->m_Mips[0].m_AlphaPitch;
+		return LT_OK;
+	}
+
+	ERR(1, LT_NOTINITIALIZED);
 }
 
 

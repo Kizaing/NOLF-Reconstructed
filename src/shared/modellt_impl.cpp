@@ -520,16 +520,15 @@ LTRESULT ILTModel::RemoveTracker(HOBJECT hObj, LTAnimTracker *pTracker)
 }
 
 
-// STUB: LITHTECH 0x0045a6a0
-// Frame is 0x14 vs 0x10: the original keeps weightSet/bAllowTransition/flags in dead parameter slots and holds
-// (uint8)bAllowTransition in ebx across the calls. Tried flags at function scope, reading flags/weightSet straight into
-// the tracker, a uint32 byte local: none helps.
+// Wave 7: the byte is read into a block-scoped uint8 and widened into an LTBOOL right away (the exe holds it in ebx
+// across the calls and gives the dead parameter slots to weightSet and the two byte/word reads).
+// FUNCTION: LITHTECH 0x0045a6a0
 LTRESULT ILTModel::ReadTracker(LTAnimTracker *pTracker, HMESSAGEREAD hRead)
 {
 	FN_NAME(ILTModel::ReadTracker);
 	uint16 curAnim;
 	uint32 curTime, weightSet, timeScaleNum, timeScaleDenom;
-	uint8 bAllowTransition;
+	LTBOOL bAllowTransition;
 
 	CHECK_PARAMS2(hRead && pTracker);
 
@@ -538,7 +537,11 @@ LTRESULT ILTModel::ReadTracker(LTAnimTracker *pTracker, HMESSAGEREAD hRead)
 	hRead->ReadDWordFL(weightSet);
 	hRead->ReadDWordFL(timeScaleNum);
 	hRead->ReadDWordFL(timeScaleDenom);
-	hRead->ReadByteFL(bAllowTransition);
+	{
+		uint8 bAllow;
+		hRead->ReadByteFL(bAllow);
+		bAllowTransition = bAllow;
+	}
 
 	pTracker->m_TimeRef.m_Cur.m_iWeightSet = weightSet;
 	trk_SetCurAnim(pTracker, curAnim, LTFALSE);

@@ -1068,15 +1068,10 @@ LTBOOL CNetMgr::ReallySendPacket(CPacket *pPacket, CBaseConn *idSendTo)
 }
 
 
-// Wave 6: aligned 147 -> 14. HandleNetMgrPacket takes (pSender, pPacket); `trailer` is a uint16 set by `x = 4; if(crc)
-// x = 6;` (a ternary compiles branch-free), the third frame case is `else if(frame > m_IncomingFrame)` (the
-// original repeats the compare) and the local path tests `HandleUnknownPacket(..) || HandleNetMgrPacket(..)` (one
-// shared return). These also fixed the this/pSender registers. Left: the final `trailer` and m_DataLen registers
-// (the original loads the flags into al and keeps trailer in ecx; ours the other way round). Tried: if/else and
-// `+= 2` forms, `trailer > m_DataLen`, `m_DataLen = m_DataLen - trailer`, a dataLen local, a separate local for the
-// first trailer, int16/WORD types; `? 2 : 0` in the non-guaranteed branch gets the registers right but compiles
-// to `and ecx, 2`.
-// STUB: LITHTECH 0x00464870
+// HandleNetMgrPacket takes (pSender, pPacket). Each branch strips its own trailer (VC6 cross-jumps the two
+// identical tails, which is why the guaranteed branch jumps into the middle of the other one), and the statement
+// after the if/else (unreachable) makes VC6 merge the `return FALSE` blocks into the last copy.
+// FUNCTION: LITHTECH 0x00464870
 LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOOL bMaybeDrop)
 {
 	uint32 frame;
@@ -1190,6 +1185,13 @@ LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOO
 		trailer = 4;
 		if(pSender->m_ConnFlags & CONNFLAG_CRC)
 			trailer = 6;
+
+		if(pPacket->m_DataLen < trailer)
+			return FALSE;
+
+		pPacket->m_DataLen -= trailer;
+		++pSender->m_nPacketsReceived;
+		return TRUE;
 	}
 	else
 	{
@@ -1199,14 +1201,16 @@ LTBOOL CNetMgr::HandleReceivedPacket(CPacket *pPacket, CBaseConn *pSender, LTBOO
 		trailer = 0;
 		if(pSender->m_ConnFlags & CONNFLAG_CRC)
 			trailer = 2;
+
+		if(pPacket->m_DataLen < trailer)
+			return FALSE;
+
+		pPacket->m_DataLen -= trailer;
+		++pSender->m_nPacketsReceived;
+		return TRUE;
 	}
 
-	if(pPacket->m_DataLen < trailer)
-		return FALSE;
-
-	pPacket->m_DataLen -= trailer;
-	++pSender->m_nPacketsReceived;
-	return TRUE;
+	return FALSE;
 }
 
 
@@ -1357,6 +1361,13 @@ inline uint32 GetPacketBytesLeft(CPacket *pPacket)
 // DISCONNECT/GROUP blocks and the FRAGMENT `Invalid fragment count` return, which VC6 cross-jumps into the final
 // else's NetDebugOut2 call where the original keeps its own tail. Tried: a switch (85), the final else as a
 // trailing statement (changes inlining), int/int32/uint16 helper return types (worse).
+// Wave 7: the function sits on an inline-budget edge: any added statement (a trailing `return`, an empty `else {}`,
+// a `pPingTimes` local, `m_Ping = t + m_Ping`) inlines the FRAGMENT fragInfo ReadType (1680 bytes), and extra pending
+// sites after it (GetPacketID, WriteData) don't undo that. None of those shapes stops the cross-jump either. Toys:
+// VC6 merges the two `NetDebugOut2; return TRUE` blocks for this if-chain shape (also with an inline helper, a bRet
+// local, a nested if or do/while(0)); a switch, or the FRAGMENT test written success-first (`if(ok){...} err`),
+// keeps them apart, but the first changes the dispatch code and the second puts the error block after the body.
+// The ping copy as a two-float struct assignment is 67 (memcpy 69).
 // STUB: LITHTECH 0x00464fb0
 LTBOOL CNetMgr::HandleNetMgrPacket(CBaseConn *pSender, CPacket *pPacket)
 {

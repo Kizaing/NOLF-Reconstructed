@@ -696,26 +696,30 @@ LTRESULT sm_RestoreObjects(CServerMgr *pServerMgr, ILTStream *pStream, uint32 dw
 #define OBJECTCREATED_SAVEGAME	0x40400000
 
 // STUB: LITHTECH 0x00439f40
-// Wave 6 findings (155 aligned): the original frame is 0x50 bytes larger (0x938). It has a function-scope
-// CPacketRef at [esp+0x70], zeroed at entry and released before ~LTObject on every return (declared after
-// tempObj), and a second block of zero-initialised words ([esp+0x2c..0x30], [0x78..0x84]) besides the MoveState
-// at 0xa0; inside the inlined createStruct.Clear() it calls LTRotation::Init (0x402ed0) out of line where we
-// inline it. An unused CPacketRef/MoveState local alone doesn't reproduce it (154).
+// Wave 7: the mystery locals were a ServerData (tempData, 0x44): the next-update/deactivation values are read
+// into its fields (which is why its CPacketRef is reloaded and released at every return), tempRadius and
+// skyIndex are zero-initialised, and the two vectors are read with `*pStream >> tempVec` (3 pending inline
+// sites that keep _InitArray out of line in the SFX packet's Init): SIZE (155 aligned) -> DIFF 2944 bytes,
+// 4 aligned. Also fixed: the client reference goes to the head of m_ClientReferences (dl_AddHead, as Jupiter),
+// not the tail. Remaining: the original stores moveState.m_nRestart's zero with the first (eax) group of
+// constructor stores, we with the second (edi); the MoveState constructor order is shared (moveobject.h).
 LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObject **ppObj,
 	uint32 dwParam)
 {
 	uint32 nextObjectPos, objDataPos;
 	ObjectCreateStruct createStruct;
 	LTObject tempObj;
+	ServerData tempData;
 	LTVector tempVec;
 	char className[256];
 	ClassDef *pClass;
 	LPBASECLASS pBaseClass;
 	LTObject *pObj;
 	LTRESULT dResult;
-	float tempRadius, fNextUpdate, fDeactivationTime, fDeactivateTimer;
+	float tempRadius = 0.0f;
 	uint8 bSpecialEffectMessage, bHasClient;
-	uint16 messageLen, skyIndex, i;
+	uint16 messageLen, i;
+	uint16 skyIndex = 0;
 	uint32 tempInternalFlags, clientFlags;
 	char clientName[512];
 	ClientRef *pClientRef;
@@ -743,9 +747,7 @@ LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObjec
 	STREAM_READ(tempObj.m_Flags);
 	STREAM_READ(tempObj.m_Flags2);
 
-	STREAM_READ(tempVec.x);
-	STREAM_READ(tempVec.y);
-	STREAM_READ(tempVec.z);
+	*pStream >> tempVec;
 	tempObj.SetPos(tempVec);
 
 	STREAM_READ(tempObj.m_Scale);
@@ -784,12 +786,12 @@ LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObjec
 		STREAM_READ(createStruct.m_ContainerCode);
 	}
 
-	STREAM_READ(fNextUpdate);
-	STREAM_READ(fDeactivationTime);
-	STREAM_READ(fDeactivateTimer);
+	STREAM_READ(tempData.m_NextUpdate);
+	STREAM_READ(tempData.m_fDeactivationTime);
+	STREAM_READ(tempData.m_fDeactivateTimer);
 
-	createStruct.m_NextUpdate = fNextUpdate;
-	createStruct.m_fDeactivationTime = fDeactivationTime;
+	createStruct.m_NextUpdate = tempData.m_NextUpdate;
+	createStruct.m_fDeactivationTime = tempData.m_fDeactivationTime;
 
 	// Create the object.
 	pBaseClass = sm_AllocateObjectOfClass(pServerMgr, pClass);
@@ -808,8 +810,8 @@ LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObjec
 		((DynamicLight*)pObj)->m_LightRadius = tempRadius;
 	}
 
-	if (pObj->sd->m_fDeactivationTime == fDeactivationTime)
-		pObj->sd->m_fDeactivateTimer = fDeactivateTimer;
+	if (pObj->sd->m_fDeactivationTime == tempData.m_fDeactivationTime)
+		pObj->sd->m_fDeactivateTimer = tempData.m_fDeactivateTimer;
 
 	// Now read the rest of the data in.
 	STREAM_READ(pObj->m_BPriority);
@@ -843,9 +845,7 @@ LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObjec
 	STREAM_READ(pObj->m_Mass);
 	STREAM_READ(pObj->m_ForceIgnoreLimitSqr);
 
-	STREAM_READ(tempVec.x);
-	STREAM_READ(tempVec.y);
-	STREAM_READ(tempVec.z);
+	*pStream >> tempVec;
 	pObj->SetDims(tempVec);
 
 	STREAM_READ(tempInternalFlags);
@@ -893,7 +893,7 @@ LTRESULT sm_CreateNextObject(CServerMgr *pServerMgr, ILTStream *pStream, LTObjec
 		pClientRef->m_ObjectID = pObj->m_ObjectID;
 		pObj->m_InternalFlags |= IFLAG_HASCLIENTREF;
 
-		dl_AddTail(&pServerMgr->m_ClientReferences, &pClientRef->m_Link, pClientRef);
+		dl_AddHead(&pServerMgr->m_ClientReferences, &pClientRef->m_Link, pClientRef);
 	}
 
 	*ppObj = pObj;

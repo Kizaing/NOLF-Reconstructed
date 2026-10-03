@@ -287,6 +287,8 @@ static inline WorldPoly* w_GetPolyFromHPoly(MainWorld *pWorld, HPOLY hPoly)
 // STUB: LITHTECH 0x00479ec0
 // The original pushes edi after the parameter check; this pushes it in the prologue.
 // Wave 6 tried: oldFlags declared at its first use, the check written out as an if block: 5 aligned.
+// Wave 7 tried: a switch on flagType (with and without default), the CHECK_PARAMS2 expanded, the body in a
+// block: 5 aligned. The audit's data difference is only the FN_NAME pointer (0x004d5df4) not being named yet.
 LTRESULT ServerCommonLT::SetObjectFlags(HOBJECT hObj, const ObjFlagType flagType, uint32 dwFlags)
 {
 	FN_NAME(ServerCommonLT::SetObjectFlags);

@@ -651,6 +651,7 @@ void CConsole::FreeBackground()
 // m_FullFontHeight/m_FontHeight store order, bResult cleared just before pcx_Create2 and `if(*pSrc) ...; pSrc++`.
 // Tried without effect: pSrc[x], array-subscript forms of pDest/pSrc/pRowStart, `*pDest = bits; pDest++`,
 // `(hDC = GetDC()) != LTNULL`, a separate index for the width fill, `iRow << 4`, a statement hill-climb.
+// Wave 7: the console variable is "ConsoleFont" and the resource type "#12345" (we had "ConsoleFontRes" and "PCX").
 // STUB: LITHTECH 0x004212f0
 LTBOOL CConsole::InitFont()
 {
@@ -671,14 +672,14 @@ LTBOOL CConsole::InitFont()
 		return LTFALSE;
 
 	resID = 140;
-	pVar = cc_FindConsoleVar(&g_ClientConsoleState, "ConsoleFontRes");
+	pVar = cc_FindConsoleVar(&g_ClientConsoleState, "ConsoleFont");
 	if(pVar)
 		resID = atoi(pVar->pStringVal);
 
-	hResource = FindResource(LTNULL, MAKEINTRESOURCE(resID & 0xFFFF), "PCX");
+	hResource = FindResource(LTNULL, MAKEINTRESOURCE(resID & 0xFFFF), "#12345");
 	if(!hResource)
 	{
-		hResource = FindResource(LTNULL, MAKEINTRESOURCE(140), "PCX");
+		hResource = FindResource(LTNULL, MAKEINTRESOURCE(140), "#12345");
 		if(!hResource)
 			return LTFALSE;
 	}

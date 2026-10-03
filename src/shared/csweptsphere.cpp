@@ -33,6 +33,12 @@ inline LTVector* PolyVert(WorldPoly *pPoly, uint32 i) { return ((SPolyVertex*)(p
 // arbitrary; ending with free pending sites, `if(0)` budget ballast and statement variants of the loop didn't help.
 // Defined before SweptSphereToEdge/Point, in the exe's order (that costs 9 aligned mismatches against defining it
 // after them, but the link order needs it).
+// Wave 7 (audit): the comparisons as the original wrote them (`fEndDist <= fRadius`, `if(!(0.0f <= fStartDist))`:
+// `test ah,0x41` like the exe) and the explicit `if(bHit) return LTTRUE; return LTFALSE;` the exe has (test/je/mov 1;
+// a ternary folds to `return bHit`). The audit now differs only in inlining: the one extra statement raises the
+// budget, so the first vector constructor inlines (out of line in the original) while the loop's Dot still goes out
+// of line (inline in the original): 207 aligned mismatches (194 ignoring stack offsets; 184 before, with the
+// comparison forms and return wrong).
 // STUB: LITHTECH 0x00424970
 LTBOOL SweptSphereToPoly(LTVector *pStart, LTVector *pEnd, float fRadius, WorldPoly *pPoly, float *pT,
 	LTVector *pNormal)
@@ -51,7 +57,7 @@ LTBOOL SweptSphereToPoly(LTVector *pStart, LTVector *pEnd, float fRadius, WorldP
 	fEndDist = vNormal.Dot(*pEnd - *PolyVert(pPoly, 0));
 
 	// The sphere's centre goes from at least a radius in front of the plane to within a radius of it.
-	if(fStartDist >= fRadius && !(fEndDist > fRadius))
+	if(fStartDist >= fRadius && fEndDist <= fRadius)
 	{
 		if(fStartDist - fEndDist != 0.0f)
 		{
@@ -78,7 +84,7 @@ LTBOOL SweptSphereToPoly(LTVector *pStart, LTVector *pEnd, float fRadius, WorldP
 	}
 
 Edges:
-	if(fStartDist < 0.0f)
+	if(!(0.0f <= fStartDist))
 		return LTFALSE;
 
 	*pT = 1.0f;
@@ -107,7 +113,9 @@ Edges:
 		pPrev = pCur;
 	}
 
-	return bHit;
+	if(bHit)
+		return LTTRUE;
+	return LTFALSE;
 }
 
 // Sphere moving from pStart to pEnd against the line segment pV0 - pV1: the fraction of the move (*pT) and the
@@ -238,12 +246,14 @@ LTBOOL SweptSphereToPoint(LTVector *pStart, LTVector *pEnd, float fRadius, LTVec
 
 // Pushes the sphere at pPos out of the solid polygons it overlaps (a plane and the point inside the polygon).
 // Each push uses up one of 10 passes; returns the passes left (0 if it could not get free).
-// Not matching. The edge test is (vEdge x vNormal) . vTo with the normal's by-value copy hoisted out of the loop (the
-// earlier (vEdge x vTo) . vNormal had the opposite sign). The loop head is `do { if(!(nPasses > 0)) break; ... goto
-// Again; ... } while(1)`. Remaining (107 aligned mismatches, was 100 with the wrong-signed test): the original's
-// polygon loop is the inverted for (count tested before and at the bottom) where ours tests at the top, its inner
-// loop's break goes straight to the next polygon (ours tests j < nVerts first), and it keeps pPos in ebx and the
-// polygon in esi. A `while` head, `goto NextPoly` out of the inner loop and `if(j != nVerts)` were worse.
+// Not matching. The edge test is (vEdge x N) . vTo. The loop head is `do { if(!(nPasses > 0)) break; ... goto
+// Again; ... } while(1)`. Wave 7: Cross takes pPlane->m_Normal directly (VC6 hoists its by-value copy out of the
+// vertex loop, after the zero-count test, as the original does; the named vNormal copy before the loop was the
+// difference): 108 -> 32 aligned mismatches. Remaining: the original's polygon loop is the inverted for (count tested
+// before and at the bottom) where ours tests at the top, its inner loop's failed edge test jumps straight to the next
+// polygon (ours tests j < nVerts after the loop: the audit's one jcc difference, a loop shape, not behaviour), and
+// DistTo's x87 order (z, y, x in the original). `goto NextPoly` out of the inner loop, a `while` head and
+// `if(j != nVerts)` are worse (131+).
 // STUB: LITHTECH 0x00425630
 uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, int nPolies)
 {
@@ -253,7 +263,7 @@ uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, in
 	WorldPoly *pPoly;
 	LTPlane *pPlane;
 	LTVector *pPrev, *pCur;
-	LTVector vNormal, vEdge, vTo, vCross;
+	LTVector vEdge, vTo, vCross;
 	float fDist;
 
 	nPasses = 10;
@@ -275,7 +285,6 @@ uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, in
 			// Is the point on the plane inside the polygon's edges?
 			LTVector vProj = *pPos - pPlane->m_Normal * fDist;
 			nVerts = pPoly->m_nVertices;
-			vNormal = pPlane->m_Normal;
 			for(j=0; j < nVerts; j++)
 			{
 				if(j)
@@ -286,7 +295,7 @@ uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, in
 
 				vEdge = *pCur - *pPrev;
 				vTo = vProj - *pPrev;
-				vCross = vEdge.Cross(vNormal);
+				vCross = vEdge.Cross(pPlane->m_Normal);
 				if(vCross.Dot(vTo) < -0.001f)
 					break;
 			}

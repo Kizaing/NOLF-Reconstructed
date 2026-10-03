@@ -44,12 +44,14 @@ struct PolyClipBuffer
 
 // Same size as the original (944) and the same shape: the sphere test (VEC_DISTSQR; the same code as a VEC_SUB
 // written z, y, x), the new vertex VEC_LERP (the same code as the three hand-written lines), `pIn` copied before the plane loop, vertices addressed as pIn[iPrev]/pIn[i] and reloaded each time,
-// the plane loop run on a walking pointer to the plane's dist (`cmp ptr, &g_BoxFindPlanes[6].m_Dist`), the min/max
-// loop as `for (; nIn > 0; nIn--, pIn++)`. What differs is the register assignment: the original keeps pPoly in esi,
+// What differs is the register assignment: the original keeps pPoly in esi,
 // pOut in ebp, the plane index in ebx and pNew in edx, with nIn spilled to [esp+0x10]; ours has pOut in ebx and
 // the plane index in edi. The order of the local declarations has no effect (VC6 assigns slots by use).
 // Wave 6 phase 2: DistSqr/MagSqr/operator forms of the sphere test and an operator lerp are worse (163-386 aligned
 // mismatches against 133).
+// Wave 7: the plane loop counts iPlane < 6 (VC6 strength-reduces it to the dist pointer but keeps the signed `jl`;
+// a pointer compare gave `jb`) and the min/max loop is `while (nIn--)` (no pre-test; nIn is known non-zero): the
+// audit now matches except the function static's names (s_Buf/its guard have no exe names yet). 167 -> 157 aligned.
 // STUB: LITHTECH 0x00416f10 ?PolyTouchesBox@@YAIPAUWorldPoly@@PAX1@Z
 LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 {
@@ -84,8 +86,9 @@ LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 		pIn[i] = ((SPolyVertex*)(pPoly + 1))[i].m_Vec;
 	}
 
-	for (iPlane=0, pDist = &g_BoxFindPlanes[0].m_Dist; pDist < &g_BoxFindPlanes[6].m_Dist; iPlane++, pDist += 4)
+	for (iPlane=0; iPlane < 6; iPlane++)
 	{
+		pDist = &g_BoxFindPlanes[iPlane].m_Dist;
 		sign = g_ClipSigns[iPlane];
 		axis = iPlane >> 1;
 
@@ -131,10 +134,11 @@ LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 		pMin->x = pMin->y = pMin->z = (float)MAX_CREAL;
 		pMax->x = pMax->y = pMax->z = (float)-MAX_CREAL;
 
-		for (; nIn > 0; nIn--, pIn++)
+		while (nIn--)
 		{
 			VEC_MIN(*pMin, *pMin, **pIn);
 			VEC_MAX(*pMax, *pMax, **pIn);
+			pIn++;
 		}
 	}
 

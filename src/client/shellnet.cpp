@@ -865,6 +865,8 @@ static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct
 // 976 bytes with 2 differing: Init() stores x,y,z while the original stores z,y,x (VEC_INIT). VEC_INIT plus any one
 // free inline call after the radius read (inline_scan p1: every statement from 895 to PlaySound) is a MATCH, so the
 // original has one more pending inline site there that is not Init().
+// Wave 7: VEC_INIT alone (1088 bytes), `= LTVector(0,0,0)` (1008), VEC_INIT with Jupiter's unused `LTVector vUp,
+// vRight;`, `LTVector(GetPos())` or `->m_Pos` instead of GetPos(): none supplies the missing site.
 // STUB: LITHTECH 0x0048c380
 static LTRESULT ReadPlaySound(CClientShell *pShell, CPacket *pPacket)
 {

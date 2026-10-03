@@ -279,6 +279,10 @@ void sm_SendAllLightAnims(CServerMgr *pServerMgr, Client *pClient)
 // into pClient's home ([esp+0x1c]) instead of pServerMgr's, and `push ebp`/`lea ebp,[ebx+0xc]` move to the
 // prologue (the original does them after the loop guard). Tried: int i, ++i, a while loop, i declared in the for
 // or after the first statement, `pChange = arr + i`, both inits in the for, a pServerMgr copy: no better.
+// Wave 7: `pChange = &pClient->m_LightAnimChanges[i]` inside the loop gets the original's late `push ebp`/`lea
+// ebp,[ebx+0xc]` after the loop guard (VC6 saves a callee-saved register only where it first becomes live), but i
+// then takes a new slot instead of pServerMgr's dead home (14 aligned, 8 ignoring offsets); i declared in the
+// for or mid-function doesn't change that.
 void sm_SendChangedLightAnims(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacket *pPacket;
@@ -1421,7 +1425,7 @@ extern VisQueryInfo *g_pCurVisQuery;
 
 // Collects the objects in a visible node the client should be sent (a vis query callback).
 // FUNCTION: LITHTECH 0x00472d10
-void sm_GetVisibleObjectsCB(LTLink *pListHead, LTObject ***pppObjects, int *pnObjects)
+static void sm_GetVisibleObjectsCB(LTLink *pListHead, LTObject ***pppObjects, int *pnObjects)
 {
 	UpdateInfo *pInfo;
 	LTLink *pCur;
@@ -1551,12 +1555,12 @@ inline LTBOOL IsClientInTrouble(Client *pClient)
 
 // Sends the client everything it needs to see this frame.
 // STUB: LITHTECH 0x00472510
-// Wave 6: LTMIN/LTMAX for the bandwidth clamps (the original's x87 compare order): aligned 332 -> 321. The main
-// difference is one inline decision: the original inlines AddObjectIdToSentList inside the force-update loop's
-// sm_AddObjectChangeInfo (dalloc/dfree inline), we call it out of line; ~24 units of direct if(0) ballast at the
-// top fix it (90 aligned, but 2112 bytes). The original frame is 0xc bytes larger (0x3a8), pClient is in ebx
-// (ours edi), and `GetRate() / (float)g_CV_SendBandwidth` is fild + fdivp in the original (fidiv here; a
-// separate `/=` statement doesn't change it).
+// Wave 7: the force-update loop has sm_AddObjectChangeInfo's body written out (through updateInfo's members),
+// the forced objects go through forceUpdate.m_Objects, and the floats and `size` are declared in their blocks:
+// SIZE (321 aligned) -> DIFF 2048 bytes, 11 aligned, every stack offset right. Remaining: `GetRate() /
+// (float)g_CV_SendBandwidth` is fild + fdivp in the original (fidiv here; tried a float/int local, `/=`, double,
+// volatile, inline helpers taking float or int), and after the inlined AddObjectIdToSentList's dfree the original
+// reloads pObject (esi) before i (edi).
 void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 {
 	UpdateInfo updateInfo;
@@ -1568,8 +1572,7 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 	LTLink *pCur, *pNext;
 	CServerEvent *pEvent;
 	ObjInfo *pObjInfo;
-	float fRatio, fScale, fTarget, fRate;
-	uint32 i, size;
+	uint32 i;
 
 	// If the client's queue is backed up, wait until it's ok.
 	if (IsClientInTrouble(pClient))
@@ -1582,6 +1585,8 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 	// Throttle the update rate to the available bandwidth.
 	if (!(pClient->m_ClientFlags & (CFLAG_LOCAL | CFLAG_FORCENEXTUPDATE)))
 	{
+		float fRatio, fScale, fTarget, fRate;
+
 		if (!pClient->m_Timer.Update())
 			return;
 
@@ -1675,7 +1680,7 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 
 	if (pClientObject)
 	{
-		aObjects[forceUpdate.m_nObjects] = (HOBJECT)pClientObject;
+		forceUpdate.m_Objects[forceUpdate.m_nObjects] = (HOBJECT)pClientObject;
 		forceUpdate.m_nObjects++;
 	}
 
@@ -1686,7 +1691,7 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 			pObject = sm_FindObject(pServerMgr, pServerMgr->m_SkyObjects[i]);
 			if (pObject)
 			{
-				aObjects[forceUpdate.m_nObjects] = (HOBJECT)pObject;
+				forceUpdate.m_Objects[forceUpdate.m_nObjects] = (HOBJECT)pObject;
 				forceUpdate.m_nObjects++;
 			}
 		}
@@ -1697,12 +1702,27 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 
 	for (i=0; i < forceUpdate.m_nObjects; i++)
 	{
-		pObject = (LTObject*)aObjects[i];
+		pObject = (LTObject*)forceUpdate.m_Objects[i];
 		if (!pObject)
 			continue;
 
+		uint32 size;
 		pObjInfo = &pClient->m_ObjInfos[pObject->m_ObjectID];
-		sm_AddObjectChangeInfo(&updateInfo, pObject, pObjInfo);
+
+		// Check if we already sent this.
+		if (pObjInfo->m_ChangeFlags & CF_SENTINFO)
+			continue;
+
+		AddObjectIdToSentList(pObject);
+
+		size = 0;
+		FillPacketFromInfo(updateInfo.m_pServerMgr, updateInfo.m_pClient, pObject, pObjInfo, LTNULL, &size);
+		sm_FlushUpdate(&updateInfo, updateInfo.m_cPacket, SMSG_UPDATE, size);
+		FillPacketFromInfo(updateInfo.m_pServerMgr, updateInfo.m_pClient, pObject, pObjInfo, updateInfo.m_cPacket, LTNULL);
+		WriteUnguaranteedInfo(&updateInfo, pObject, pObjInfo);
+
+		// Clear 'em.
+		pObjInfo->m_ChangeFlags = (uint16)((pObjInfo->m_ChangeFlags & CF_CLEARMASK) | CF_SENTINFO);
 	}
 
 	// Add all the event subpackets.
@@ -1728,9 +1748,12 @@ void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 	WriteObjectRemoves(&updateInfo, pPrevList);
 
 	// Mark the end of the update info.
+	{
+	uint32 size;
 	size = 0;
 	WriteEndUpdateInfo(pServerMgr, pClient, LTNULL, &size);
 	sm_FlushUpdate(&updateInfo, updateInfo.m_cUnguaranteed, SMSG_UNGUARANTEEDUPDATE, size);
+	}
 	WriteEndUpdateInfo(pServerMgr, pClient, updateInfo.m_cUnguaranteed, LTNULL);
 
 	updateInfo.m_cPacket->m_ErrorFlags |= PACKETERR_FRAGMENTED;

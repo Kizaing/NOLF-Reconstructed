@@ -53,9 +53,10 @@ struct PhysicsSphere
 // FUNCTION: LITHTECH 0x00418370 _$E20
 // FUNCTION: LITHTECH 0x00418380 _$E19
 
-// The box being moved (SetupBox).
+// The box being moved (SetupBox). g_BoxOffset is file-static like g_P0/g_P1: CollideCylinderWithTree's
+// `m_vEnd - g_BoxOffset` reads it in place (an extern global is copied to a temporary first).
 // GLOBAL: LITHTECH 0x004e246c
-LTVector g_BoxOffset;
+static LTVector g_BoxOffset;
 // GLOBAL: LITHTECH 0x004e2478
 LTVector g_BoxMin;
 // GLOBAL: LITHTECH 0x004e249c
@@ -274,6 +275,8 @@ ClassifyFn g_ClassifyFns[] =
 // Close (3 aligned mismatches, was 103): a 16-bit loop counter (uint16; uint8 and short give the same) makes VC6
 // count the point loop down in edi like the original (an int compares the point pointer against its end). Left:
 // the original adds 4 to esp (cnt_StartCounter's argument) after the first fabs compare, ours right after the call.
+// Wave 7: tried `v = g_P1 - g_P0`, a direct-initialised v, double constants, nested ifs, an if/else body, `(float)fabs`,
+// pDims set before the test and the CountAdder declared later: no change (or worse); the deferred `add esp,4` stays.
 // STUB: LITHTECH 0x00418840
 LTBOOL SetupBox()
 {
@@ -517,33 +520,41 @@ CMovingCylinder::EHeightSection CMovingCylinder::GetHeightSection(float fYValue)
 
 // Collides the cylinder with a world polygon: finds the point of the polygon (or its plane)
 // that pushes furthest into the cylinder at m_vEnd.
-// Not matching: transcribed from the disassembly, the float expressions and locals are untuned (the
-// original also keeps its frame 0x28 bytes larger and calls GetHeightSection out of line).
+// Rewritten in wave 7 from a full decode of the exe (behaviour now matches the audit): the comparisons as the
+// original wrote them (`> m_fMoveTop`, `m_fRadius - fBest > m_fClosestDist`, `m_fPlaneIntrusion > m_fClosestDist`,
+// `... >= fBest` inside the edge condition), the vertical clamp as if/else stores, vCur/vEdge/vTo/vToProj constructed
+// in place (no temporaries), VEC_ADDSCALED/VEC_COPY for the edge point (the original copies vCur with fld/fstp and
+// shares the last store), and one `return LTFALSE` at the end that every early return jumps to. 371 aligned
+// mismatches (2224 bytes against 2112). Left: the original keeps pPoly in esi and spills pPlane at once (ours keeps
+// pPlane in ebp and pushes ebp in the prologue; the original pushes it just before the vertex loop), keeps vEdge.x
+// on the FPU and gives vEdge.z a second home for the XZ length/projection, and its frame is 4 bytes smaller. Tried:
+// x/z term orders of the XZ length and t, a flat LTVector + Mag/Dot.
 // STUB: LITHTECH 0x004190f0
 LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 {
 	LTPlane *pPlane;
-	LTVector vProj, vPrev, vCur, vEdge, vBest, vEdgeNormal, vSlope;
-	LTVector vDiff;
 	SPolyVertex *pVert;
-	float fRadius, fDist, fAbsY, fHeightDiff, fBest, fLen, fInv, t, fD, fSide;
-	int iPrevSection, iCurSection, i, nVerts;
+	LTVector *pCur;
+	LTVector vProj, vPrev, vPt, vBest, vEdgeNormal, vDiff;
+	float fPolyRadius, fAbsY, fHeightDiff, fBest, fLen, fInv, t, fSlopeX, fSlopeZ, fDist;
+	int iPrevSection, iCurSection;
+	uint32 i, nVerts;
 	LTBOOL bInside, bHoriz, bStep;
 
 	pPlane = pPoly->m_pPlane;
+
+	// Don't worry about back-facing polys
 	if (m_vMovementDir.Dot(pPlane->m_Normal) > 0.01)
 		return LTFALSE;
 
-	fRadius = m_fMoveSphere + pPoly->m_Radius;
+	// There's not a collision if the radius of the polygon's outside the sphere radius
+	fPolyRadius = m_fMoveSphere + pPoly->m_Radius;
 	vDiff = pPoly->m_Center - m_vMoveMid;
-	if (vDiff.MagSqr() > fRadius * fRadius)
+	if (vDiff.MagSqr() > fPolyRadius * fPolyRadius)
 		return LTFALSE;
 
 	// The point on the plane nearest the cylinder's end.
-	fDist = -m_fDistToPlane;
-	vProj.x = fDist * pPlane->m_Normal.x + m_vEnd.x;
-	vProj.y = fDist * pPlane->m_Normal.y + m_vEnd.y;
-	vProj.z = fDist * pPlane->m_Normal.z + m_vEnd.z;
+	vProj = pPlane->m_Normal * -m_fDistToPlane + m_vEnd;
 
 	fAbsY = (float)fabs(pPlane->m_Normal.y);
 	if (fAbsY < 0.01f)
@@ -551,10 +562,10 @@ LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 		// A vertical plane: keep the point within the cylinder's height.
 		if (pPoly->m_Center.y < m_fMoveBottom)
 			vProj.y = m_fMoveBottom;
-		else if (pPoly->m_Center.y <= m_fMoveTop)
-			vProj.y = pPoly->m_Center.y;
-		else
+		else if (pPoly->m_Center.y > m_fMoveTop)
 			vProj.y = m_fMoveTop;
+		else
+			vProj.y = pPoly->m_Center.y;
 	}
 
 	bInside = LTTRUE;
@@ -564,155 +575,122 @@ LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 	{
 		fHeightDiff = m_vEnd.y - pPoly->m_Center.y;
 		bHoriz = LTTRUE;
-		if (m_bStairStep && pPlane->m_Normal.y > 0.0f && fHeightDiff >= 0.0f &&
-			m_fHeight * 0.5f > m_fHeight - fHeightDiff)
-		{
-			bStep = LTTRUE;
-		}
+		bStep = m_bStairStep && pPlane->m_Normal.y > 0.0f && fHeightDiff >= 0.0f &&
+			(m_fHeight - fHeightDiff) < (m_fHeight * 0.5f);
 	}
 
 	nVerts = pPoly->m_nVertices;
 	pVert = (SPolyVertex*)(pPoly + 1);
 	vPrev = *pVert[nVerts - 1].m_Vec;
-	vBest = vPrev;
+	vBest = *pVert[nVerts - 1].m_Vec;
 	fBest = m_fSphere;
 	for (i = 0; i < nVerts; i++)
 	{
-		LTVector *pCur = pVert[i].m_Vec;
-
-		vCur = *pCur;
-		vEdge = vCur - vPrev;
+		pCur = pVert[i].m_Vec;
+		LTVector vCur = *pCur;
+		LTVector vEdge = vCur - vPrev;
 
 		iPrevSection = GetHeightSection(vPrev.y);
 		iCurSection = GetHeightSection(vCur.y);
-		if (iPrevSection != iCurSection || iPrevSection == 0)
+		if (iPrevSection != iCurSection || iPrevSection == HEIGHT_MIDDLE)
 		{
-			fLen = (float)sqrt(vEdge.x * vEdge.x + vEdge.z * vEdge.z);
+			// The point of the edge nearest the end position (in XZ).
+			fLen = (float)sqrt(vEdge.z * vEdge.z + vEdge.x * vEdge.x);
 			if (fLen > 0.01f)
 			{
 				fInv = 1.0f / fLen;
 				t = (vEdge.z * fInv * (m_vEnd.z - vPrev.z) + vEdge.x * fInv * (m_vEnd.x - vPrev.x)) * fInv;
 				if (t >= 0.0f && t <= 1.0f)
-				{
-					vCur.x = t * vEdge.x + vPrev.x;
-					vCur.y = vEdge.y * t + vPrev.y;
-					vCur.z = vEdge.z * t + vPrev.z;
-				}
+					VEC_ADDSCALED(vPt, vPrev, vEdge, t)
+				else
+					VEC_COPY(vPt, vCur)
 			}
-
-			if (vEdge.y != 0.0f && (iPrevSection != 0 || iCurSection != 0))
+			else
 			{
-				fLen = (float)sqrt(vEdge.z * vEdge.z + vEdge.x * vEdge.x + vEdge.y * vEdge.y);
-				if (fLen != 0.0f)
-				{
-					fInv = 1.0f / fLen;
-					vEdge.x *= fInv;
-					vEdge.y *= fInv;
-					vEdge.z *= fInv;
-				}
+				VEC_COPY(vPt, vCur);
+			}
 
+			// Slide it along the edge into the cylinder's height.
+			if (vEdge.y != 0.0f && (iPrevSection != HEIGHT_MIDDLE || iCurSection != HEIGHT_MIDDLE))
+			{
+				vEdge.Norm();
 				fInv = 1.0f / vEdge.y;
-				vSlope.x = vEdge.x * fInv;
-				vSlope.z = fInv * vEdge.z;
-				if (vCur.y < m_fMoveBottom)
+				fSlopeX = vEdge.x * fInv;
+				fSlopeZ = fInv * vEdge.z;
+				if (vPt.y < m_fMoveBottom)
 				{
-					fD = m_fMoveBottom - vCur.y;
-					vCur.y = m_fMoveBottom;
-					vCur.x = vSlope.x * fD + vCur.x;
-					vCur.z = vSlope.z * fD + vCur.z;
+					fDist = m_fMoveBottom - vPt.y;
+					vPt.y = m_fMoveBottom;
+					vPt.x += fSlopeX * fDist;
+					vPt.z += fSlopeZ * fDist;
 				}
-				if (m_fHeight + m_vEnd.y < vCur.y)
+				if (m_fHeight + m_vEnd.y < vPt.y)
 				{
-					fD = m_fMoveTop - vCur.y;
-					vCur.y = m_fMoveTop;
-					vCur.x = vSlope.x * fD + vCur.x;
-					vCur.z = vSlope.z * fD + vCur.z;
+					fDist = m_fMoveTop - vPt.y;
+					vPt.y = m_fMoveTop;
+					vPt.x += fSlopeX * fDist;
+					vPt.z += fSlopeZ * fDist;
 				}
 			}
 
-			fDist = vCur.x - m_vEnd.x;
-			fD = vCur.z - m_vEnd.z;
-			fDist = (float)sqrt(fD * fD + fDist * fDist);
+			LTVector vTo = vPt - m_vEnd;
+			fDist = (float)sqrt(vTo.x * vTo.x + vTo.z * vTo.z);
 			if (fDist < fBest)
 			{
-				vBest = vCur;
 				fBest = fDist;
+				vBest = vPt;
 			}
 		}
 
+		// Is the projected point inside this edge?
 		if (bInside)
 		{
-			vEdgeNormal.x = pPlane->m_Normal.y * vEdge.z - pPlane->m_Normal.z * vEdge.y;
-			vEdgeNormal.y = pPlane->m_Normal.z * vEdge.x - pPlane->m_Normal.x * vEdge.z;
-			vEdgeNormal.z = pPlane->m_Normal.x * vEdge.y - pPlane->m_Normal.y * vEdge.x;
-			fLen = (float)sqrt(vEdgeNormal.x * vEdgeNormal.x + vEdgeNormal.y * vEdgeNormal.y +
-				vEdgeNormal.z * vEdgeNormal.z);
-			if (fLen != 0.0f)
-			{
-				fInv = 1.0f / fLen;
-				vEdgeNormal.x *= fInv;
-				vEdgeNormal.y *= fInv;
-				vEdgeNormal.z *= fInv;
-			}
-
-			fSide = (vEdgeNormal.y * vProj.y + vEdgeNormal.x * vProj.x + vEdgeNormal.z * vProj.z) -
-				(vEdgeNormal.z * pCur->z + pCur->x * vEdgeNormal.x + vEdgeNormal.y * pCur->y);
-			if (fSide < -0.01f)
+			vEdgeNormal = vEdge.Cross(pPlane->m_Normal);
+			vEdgeNormal.Norm();
+			if (vEdgeNormal.Dot(vProj) - vEdgeNormal.Dot(*pCur) < -0.01f)
 				bInside = LTFALSE;
 		}
 
 		vPrev = *pCur;
 	}
 
-	fDist = vProj.x - m_vEnd.x;
-	fD = vProj.z - m_vEnd.z;
-	if (!(fBest < m_fRadius) || (bInside && !bHoriz && (float)sqrt(fD * fD + fDist * fDist) < fBest) || bStep)
-	{
-		if (!bInside)
-			return LTFALSE;
-
-		// The plane itself is the closest thing.
-		if (m_fClosestDist < m_fPlaneIntrusion)
-		{
-			m_vClosestPt = vProj;
-			m_fClosestDist = m_fPlaneIntrusion;
-			m_vClosestDir.x = -pPlane->m_Normal.x;
-			m_vClosestDir.y = -pPlane->m_Normal.y;
-			m_vClosestDir.z = -pPlane->m_Normal.z;
-			m_pClosestNode = pNode;
-		}
-	}
-	else if (m_fClosestDist < m_fRadius - fBest)
+	LTVector vToProj = vProj - m_vEnd;
+	if (fBest < m_fRadius && (!bInside || bHoriz || (float)sqrt(vToProj.x * vToProj.x + vToProj.z * vToProj.z) >= fBest) &&
+		!bStep)
 	{
 		// An edge or vertex of the polygon.
-		m_vClosestPt = vBest;
-		if (fBest != 0.0f)
+		if (m_fRadius - fBest > m_fClosestDist)
 		{
-			m_vClosestDir.x = vBest.x - m_vEnd.x;
-			m_vClosestDir.y = 0.0f;
-			m_vClosestDir.z = vBest.z - m_vEnd.z;
-			fLen = (float)sqrt(m_vClosestDir.z * m_vClosestDir.z + m_vClosestDir.y * m_vClosestDir.y +
-				m_vClosestDir.x * m_vClosestDir.x);
-			if (fLen != 0.0f)
+			m_vClosestPt = vBest;
+			if (fBest != 0.0f)
 			{
-				fInv = 1.0f / fLen;
-				m_vClosestDir.x *= fInv;
-				m_vClosestDir.y *= fInv;
-				m_vClosestDir.z *= fInv;
+				m_vClosestDir.Init(vBest.x - m_vEnd.x, 0.0f, vBest.z - m_vEnd.z);
+				m_vClosestDir.Norm();
 			}
+			else
+			{
+				m_vClosestDir.Init(0.0f, 0.0f, 0.0f);
+			}
+			m_pClosestNode = pNode;
+			m_fClosestDist = m_fRadius - fBest;
 		}
-		else
-		{
-			m_vClosestDir.x = 0.0f;
-			m_vClosestDir.y = 0.0f;
-			m_vClosestDir.z = 0.0f;
-		}
-		m_pClosestNode = pNode;
-		m_fClosestDist = m_fRadius - fBest;
 		return LTTRUE;
 	}
 
-	return LTTRUE;
+	if (bInside)
+	{
+		// The plane itself is the closest thing.
+		if (m_fPlaneIntrusion > m_fClosestDist)
+		{
+			m_vClosestPt = vProj;
+			m_vClosestDir = -pPlane->m_Normal;
+			m_fClosestDist = m_fPlaneIntrusion;
+			m_pClosestNode = pNode;
+		}
+		return LTTRUE;
+	}
+
+	return LTFALSE;
 }
 
 
@@ -1215,6 +1193,9 @@ void GetSpherePosTestPolys(SphereMoveInfo *pInfo, WorldPoly **pPolies, int *pnPo
 // 208 -> 134 aligned mismatches. Left: pStart/pDest are in ebx/ebp swapped against the original, the frame is 12
 // bytes larger, and the end of the loop's hit branch calls the vector constructor twice where the original calls it
 // once (a little less inline budget left there in ours).
+// Wave 7: only the last statement's operator* and operator+= differ in the call list (the original inlines both,
+// operator*'s constructor out of line). Direct `if(0)` lines (own size 1..12) move the line but never give the
+// original's pattern; Init(), a stored 1/n, macros for vPos/vP0/the lerp, pDest assigned first: no help.
 // STUB: LITHTECH 0x0041a7f0
 void OrientMovement(SphereMoveInfo *pInfo)
 {
@@ -1536,6 +1517,8 @@ static void GetBoxPBlocks(PBlock **ppBlocks, int *pnBlocks, int nMaxBlocks)
 // (Ghidra's noncontiguous extent; config/splits.csv). Close (19 aligned mismatches, all x87 operand order): the
 // original adds the last component of `*pMax += g_BoxOffset + m_Dims` as `fadd [temp.z]` onto the VEC_MAX value
 // still on the FPU stack, ours loads temp.z first; tried a named temp, `*pMax = *pMax + ...` and statement order.
+// Wave 7: VEC_ADD(*pMax, *pMax, ...) (94), `*pMax = *pMax + (...)` (60), Init(LTMAX...) (82), a reference local (same),
+// a pDims local (52): no improvement.
 // STUB: LITHTECH 0x0041b930
 static void SetupMoveBox(LTVector *pMin, LTVector *pMax)
 {
@@ -1575,22 +1558,21 @@ void StairStep(uint16 iRoot, CollideInfo *pInfo, LTBOOL *pbHitNonStep);
 
 // Collides the axis-aligned box with the world.  If you specify pObj, it'll calculate collision
 // responses and send them to the object.
-// Not matching (183 aligned mismatches, was 192 before `LTMAX(m_Dims.y * 0.5f, fStairHeight)`): the saved
-// g_pCurRequest/g_pCurInfo stay in eax/edx in the original (no spill before the request copy), each return has its
-// own epilogue and the frame is 4 bytes smaller. Initialised pOldRequest/pOldInfo declarations change nothing.
-// STUB: LITHTECH 0x0041bdd0
+// Matched in wave 7 from the exe: the new stair step keeps the restart offset in a local (`fRestart`, computed before
+// g_P0 is restored) and sets g_BoxOffset.y/m_Dims in each branch; bHitNonStep is a local of each stair path (the new
+// one passes its address, the old one takes StairStepOld's result); the block loop is a scope of its own, so the
+// address-taken nBlocks shares the pInfo argument slot; and each global is saved right before it is set
+// (pOldInfo = g_pCurInfo; g_pCurInfo = pInfo). The no-blocks message is "... %s PBlocks!" and tests g_DebugLevel >= 1.
+// FUNCTION: LITHTECH 0x0041bdd0
 void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 {
 	CollideRequest curRequest;
 	CollideRequest *pOldRequest;
 	CollideInfo *pOldInfo;
-	LTBOOL bHitStairStep, bHitNonStep;
+	LTBOOL bHitStairStep;
 	ILTPhysics *pPhysics;
-	LTVector vSavedP0;
-	int nBlocks, iBlock, i;
 
 	pOldRequest = g_pCurRequest;
-	pOldInfo = g_pCurInfo;
 
 	g_nPolyTouchesBoxCalls = 0;
 	g_Ticks_SetupBox = 0;
@@ -1602,6 +1584,7 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 
 	curRequest = request;
 	g_pCurRequest = &curRequest;
+	pOldInfo = g_pCurInfo;
 	g_pCurInfo = pInfo;
 
 	pInfo->m_pStandingOn = LTNULL;
@@ -1633,7 +1616,9 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 
 		if (g_CV_NewStairStep)
 		{
-			float fStairHeight, fHalfStair;
+			float fStairHeight, fHalfStair, fRestart;
+			LTBOOL bHitNonStep;
+			LTVector vSavedP0;
 
 			pPhysics = request.m_pAbstract->GetPhysics();
 			pPhysics->GetStairHeight(fStairHeight);
@@ -1644,8 +1629,9 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 			g_pCurRequest->m_Dims = request.m_Dims;
 			g_pCurRequest->m_Dims.y = fHalfStair;
 
-			g_BoxOffset.y += *(float*)request.m_pRestart * 0.5f;
-			g_pCurRequest->m_Dims.y -= *(float*)request.m_pRestart * 0.5f;
+			fRestart = *(float*)request.m_pRestart * 0.5f;
+			g_BoxOffset.y += fRestart;
+			g_pCurRequest->m_Dims.y -= fRestart;
 
 			bHitNonStep = LTFALSE;
 			vSavedP0 = g_P0;
@@ -1656,13 +1642,14 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 			}
 
 			*(float*)request.m_pRestart += g_P0.y - vSavedP0.y;
+			fRestart = *(float*)request.m_pRestart * 0.5f;
 			g_P0 = vSavedP0;
-			g_BoxOffset.y = *(float*)request.m_pRestart * 0.5f;
-			g_pCurRequest->m_Dims = request.m_Dims;
 
 			if (bHitNonStep)
 			{
-				g_pCurRequest->m_Dims.y -= g_BoxOffset.y;
+				g_BoxOffset.y = fRestart;
+				g_pCurRequest->m_Dims = request.m_Dims;
+				g_pCurRequest->m_Dims.y -= fRestart;
 			}
 			else
 			{
@@ -1675,6 +1662,7 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 		{
 			float fStairHeight;
 			uint32 nPreStepHits;
+			LTBOOL bHitNonStep;
 
 			// Get the stair height
 			pPhysics = request.m_pAbstract->GetPhysics();
@@ -1721,55 +1709,58 @@ void CollideWithWorld(CollideRequest &request, CollideInfo *pInfo)
 		}
 	}
 
-	GetBoxPBlocks(g_PBlocks, &nBlocks, 0x200);
-	if (nBlocks == 0)
 	{
-		if (g_DebugLevel > 0)
-			dsi_ConsolePrint("Did not intersect with WorldModel '%s'", g_pCurRequest->m_pWorld->m_WorldName);
-		g_pCurRequest = pOldRequest;
-		g_pCurInfo = pOldInfo;
-		return;
-	}
-
-	g_BoxRadius = g_pCurRequest->m_Dims.Mag() + 0.01f;
-
-	// Loop around, testing for collisions with anything.
-	for (iBlock = 0; iBlock < nBlocks; iBlock++)
-	{
-		g_pCurBlock = g_PBlocks[iBlock];
-
-		for (i = 0; i < MAX_PHYSICS_ITERATIONS; i++)
+		int nBlocks, iBlock, i;
+		GetBoxPBlocks(g_PBlocks, &nBlocks, 0x200);
+		if (nBlocks == 0)
 		{
-			uint32 nHits = pInfo->m_nHits;
-
-			if (SetupBox())
-			{
-				if (!g_CV_NewCollision && (g_pCurRequest->m_pObject->m_Flags2 & FLAG2_CYLINDERPHYSICS))
-				{
-					CollideCylinderWithTree(g_pCurBlock->m_iRoot, pInfo, i > 0);
-					nHits = pInfo->m_nHits;
-				}
-				else
-				{
-					CollideBox(g_pCurBlock->m_iRoot, pInfo);
-				}
-			}
-
-			if (nHits == pInfo->m_nHits)
-				break;
+			if (g_DebugLevel >= 1)
+				dsi_ConsolePrint("Did not intersect with WorldModel %s PBlocks!", g_pCurRequest->m_pWorld->m_WorldName);
+			g_pCurRequest = pOldRequest;
+			g_pCurInfo = pOldInfo;
+			return;
 		}
 
-		if (i == MAX_PHYSICS_ITERATIONS)
+		g_BoxRadius = g_pCurRequest->m_Dims.Mag() + 0.01f;
+
+		// Loop around, testing for collisions with anything.
+		for (iBlock = 0; iBlock < nBlocks; iBlock++)
 		{
-			// Got into a potentially recursive situation and kept hitting stuff.
-			// Just put them back at their original position.
-			if (g_DebugLevel > 0)
+			g_pCurBlock = g_PBlocks[iBlock];
+
+			for (i = 0; i < MAX_PHYSICS_ITERATIONS; i++)
 			{
-				dsi_ConsolePrint("Error: physics recursed infinitely on a %s",
-					g_pCurRequest->m_pAbstract->GetObjectClassName(request.m_pObject));
+				uint32 nHits = pInfo->m_nHits;
+
+				if (SetupBox())
+				{
+					if (!g_CV_NewCollision && (g_pCurRequest->m_pObject->m_Flags2 & FLAG2_CYLINDERPHYSICS))
+					{
+						CollideCylinderWithTree(g_pCurBlock->m_iRoot, pInfo, i > 0);
+						nHits = pInfo->m_nHits;
+					}
+					else
+					{
+						CollideBox(g_pCurBlock->m_iRoot, pInfo);
+					}
+				}
+
+				if (nHits == pInfo->m_nHits)
+					break;
 			}
 
-			g_P1 = g_P0;
+			if (i == MAX_PHYSICS_ITERATIONS)
+			{
+				// Got into a potentially recursive situation and kept hitting stuff.
+				// Just put them back at their original position.
+				if (g_DebugLevel > 0)
+				{
+					dsi_ConsolePrint("Error: physics recursed infinitely on a %s",
+						g_pCurRequest->m_pAbstract->GetObjectClassName(request.m_pObject));
+				}
+
+				g_P1 = g_P0;
+			}
 		}
 	}
 
@@ -1809,33 +1800,7 @@ LTBOOL CollideBox(uint16 iRoot, CollideInfo *pInfo)
 static void PushBoxOutOfPlanes();
 
 
-// Adds the movement to the position, making sure the movement doesn't get lost to
-// floating point precision.
-// This is an inline function in the original (ClipBoxIntoTree's first call and both of StairStep's
-// are expanded; this out-of-line copy sits after ClipBoxIntoTree, whose second call is out of line).
-// The equality test is `*pOut != vPos`: ClipBoxIntoTree's expansion calls the out-of-line operator!= (0x0041f7e0).
-// vPos.Mag() gives the original's x87 operand order (README, wave 6).
-// FUNCTION: LITHTECH 0x0041d640 ?AddMovement@@YAXPAV?$_CVector@M@@V1@1@Z
-inline void AddMovement(LTVector *pOut, LTVector vPos, LTVector vMove)
-{
-	float fMoveMag, fScale;
-
-	*pOut = vPos;
-
-	fMoveMag = vMove.Mag();
-	if (fMoveMag < FLT_EPSILON)
-		return;
-
-	*pOut += vMove;
-
-	// If the movement didn't change the position, make it big enough to.
-	if (*pOut != vPos)
-		return;
-
-	fScale = (vPos.Mag() * FLT_EPSILON) / fMoveMag;
-	vMove *= fScale;
-	*pOut = vPos + vMove;
-}
+inline void AddMovement(LTVector *pOut, LTVector vPos, LTVector vMove);
 
 
 // ------------------------------------------------------------------ //
@@ -1905,6 +1870,12 @@ inline void MoveToFrontside(Node *pRoot, CollideInfo *pInfo, ClassifyPoints *pCP
 // ebp/ebx (ebx/ebp in the original), the side test's Norm calls Mag out of line (inline in the original), the last
 // classify-point reset inlines two more operators than the original, and the frame is 8 bytes smaller. A helper for
 // the reset or for the second-pass push, (&v.x)[i] instead of operator[], and other vBack forms are worse.
+// Wave 7: Jupiter's shape for the end of the node, the "go into the start side" tail written out in both branches
+// (VC6 cross-jumps the first copy into the last after the DistTo, as in the original), raises the function's own size
+// and so its budget: the last reset now calls the constructor 5 times and operator+ once like the original: 649 -> 396
+// aligned mismatches (212 ignoring stack offsets). Left: the first copy's compare/push isn't merged into the last
+// (ours is 48 bytes larger), the side test's Norm still calls Mag out of line, and the ebx/ebp swap. A single shared
+// tail (no fDot) is worse (645). AddMovement is now defined after this function, in exe order (no code change).
 // STUB: LITHTECH 0x0041c460
 LTBOOL ClipBoxIntoTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bSecondPass, LTBOOL *pbHit)
 {
@@ -2058,12 +2029,14 @@ LTBOOL ClipBoxIntoTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bSecondPass, LTB
 					}
 				}
 
-				fDot = pRoot->GetPlane()->DistTo(g_P0);
+				state1 = pRoot->GetPlane()->DistTo(g_P0) > -0.001f;
+				if (pBN->m_Sides[!state1] != 0xfffe && pBN->m_Sides[!state1] != 0xffff)
+					*pStackPos++ = pBN->m_Sides[!state1];
+				iRoot = pBN->m_Sides[state1];
 			}
 			else
 			{
 				iRoot = pBN->m_Sides[state1];
-				continue;
 			}
 		}
 		else
@@ -2084,15 +2057,42 @@ LTBOOL ClipBoxIntoTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bSecondPass, LTB
 				}
 			}
 
-			fDot = pRoot->GetPlane()->DistTo(g_P0);
+			// Go into the side the start is on, and remember the other.
+			state1 = pRoot->GetPlane()->DistTo(g_P0) > -0.001f;
+			if (pBN->m_Sides[!state1] != 0xfffe && pBN->m_Sides[!state1] != 0xffff)
+				*pStackPos++ = pBN->m_Sides[!state1];
+			iRoot = pBN->m_Sides[state1];
 		}
-
-		// Go into the side the start is on, and remember the other.
-		state1 = fDot > -0.001f;
-		if (pBN->m_Sides[!state1] != 0xfffe && pBN->m_Sides[!state1] != 0xffff)
-			*pStackPos++ = pBN->m_Sides[!state1];
-		iRoot = pBN->m_Sides[state1];
 	}
+}
+
+
+// Adds the movement to the position, making sure the movement doesn't get lost to
+// floating point precision.
+// This is an inline function in the original (ClipBoxIntoTree's first call and both of StairStep's
+// are expanded; this out-of-line copy sits after ClipBoxIntoTree, whose second call is out of line).
+// The equality test is `*pOut != vPos`: ClipBoxIntoTree's expansion calls the out-of-line operator!= (0x0041f7e0).
+// vPos.Mag() gives the original's x87 operand order (README, wave 6).
+// FUNCTION: LITHTECH 0x0041d640 ?AddMovement@@YAXPAV?$_CVector@M@@V1@1@Z
+inline void AddMovement(LTVector *pOut, LTVector vPos, LTVector vMove)
+{
+	float fMoveMag, fScale;
+
+	*pOut = vPos;
+
+	fMoveMag = vMove.Mag();
+	if (fMoveMag < FLT_EPSILON)
+		return;
+
+	*pOut += vMove;
+
+	// If the movement didn't change the position, make it big enough to.
+	if (*pOut != vPos)
+		return;
+
+	fScale = (vPos.Mag() * FLT_EPSILON) / fMoveMag;
+	vMove *= fScale;
+	*pOut = vPos + vMove;
 }
 
 
@@ -2133,6 +2133,9 @@ void AddPushPlane(LTPlane *pPlane, void *pID)
 // `LTPlane *pP = pPlane; pP->DistTo(pts[j])` give z first: 7 aligned instead of 10, but then y, x where the original
 // has x, y). Tried also: a pts pointer local, a by-value point copy, VEC_DOT (SIZE), pts[j].Dot(normal), declaration
 // order, `for(i=0, nIterations=0; ...)` and the counters next to the loop: no change.
+// Wave 7: toy copies of this function (scratch w7_collision/p1.cpp) reproduce ours (y, z, x); explicit products and VEC_DOT
+// give the original's z, x, y but drop the by-value copy the original has; copy + VEC_DOT/explicit/Dot forms give x, z, y.
+// `pos = g_P1 + g_BoxOffset` (61), `g_BoxOffset + g_P1` (12), `pts[j].Dot(normal)` (26): no improvement.
 // STUB: LITHTECH 0x0041d820
 static void PushBoxOutOfPlanes()
 {
@@ -2198,17 +2201,17 @@ static const float g_fStairOldFlatNormalY = (float)0.7071;
 
 // Collides the cylinder (the object's dims) moving from g_P0 to g_P1 with the world, a step at a
 // time, backing it off what it hits.
-// Wave 6 phase 2: the head follows Jupiter (vRadiusDirection.Mag(), the early `fVelocityStep <= 0.001f` return and
-// the m_vRealEnd store the original has): 137 -> 140 aligned mismatches, but closer in shape. Left: the original
-// copies iRoot to a frame slot at entry, its frame is 4 bytes larger, and register and slot choices around the
-// velocity split.
-// STUB: LITHTECH 0x0041da50
+// The head follows Jupiter (vRadiusDirection.Mag(), the early `fVelocityStep <= 0.001f` return and the m_vRealEnd
+// store). Matched in wave 7: the BSP walk uses the iRoot parameter itself, reset from a uint16 copy taken first thing
+// (`uint16 iStartRoot = iRoot;`, the original's entry copy and its 4 bytes of frame), and g_BoxOffset is file-static.
+// FUNCTION: LITHTECH 0x0041da50
 LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 {
+	uint16 iStartRoot = iRoot;
 	LTVector vFullStart, vFullEnd, vDirection;
 	Node *pNodes, *pRoot;
 	PBlockNode *pBN;
-	uint16 *pStackPos, iCur;
+	uint16 *pStackPos;
 	int state1, state2;
 	float fVelocityLeft, fVelocityStep, fVelocitySegment;
 	float fDot;
@@ -2302,31 +2305,31 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 
 			// Collide with the BSP for this segment
 			pStackPos = g_PBlockStack;
-			iCur = iRoot;
+			iRoot = iStartRoot;
 			for (;;)
 			{
-				if (iCur == 0xfffe || iCur == 0xffff)
+				if (iRoot == 0xfffe || iRoot == 0xffff)
 				{
 					if (pStackPos == g_PBlockStack)
 						break;
 
-					iCur = *--pStackPos;
+					iRoot = *--pStackPos;
 				}
 
 				g_nCollideBoxNodes++;
-				pBN = (PBlockNode*)g_pCurBlock->m_pNodes + iCur;
+				pBN = (PBlockNode*)g_pCurBlock->m_pNodes + iRoot;
 				pRoot = pNodes + pBN->m_iNode;
 
 				// Do the fast test on the whole movement area.
 				fDot = pRoot->GetPlane()->DistTo(theCylinder.m_vMoveMid);
 				if (fDot > theCylinder.m_fMoveSphere)
 				{
-					iCur = pBN->m_Sides[FrontSide];
+					iRoot = pBN->m_Sides[FrontSide];
 					continue;
 				}
 				else if (fDot < -theCylinder.m_fMoveSphere)
 				{
-					iCur = pBN->m_Sides[BackSide];
+					iRoot = pBN->m_Sides[BackSide];
 					continue;
 				}
 
@@ -2345,11 +2348,11 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 						state1 = pRoot->GetPlane()->DistTo(theCylinder.m_vStart) > -0.001f;
 						if (pBN->m_Sides[!state1] != 0xfffe && pBN->m_Sides[!state1] != 0xffff)
 							*pStackPos++ = pBN->m_Sides[!state1];
-						iCur = pBN->m_Sides[state1];
+						iRoot = pBN->m_Sides[state1];
 					}
 					else
 					{
-						iCur = pBN->m_Sides[state1];
+						iRoot = pBN->m_Sides[state1];
 					}
 				}
 				else
@@ -2360,7 +2363,7 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 					state1 = pRoot->GetPlane()->DistTo(theCylinder.m_vStart) > -0.001f;
 					if (pBN->m_Sides[!state1] != 0xfffe && pBN->m_Sides[!state1] != 0xffff)
 						*pStackPos++ = pBN->m_Sides[!state1];
-					iCur = pBN->m_Sides[state1];
+					iRoot = pBN->m_Sides[state1];
 				}
 			}
 
@@ -2408,6 +2411,8 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 // 543 -> 23 aligned mismatches (ignoring stack offsets). Left: x87 operand order of the plane-normal Dots (z, x, y in
 // the original), fMinDist's slot (the original shares it with the inlined AddMovement's fMoveMag), the order of the
 // g_P0 adds, and 16 bytes of size.
+// Wave 7: `LTVector *pBestPt = &g_MovePts[1][iBest]` (the original's dead `lea eax,[ecx*4+g_MovePts[1]]`) is worse (26),
+// a named fNewY changes nothing.
 // STUB: LITHTECH 0x0041e290
 void StairStep(uint16 iRoot, CollideInfo *pInfo, LTBOOL *pbHitNonStep)
 {
@@ -2590,6 +2595,8 @@ void StairStep(uint16 iRoot, CollideInfo *pInfo, LTBOOL *pbHitNonStep)
 // pCollisionInfo->m_Plane.m_Normal.Dot(pPlane->m_Normal) (y, z, x in the original) and of g_P0.z + vMove.z; tried
 // the Dot's operand order, a hoisted local, Init for the y = 0 store, the factor's position and the plane through
 // g_pCurRequest.
+// Wave 7: `g_P0 += vMove` / VEC_ADD (SIZE), `vMove + g_P0` (same), `g_P1.y < g_P0.y` (12), vMove via the constructor (26),
+// VEC_DOT for the wall factor (SIZE): none fix the two x87 orders.
 // STUB: LITHTECH 0x0041edb0
 LTBOOL StairStepOld(uint16 iRoot, CollideInfo *pInfo)
 {

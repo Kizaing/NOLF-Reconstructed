@@ -251,6 +251,10 @@ LTRESULT LMessageImpl::ReadCompRotationFL(LTRotation &rot)
 // Wave 6: 5 free inline calls after the WriteType (or before the final Release) also give 192 bytes (aligned 18:
 // the dead-argument slot for len/theByte and the m_Pos store order remain). A function-scope CPacketRef (`->`
 // sites, its destructor) or ReadByte() supply at most 3 of them and change nothing.
+// Wave 7 decode of the exe (192 bytes): packet_Get into a CPacketRef temporary, packet_AddRef, the temporary's
+// Release, m_Unknown04 copied, pMsg set, ReadWordFL into the dead pMsg slot, 0xFFFF -> pMsg = NULL + Release, then
+// `do { ReadByteFL; WriteTypeImpl<uint8> (0x417c20) } while(--len)`, then AddRef, m_Pos = 1, Release (no null tests
+// there). Same behaviour as ours: the audit's call/string/jcc differences are all the inlined WriteTypeImpl.
 // STUB: LITHTECH 0x00445cc0
 LTRESULT LMessageImpl::ReadMessageFL(ILTMessage* &pMsg)
 {

@@ -203,7 +203,9 @@ using namespace WONAPI;
 // FUNCTION: LITHTECH 0x004821e0 _$E31
 // FUNCTION: LITHTECH 0x004821f0 _$E30
 // GLOBAL: LITHTECH 0x004e5d98
-static SmartPtr<AuthContext> g_pAuthContext;
+// Extern, not static: CServerMgr::Init's release of it only matches that way (the name is unknown; the
+// client's g_pAuthContext is a different global).
+SmartPtr<AuthContext> g_pServerAuthContext;
 
 
 // ----------------------------------------------------------------------- //
@@ -288,10 +290,9 @@ void sm_FreeID(CServerMgr *pServerMgr, LTLink *pIDLink)
 // Init/term.
 // ----------------------------------------------------------------------- //
 
-// 3 bytes off at the end: VC6 computes &m_RefCount from eax instead of the esi copy (the original:
-// `mov esi,eax; lea ecx,[esi+4]; push ecx`, ours `add eax,4; push eax`). Wave 6: a two-round statement
-// hill-climb (180 candidates) found nothing; neither did `= LTNULL`, `= NULL`, `= SmartPtr<AuthContext>()`.
-// STUB: LITHTECH 0x004823b0
+// The auth context global is extern (g_pServerAuthContext): as a file static the release at the end computed
+// &m_RefCount from eax instead of the esi copy.
+// FUNCTION: LITHTECH 0x004823b0
 LTBOOL CServerMgr::Init()
 {
 	SetupGlobals();
@@ -406,7 +407,7 @@ LTBOOL CServerMgr::Init()
 
 	InitServerNetHandlers();
 
-	g_pAuthContext = (AuthContext*)LTNULL;
+	g_pServerAuthContext = (AuthContext*)LTNULL;
 	return LTTRUE;
 }
 
@@ -418,7 +419,7 @@ void CServerMgr::Term()
 {
 	LTLink *pListHead, *pCur, *pNext;
 
-	g_pAuthContext = (AuthContext*)LTNULL;
+	g_pServerAuthContext = (AuthContext*)LTNULL;
 	SetupGlobals();
 
 	// Stop loading.
@@ -1318,11 +1319,10 @@ WorldChildModelLinks g_ChildModelLinks;
 // FUNCTION: LITHTECH 0x00484830 _$E42
 // FUNCTION: LITHTECH 0x00484840 _$E39
 // FUNCTION: LITHTECH 0x00484880 _$E41
-// Differs: _$E40 (the string's atexit destructor) keeps _M_start in edi (copied from ecx) and the free list
-// slot in esi, where we keep _M_start in esi; the same inlined block matches inside sm_LoadChildModelLinks.
-// STUB: LITHTECH 0x00484890 _$E40
+// The string is file-static: its atexit destructor (_$E40) allocates registers differently for an extern one.
+// FUNCTION: LITHTECH 0x00484890 _$E40
 // GLOBAL: LITHTECH 0x004e5db8
-std::string g_ChildModelNone;
+static std::string g_ChildModelNone;
 
 // Hands the links childmodel.map has for a world to the server's model loader.
 // FUNCTION: LITHTECH 0x004848f0
@@ -1349,12 +1349,9 @@ void sm_LoadChildModelLinks(ILTServer *pServer, char *pWorldName)
 
 
 // Reads childmodel.map (lines of "world childmodelkey associatedchildmodel") the first time a world starts.
-// Differs only in one inline decision: the original calls the pair<string,map> destructor of the outer
-// operator[] temporary out of line (0x00487400) where we inline it (the 174 differing bytes are the shifted tail).
-// 8 units of inline_scan ballast anywhere before it make it match; the source of that cost is unknown
-// (tried: nested if vs early return, a local map reference; wave 6: size() == 0, begin() == end(),
-// g_ChildModelNone.assign(), a std::string("none") temp).
-// STUB: LITHTECH 0x00484d70
+// The two keys are temporaries of the one statement (their destructors and the inner operator[] temporary's
+// are what keep the pair<string,map> destructor out of line, as in the original).
+// FUNCTION: LITHTECH 0x00484d70
 void CServerMgr::LoadChildModelMap()
 {
 	char line[256];
@@ -1379,9 +1376,7 @@ void CServerMgr::LoadChildModelMap()
 
 				if (pWorld && pKey && pAssociated)
 				{
-					std::string key(pKey);
-					std::string world(pWorld);
-					g_ChildModelLinks[world][key] = pAssociated;
+					g_ChildModelLinks[std::string(pWorld)][std::string(pKey)] = pAssociated;
 				}
 			}
 		}
@@ -3057,10 +3052,10 @@ void CServerMgr::OnPeerToPeerAuthPacket(Client *pClient, CPacket *pPacket)
 
 	memset(buf, 0, sizeof(buf));
 
-	if (!g_pAuthContext.get())
+	if (!g_pServerAuthContext.get())
 	{
-		g_pAuthContext = (AuthContext*)g_pClassMgr->m_pServerShell->GetAuthContext();
-		if (!g_pAuthContext.get())
+		g_pServerAuthContext = (AuthContext*)g_pClassMgr->m_pServerShell->GetAuthContext();
+		if (!g_pServerAuthContext.get())
 		{
 			// No auth context: let the client carry on without authentication.
 			CPacketRef cPacket = packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN);
@@ -3073,7 +3068,7 @@ void CServerMgr::OnPeerToPeerAuthPacket(Client *pClient, CPacket *pPacket)
 	if (authServer.GetState() == PeerAuthServer::STATE_NOT_STARTED)
 	{
 		authServer.SetUseAuth2(true);
-		authServer.Start(g_pAuthContext->GetPeerData(), 4);
+		authServer.Start(g_pServerAuthContext->GetPeerData(), 4);
 	}
 
 	len = pPacket->m_DataLen - pPacket->m_Pos;
