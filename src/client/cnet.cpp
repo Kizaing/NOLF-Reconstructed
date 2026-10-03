@@ -15,7 +15,7 @@
 
 #define MAX_UPDATE_COMMANDS	64
 
-#define SOUNDPACKET (((CSoundMgr*)m_SoundMgr)->GetSoundUpdatePacket())
+#define SOUNDPACKET (m_SoundMgr.GetSoundUpdatePacket())
 
 // GLOBAL: LITHTECH 0x004d2148
 extern uint8 g_CV_UpdateRate;
@@ -53,7 +53,7 @@ void CClientMgr::SendUpdate(CNetMgr *pNetMgr, CBaseConn *pConnID, int32 *pComman
 	nToSave = (nCommands < MAX_UPDATE_COMMANDS) ? nCommands : MAX_UPDATE_COMMANDS;
 
 	// Don't send it if nothing changed.
-	CPacket &soundPacket = ((CSoundMgr*)m_SoundMgr)->GetSoundUpdatePacket();
+	CPacket &soundPacket = m_SoundMgr.GetSoundUpdatePacket();
 	if (bRateChanged || nCommands > MAX_UPDATE_COMMANDS || m_nLastCommands != nToSave ||
 		(int)soundPacket.m_DataLen - 1 > 0 || memcmp(m_LastCommands, pCommands, nToSave) != 0)
 	{

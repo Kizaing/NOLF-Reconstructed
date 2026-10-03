@@ -1,6 +1,7 @@
 // Jupiter runtime/client/src/cmoveabstract.cpp
 // Talon's CMoveAbstract keeps its CClientMgr, notifies the client shell of touches through the
 // manager, moves physical attachments and reports the global force (GetGlobalForce is Talon only).
+#include <windows.h>		// before the StdLith headers (clientmgr.h brings in lthread.h)
 #include "bdefs.h"
 #include "cmoveabstract.h"
 #include "iclientshell.h"

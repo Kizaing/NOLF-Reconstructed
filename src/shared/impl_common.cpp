@@ -1,6 +1,7 @@
 // Jupiter runtime/shared/src/impl_common.cpp, Talon version.
 // Talon's impl_common also holds the light anim info helpers (shared by ClientLightAnimLT and
 // ServerLightAnimLT) and the compressed vector/position/rotation helpers behind LMessageImpl.
+#include <windows.h>		// before the StdLith headers (clientmgr.h brings in lthread.h)
 #include "bdefs.h"
 #include <stdio.h>
 #include <stdlib.h>

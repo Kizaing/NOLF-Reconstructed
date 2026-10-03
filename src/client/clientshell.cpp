@@ -871,7 +871,7 @@ void CClientShell::CloseWorlds()
 	cm_FreeSurfaceSprites(m_pClientMgr);
 
 	// Shut down the sounds.
-	((CSoundMgr*)m_pClientMgr->m_SoundMgr)->StopAllSounds();
+	m_pClientMgr->m_SoundMgr.StopAllSounds();
 
 	// Close any open world files.
 	m_pClientMgr->m_World.Term();

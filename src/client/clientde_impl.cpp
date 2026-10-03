@@ -324,7 +324,7 @@ public:
 		m_pTransformLT = &m_TransformLT;
 		m_pLightAnimLT = &m_LightAnimLT;
 		m_pTexMod = &m_TexMod;
-		m_pSoundMgr = (ILTSoundMgr*)pClientMgr->m_SoundMgr;
+		m_pSoundMgr = &pClientMgr->m_SoundMgr;
 		m_pCursorLT = &m_CursorLT;
 		m_hVideo = LTNULL;
 
