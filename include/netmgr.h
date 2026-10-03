@@ -280,6 +280,7 @@ public:
 	void			NetDebugOut2(CBaseConn *pConn, int debugLevel, char *pMsg, ...);
 
 	void			SetAppGuid(LTGUID* pAppGuid);
+	LTGUID*			GetAppGuid() { return(&m_guidApp); }	// inline (Jupiter); CreateServerMgr calls it
 
 	// pPrefix is inserted in front of some debugging messages.
 	void			Update(char *pPrefix, float fCurTime, LTBOOL bAllowTimeout);
@@ -303,8 +304,9 @@ public:
 // Misc helpers.
 public:
 
-	// Inline (Jupiter netmgr.h); CServerMgr::TransferNetDriver calls it.
+	// Inline (Jupiter netmgr.h); CServerMgr::TransferNetDriver calls SetMainDriver.
 	void			SetMainDriver(CBaseDriver *pDriver) { m_pMainDriver = pDriver; }
+	CBaseDriver*	GetMainDriver() { return(m_pMainDriver); }
 
 	LTBOOL			LagOrSend(CPacket *pPacket, CBaseConn *idSendTo, uint8 oldPacketID);
 
