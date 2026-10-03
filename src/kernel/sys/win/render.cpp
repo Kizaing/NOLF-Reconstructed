@@ -71,7 +71,6 @@ void r_UnloadSystemTexture(TextureData *pTexture)
 
 
 // Loads the texture and installs it.
-// STUB: LITHTECH 0x0046ebd0
 // Remaining diff (10 bytes): in the EnvMapAlpha block the original stores m_eTexType (2) before the `add esp, 8` that
 // pops cm_AddSharedTexture's arguments (we pop first). Tried: type store before/after the pointer store, no pLinked temp,
 // comma expression, an else-chain: none moves the store across the pop.
@@ -79,6 +78,11 @@ void r_UnloadSystemTexture(TextureData *pTexture)
 // without pLinked, an early `if(!pStream) RETURN_ERROR_PARAM` (much worse). Phase 2: the type store written before
 // the call (VC6 sinks it to the same place), the call result stored directly, an inverted `if(!ParseFind) return`,
 // an explicit `else return LT_OK`: unchanged (3 aligned).
+// Wave 7 phase 2: audit: behaviour matches. The 3 aligned are the one store at +0x204 (scheduled before the
+// `add esp, 8` in the exe, after it in ours) counted twice, plus the m_Head relocation at +0xa1 (same target).
+// Untried: a SharedTexture setter for the type/link pair (Jupiter has none).
+// PARKED: instruction scheduling only (EnvMapAlpha's m_eTexType = 2 store vs cm_AddSharedTexture's stack pop)
+// STUB: LITHTECH 0x0046ebd0
 LTRESULT r_LoadSystemTexture(SharedTexture *pSharedTexture, TextureData **ppTextureData, LTBOOL bBind)
 {
 	LThreadMessage unused;	// An unused local whose constructor was folded with LThreadMessage's.

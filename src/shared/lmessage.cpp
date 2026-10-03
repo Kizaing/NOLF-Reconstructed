@@ -255,6 +255,13 @@ LTRESULT LMessageImpl::ReadCompRotationFL(LTRotation &rot)
 // Release, m_Unknown04 copied, pMsg set, ReadWordFL into the dead pMsg slot, 0xFFFF -> pMsg = NULL + Release, then
 // `do { ReadByteFL; WriteTypeImpl<uint8> (0x417c20) } while(--len)`, then AddRef, m_Pos = 1, Release (no null tests
 // there). Same behaviour as ours: the audit's call/string/jcc differences are all the inlined WriteTypeImpl.
+// Wave 7 phase 2 (budget model): B = 1000u (floor). Top-level sites packet_AddRef 44u, ~CPacketRef 42u, WriteType
+// (free, 20u); WriteType passes 894u to WriteTypeImpl (170u), which is inlined. The exe's out-of-line WriteTypeImpl
+// needs k = 5 (or 6) extra free pending sites after WriteType at top level (--solve: dB -300..+104), i.e. five
+// inline-candidate calls between the loop and the end that produce no code; the exe's tail (AddRef; m_Pos = 1;
+// Release, all virtual or plain stores) has none. Not found: the CPacketRef forms supply at most 3. Most promising
+// untried idea: the original's loop/tail written through inline LMessageImpl/CPacket accessors that fold away.
+// PARKED: inlining decision only (exe calls WriteTypeImpl<uint8> out of line; model needs 5 unexplained free pending sites)
 // STUB: LITHTECH 0x00445cc0
 LTRESULT LMessageImpl::ReadMessageFL(ILTMessage* &pMsg)
 {

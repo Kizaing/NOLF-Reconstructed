@@ -24,6 +24,13 @@
 // second's stays >= 47u: no budget alone does it; one more free pending site (an accessor) anywhere from the
 // second a.Norm() on, plus 24-34u less own code (B -48..-68u), does. `LTVector &dr`/`float dt` locals instead of the
 // macros are -35u; `LTVector &v, &a` -71u; WorldPoly::GetPlane() for m_pPlane +2u (none matched alone).
+// Wave 7 phase 2: ALIGNED 236 (190 ignoring stack offsets). Audit: the only difference is the orient block's
+// out-of-line LTVector(x,y,z) ctor (0x45c6ec, for `a * (timeIntegral * 0.5f)`), an inlining decision; the exe's
+// extra 0xc4 immediate is its `lea eax,[edi+0xc4]` for &pObj->m_Velocity. Re-checked with --variants: `LTVector
+// &dr = pState->m_Offset` and `float dt` locals (alone or together) leave no budget that reproduces the exe (the
+// friction block's -= goes out of line first). The missing pending site after the second Norm() has no
+// candidate in Jupiter's code (it writes the same statements); look for a Talon-only accessor or helper there.
+// PARKED: one out-of-line ctor (inlining decision); the budget model needs an unidentified pending site plus 24-34u less own code
 // STUB: LITHTECH 0x0045c600
 LTBOOL CalcMotion(MotionState *pState)
 {

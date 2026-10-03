@@ -270,7 +270,6 @@ void sm_SendAllLightAnims(CServerMgr *pServerMgr, Client *pClient)
 
 
 // Sends the light animations that changed since the last update.
-// STUB: LITHTECH 0x0046fd30
 // Wave 5: the code is identical except the frame: the original has ONE new slot (the CPacketRef temp, a
 // `push ecx`) and keeps the loop counter i in the dead home of the pServerMgr argument ([esp+0x14], stored right
 // after pServerMgr is loaded into edi); ours takes two new slots (sub esp,8). Same dead-argument-slot reuse as
@@ -283,6 +282,9 @@ void sm_SendAllLightAnims(CServerMgr *pServerMgr, Client *pClient)
 // ebp,[ebx+0xc]` after the loop guard (VC6 saves a callee-saved register only where it first becomes live), but i
 // then takes a new slot instead of pServerMgr's dead home (14 aligned, 8 ignoring offsets); i declared in the
 // for or mid-function doesn't change that.
+// Wave 7 phase 2: audit: behaviour matches. 13 aligned (6 ignoring stack offsets): frame slot reuse only.
+// PARKED: frame/slot allocation only (the loop counter in pServerMgr's dead argument home); behaviour identical; three waves tried
+// STUB: LITHTECH 0x0046fd30
 void sm_SendChangedLightAnims(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacket *pPacket;
@@ -469,12 +471,15 @@ inline void sm_SendPreloadModelMsgToClient(CServerMgr *pServerMgr, Client *pClie
 
 
 // Goes thru the current level and tells the client about everything it should preload.
-// STUB: LITHTECH 0x00470230
 // Wave 5: only register differences in the sound-list loop (pCur->m_pNext into edx not eax, the file id
 // through eax not ecx). inline_scan p1/p2/b8/b16 over every statement finds no improvement; tried a UsedFile
 // local, a nested if for GetFile(): no change. Wave 6: nested IsTouched/GetFile ifs, a UsedFile local in the
 // condition, a uint16 file id local, m_pFile, Jupiter's in-loop declarations of pSoundData/pCur, reversed
 // local declarations: all exactly 24 aligned (the register choice ignores these).
+// Wave 7 phase 2: audit: behaviour matches. 24 aligned: register naming in the sound-list loop only (+0x123..
+// +0x221: edx/eax/ecx permuted).
+// PARKED: register naming in the sound-list loop only (24 aligned); behaviour identical; inline_scan and many local forms tried
+// STUB: LITHTECH 0x00470230
 LTRESULT sm_TellClientToPreloadStuff(CServerMgr *pServerMgr, Client *pClient)
 {
 	CPacketRef cPacket;
@@ -1164,10 +1169,15 @@ void sm_TracePacket(CServerMgr *pServerMgr, CPacket *pPacket)
 }
 
 
-// STUB: LITHTECH 0x00471760
 // One byte: the inlined CMoArray::Insert2 shift loop adds m_pArray + i with the operands swapped
 // (lea ecx,[eax+edx] in the original, [edx+eax] here). The instance is CPacket::m_Data's Append(0) inside
 // WriteType (packet.h is frozen); the order is register-allocation noise inside the inlined Insert2.
+// Wave 7 phase 2: audit: behaviour matches. Tried: the m_nPacketsSent increment before/between/after the
+// reset, ++ prefix, the packet flags as a ternary or if/else, explicit m_DataLen/m_Pos stores for ResetWrite,
+// the room test reversed/nested/`- 4`/`>= n + 5`, a pServerMgr local: never better than the 1-instruction
+// difference (lea ecx,[eax+edx] vs [edx+eax] at +0x11e inside the inlined CMoArray::Insert2 of WriteType).
+// PARKED: one lea operand order inside the inlined CMoArray::Insert2 (packet.h, frozen); behaviour identical
+// STUB: LITHTECH 0x00471760
 LTBOOL sm_FlushUpdate(UpdateInfo *pInfo, CPacket *pPacket, uint8 packetID, int nRoomNeeded)
 {
 	uint32 packetFlags;
@@ -1554,13 +1564,19 @@ inline LTBOOL IsClientInTrouble(Client *pClient)
 
 
 // Sends the client everything it needs to see this frame.
-// STUB: LITHTECH 0x00472510
 // Wave 7: the force-update loop has sm_AddObjectChangeInfo's body written out (through updateInfo's members),
 // the forced objects go through forceUpdate.m_Objects, and the floats and `size` are declared in their blocks:
 // SIZE (321 aligned) -> DIFF 2048 bytes, 11 aligned, every stack offset right. Remaining: `GetRate() /
 // (float)g_CV_SendBandwidth` is fild + fdivp in the original (fidiv here; tried a float/int local, `/=`, double,
 // volatile, inline helpers taking float or int), and after the inlined AddObjectIdToSentList's dfree the original
 // reloads pObject (esi) before i (edi).
+// Wave 7 phase 2: inline_budget: our out-of-line calls equal the exe's (5 ~CPacketRef); the model itself
+// predicts 6 (the UpdateInfo destructors' CPacketRef sites at 28-32u limits). Tried for the fild/fdivp pair
+// (+0x19e): no cast, `(float)(long)`, a double divide, a RateTracker* local, the divisor converted first into
+// fScale (24 aligned), GetRate() into fScale first: all 11 aligned. The second difference is the reload order
+// of esi/edi after the inlined AddObjectIdToSentList's dfree (+0x58d).
+// PARKED: x87 fild+fdivp vs fidiv for GetRate()/g_CV_SendBandwidth and one reload order (11 aligned); behaviour identical
+// STUB: LITHTECH 0x00472510
 void sm_UpdateClientInWorld(CServerMgr *pServerMgr, Client *pClient)
 {
 	UpdateInfo updateInfo;

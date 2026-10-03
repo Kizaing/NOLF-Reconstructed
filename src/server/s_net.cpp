@@ -193,6 +193,16 @@ static inline void AddSize(uint32 *pSize, uint32 nBytes)
 // source of those 8 units is unknown. Tried: every single AddSize -> direct `if (pSize)` (and 175 of the 276
 // pairs): 510 or worse; VEC_INIT for vObjectVelocity.Init() (848; fixes the scale.z decision but starves the
 // end), GetPos() for the position, GetMessageImpl()-> for the virtual writes, LTMAX for the light radius.
+// Wave 7 phase 2: the last two size updates (0xFFFF, hidden pieces) written out as `if (pSize) *pSize += n;`
+// instead of AddSize (two fewer pending sites after them, and a little more own size): SIZE 510 -> DIFF 4032
+// bytes, 353 aligned, everything up to the attachments (+0x84c) identical (scale.z now inlined as in the exe).
+// Converting any other AddSize changes nothing (sites 0-11) or overshoots (12-21; hill-climb over all 24).
+// The hasChildModels byte through an LTBOOL local (the exe's `and ebx,0x400` early and `setne` at the store):
+// 238 aligned but SIZE 4048 (+16): the fullres attachment's third WriteType<float> stays out of line and the
+// ebx/ebp roles swap from +0x842 on; at the end the exe inlines BaseNew inside the hidden-piece WriteType
+// (vcall +4/+8) and calls _DeleteAndDestroyArray (0x414720) where we call BaseNew/BaseDelete. The inline_budget
+// model can't replay this function (WriteTypeImpl's 170u sits within 1-2u of the shares; --solve finds
+// nothing); the build is the oracle.
 LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pObj, ObjInfo *pInfo,
 	CPacket *pPacket, uint32 *pSize)
 {
@@ -495,7 +505,10 @@ LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pOb
 	if (changeFlags & CF_ATTACHMENTS)
 	{
 		if (pPacket)
-			pPacket->WriteType((uint8)((pObj->m_InternalFlags & IFLAG_HASCHILDMODELS) != 0));
+		{
+			LTBOOL bHasChildModels = pObj->m_InternalFlags & IFLAG_HASCHILDMODELS;
+			pPacket->WriteType((uint8)(bHasChildModels != 0));
+		}
 
 		AddSize(pSize, 1);
 
@@ -537,7 +550,8 @@ LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pOb
 		if (pPacket)
 			pPacket->WriteType((uint16)0xFFFF);
 
-		AddSize(pSize, 2);
+		if (pSize)
+			*pSize += 2;
 
 		// Write the hidden piece list.
 		if (pObj->m_ObjectType == OT_MODEL)
@@ -545,7 +559,8 @@ LTBOOL FillPacketFromInfo(CServerMgr *pServerMgr, Client *pClient, LTObject *pOb
 			if (pPacket)
 				pPacket->WriteType((uint32)((ModelInstance*)pObj)->m_HiddenPieces);
 
-			AddSize(pSize, 4);
+			if (pSize)
+				*pSize += 4;
 		}
 	}
 
@@ -988,11 +1003,13 @@ void FillInPlaysoundMessage(CServerEvent *pEvent, Client *pClient, CPacket *pPac
 // Reads in all packets from the net.
 // ----------------------------------------------------------------------- //
 
-// STUB: LITHTECH 0x00476710
 // Loads pClient->m_hFTServ into ecx where the original uses eax (2 bytes).
 // Wave 5 tried: a local for the handle, assignment-in-condition, an else that clears pClient: no change.
 // Wave 6 tried: a separate Client local for the else branch, `!pClient` + continue, braces, storing the
 // fts_ProcessPacket result, and Jupiter's ProcessIncomingPacket split into an inline helper (SIZE, much worse).
+// Wave 7 phase 2: audit: behaviour matches; the exe CSEs pPacket->m_pSender before the handler test as we do.
+// PARKED: one register choice (m_hFTServ through eax vs ecx before fts_ProcessPacket, 4 aligned); behaviour identical
+// STUB: LITHTECH 0x00476710
 LTBOOL ProcessIncomingPackets(CServerMgr *pServerMgr)
 {
 	CPacket *pPacket;
@@ -1163,13 +1180,15 @@ static LTRESULT OnPeerToPeerAuthPacket(CServerMgr *pServerMgr, CPacket *pPacket,
 }
 
 
-// STUB: LITHTECH 0x00476ca0
 // eax/edx swapped for the message ID and the shell vtable (4 bytes).
 // Wave 5 tried: GetMessageImpl(), a local for the shell, a local for the message handle, initialising
 // messageID to 0: no change (the other OnMessagePacket, the client's at 0x0048d0f0, differs the same way).
 // Wave 6 tried: early `return LT_OK` guards (one or two), `messageID = 0;` before the if, the inverted if/else,
 // inline helpers for the message ID read (by value and by reference), for the remaining-bytes test and for the
 // server shell, and an HMESSAGEREAD local: still 3 aligned mismatches.
+// Wave 7 phase 2: audit: behaviour matches. Same symptom as the client's OnMessagePacket (0x0048d0f0).
+// PARKED: eax/edx swapped for the message ID and the shell vtable (3 aligned); behaviour identical
+// STUB: LITHTECH 0x00476ca0
 static LTRESULT OnMessagePacket(CServerMgr *pServerMgr, CPacket *pPacket, Client *pClient)
 {
 	uint8 messageID;

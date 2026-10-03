@@ -130,11 +130,20 @@ LTRESULT CLTTexMod::GetTextureHandle(char *pFilename, HTEXTURE &hTexture, const 
 static LTBOOL texmod_IsValidTexture(SharedTexture *pTexture);
 
 
-// STUB: LITHTECH 0x0049b0c0
 // GetTextureHandle matches with SetRefCount(GetRefCount() + 1) (xor-on-memory with two reads); the same idiom here
 // gives the right size, but the original reads m_RefCount once, merges (old & 0x7fff) - 1 in registers, stores the
 // word and tests the merged value (15 aligned). Tried: the ST_REFS bitfield view (folds the mask into a lea, 11
 // aligned but 16 bytes short), single-expression merges, a uint16 inline setter, a count local, `!(m_RefCount & mask)`.
+// Wave 7 phase 2: audit: only `data -1 +1`, the FN_NAME function static (0x4d7cc0, unnamed in the exe): behaviour
+// matches. The exe (+0x4e..+0x6b) is a register bitfield store: x = m_RefCount; y = (x & 0x7fff) - 1;
+// m_RefCount = ((x ^ y) & 0x7fff) ^ x, tested in the register before the word store. Ours (SetRefCount) is the
+// xor-on-memory form with two reads (144 bytes, 15 aligned). Every register form tried (ST_REFS bitfield = GetRefCount()-1
+// or ST_REFS-1, `--`, a uint16/uint32/int count, single-expression and xor merges, file-local setters with bitfield or
+// mask bodies, each with a GetRefCount() or ST_REFS test) drops the `and ecx, 0x7fff` and gives `lea eax, [ecx-1]`
+// (128 bytes, 11 aligned). Untried: a bitfield declared in SharedTexture itself (shared header de_world.h) with the
+// count field not at bit 0 or a signed field type.
+// PARKED: bitfield decrement codegen (the exe keeps the and-mask before dec); no source form found; behaviour identical
+// STUB: LITHTECH 0x0049b0c0
 LTRESULT CLTTexMod::ReleaseTextureHandle(const HTEXTURE hTexture)
 {
 	FN_NAME(LTTexMod::ReleaseTextureHandle);
@@ -198,7 +207,6 @@ LTRESULT CLTTexMod::GetTextureInfo(const HTEXTURE hTexture, TextureInfo &info)
 }
 
 
-// STUB: LITHTECH 0x0049b260
 // The rectangle/lock type test is a CHECK_PARAMS2 (wave 7: the original prints "LT_INVALIDPARAMS" there, ERR printed
 // "60"; same score). The format test is an early `!= BPP_32` error whose ERR(1, LT_NOTINITIALIZED) VC merges with the
 // final one: that gives the original's layout and leaves the two LT_INVALIDPARAMS blocks merged only from the call on.
@@ -207,6 +215,11 @@ LTRESULT CLTTexMod::GetTextureInfo(const HTEXTURE hTexture, TextureInfo &info)
 // plain `if` instead of `else if`, `lockType == TLOCK_BUMPMAP &&`. Phase 2: a nested `if(!m_AlphaMask) ERR` (36), a
 // TextureMipData pointer local, casts on the two stores, an empty `else if(lockType != TLOCK_BUMPMAP)`, the two stores
 // swapped (496 bytes): still 8.
+// Wave 7 phase 2: audit: only `data -3 +3`, the FN_NAME function static (0x4d7ccc, unnamed in the exe): behaviour
+// matches. 8 aligned, all in the alpha-mask branch's two reference stores (load order of &pData / &lPitch around
+// `pop edi`).
+// PARKED: load order of the two reference parameters in the alpha-mask branch (8 aligned); behaviour identical
+// STUB: LITHTECH 0x0049b260
 LTRESULT CLTTexMod::LockTexture(const HTEXTURE hTexture, const LTRect *pRect,
 	const uint32 lockType, uint8* &pData, long &lPitch)
 {

@@ -243,7 +243,6 @@ inline void PhysicsUpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 
 // Updates the object (called once per frame): the model's trackers, the update countdown and the
 // object's physics.
-// STUB: LITHTECH 0x00477120
 // Wave 5: the original keeps ContainerPhysics' empty ctor (call 0x45c5f0, shared with RayTri's), LTVector
 // MagSqr (0x438f72), operator+ (0x41f710), operator- (0x41f740) and SetObjectChangeFlags (0x477540) OUT OF
 // LINE, and its frame is 0x60. Top-level ballast of ~96 units anywhere before the physics block (position
@@ -260,6 +259,17 @@ inline void PhysicsUpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 // everything but the frame/ebx-ebp choice match (77 aligned, ctor still inline); 16 push the whole helper out of
 // line. Tried: an IsOutsideWorld inline (Jupiter's), dt as a helper parameter, dead stores (VEC_INIT(dr),
 // bMoved = FALSE: dead stores add no cost), dr.Init(), Dot for the second MagSqr: none better.
+// Wave 7 phase 2: inline_budget names the exe's ContainerPhysics ctor call (0x45c5f0) ??0RayTri (ICF), so
+// its "k=2" answer ignores it; with --alias "45c5f0=??0ContainerPhysics@@QAE@XZ" it says 4 extra free pending
+// sites after PhysicsUpdateObject (top level, own size within +5u). Measured: 4 empty inline calls after
+// PhysicsUpdateObject reproduce the exe's whole call sequence (ctor, MagSqr, operator+, FullMoveObject, ...,
+// operator-, MagSqr, SetObjectChangeFlags all out of line): 111 -> 87 aligned (65 ignoring offsets), 1024
+// bytes. Left then: frame 0x54 vs 0x60 (the exe has one more 12-byte temp), pServerMgr/nFrameTimeMS in
+// ebp/ebx swapped, and MotionState's m_pVelocity/m_pAcceleration/m_Flags stores in the order +0xc,+0x10,+8.
+// Equivalently PhysicsUpdateObject could cost ~31u more with 3 sites, ~73u with 2, ~157u with none. No real
+// source for those sites found (no locals with destructors exist; Jupiter ends FullObjectUpdate with the call).
+// PARKED: inlining decisions only: needs 4 more free pending sites after PhysicsUpdateObject (measured), source unknown
+// STUB: LITHTECH 0x00477120
 void sm_UpdateObject(CServerMgr *pServerMgr, LTObject *pObj)
 {
 	uint32 nFrameTimeMS;

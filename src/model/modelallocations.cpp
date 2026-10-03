@@ -61,11 +61,16 @@ LTBOOL ModelAllocations::Load(ILTStream &str)
 
 
 // This is not going to be very accurate.
-// STUB: LITHTECH 0x00459270
 // Only the operand order of m_nChildModels * m_nNodes differs (original: load m_nChildModels, imul m_nNodes;
 // ours always loads m_nNodes first. Tried both orders, parenthesised, temp local, constant first/last).
 // Wave 6 also tried: plain sizeof without WordAlign, WordAlign around the product, a block-scoped copy of either
 // member, uint32/int nChildNodes, nChildNodes as an initialiser or before `size = 0` (worse): still 2 instructions.
+// Wave 7 phase 2: audit: behaviour matches. The only difference is at +0x8f: exe `mov edx,[ecx+0x10]; imul edx,[ecx+8]`
+// (m_nChildModels first), ours the reverse; every other product here loads its left operand first in both, so VC6
+// commuted this one product in the original. Untried: a different declared type for m_nChildModels (shared header
+// model.h; only Load/CalcAllocationSize read it).
+// PARKED: operand order of one imul (m_nChildModels * m_nNodes); everything else is identical
+// STUB: LITHTECH 0x00459270
 LTBOOL ModelAllocations::CalcAllocationSize(uint32 &size)
 {
 	uint32 nChildNodes;

@@ -1016,6 +1016,8 @@ void CServerMgr::ProcessLoaderMessages()
 // Close: VC6 saves ebx/ebp later and loads updateFlags into al first (+1 byte shift).
 // Wave 6: the original pushes ebp (i) with ebx (nSteps) before the RUNNINGWORLD test and pops both after the
 // ShowGameTime block; ours keeps ebp to the inner block. Tried `== 0`, `~x & 1`, a combined `!(a || b)`: 9 aligned.
+// Wave 7 phase 2: audit: behaviour matches (9 aligned).
+// PARKED: callee-saved push placement (ebx/ebp saved before the RUNNINGWORLD test in the exe); behaviour identical
 // STUB: LITHTECH 0x00483520
 LTBOOL CServerMgr::Update(int32 updateFlags, float curTime)
 {
@@ -1940,6 +1942,8 @@ LTRESULT CServerMgr::CreateWorldCRC()
 // One instruction off: the original zero-extends the create flag byte (xor eax,eax first).
 // Wave 6 tried: (uint8)(x & 1), x & 1, OCS_AUTOLOAD ternary, `&= 1` after the byte store, |=, a 1-bit bitfield
 // view of m_bCreateFlag1 (uint32 and uint8): no change (7 aligned).
+// Wave 7 phase 2: audit: behaviour matches (7 aligned).
+// PARKED: one zero-extension (xor eax,eax first) of the create flag byte; behaviour identical
 // STUB: LITHTECH 0x00483dd0
 LTRESULT sm_CreateServerData(CServerMgr *pServerMgr, ObjectCreateStruct *pStruct, ClassDef *pClass,
 	LTObject *pObject, LPBASECLASS pBaseClass, ServerData **ppData)

@@ -48,6 +48,10 @@ LTBOOL TransformMaker::SetupTransforms()
 // weight-set index edi). Tried: indices in locals, a local AnimTimeRef pointer, ++i.
 // Wave 6 tried: eight bodies for Model::GetWeightSet (ternaries, if/else, GetSize vs NumWeightSets, operator[] vs
 // GetArray; it is only used here) and a statement hill-climb: no change (13 aligned mismatches).
+// Wave 7 phase 2: audit: behaviour matches. Still 13 aligned (edx/edi swap in the two inlined GetWeightSet lookups).
+// Tried: the loop counter declared in the for (Jupiter), m_pRecursePath stored first (both 13), the Cur weight set
+// first (19).
+// PARKED: register allocation only (edx/edi in the inlined GetWeightSet pair, 13 aligned); behaviour identical
 // STUB: LITHTECH 0x0049c630
 LTBOOL TransformMaker::SetupCall()
 {
@@ -86,6 +90,11 @@ LTBOOL TransformMaker::SetupCall()
 // m_pAnim*/AnimNode chains before the key frame arrays). AnimNode/key frame locals and statement order make no difference.
 // Wave 6 tried: inline key-frame helpers (from the ModelAnim or the AnimNode), GetArray() indexing and pointer
 // arithmetic (no change), Jupiter's inter_frame_param local for m_Percent (much worse).
+// Wave 7 phase 2: audit: behaviour matches. 24 aligned, all in the prologue (+0x3..+0x50): the exe resolves both
+// m_pAnimPrev/m_pAnimCur -> GetAnimNode chains interleaved before either key frame address. Tried: pKey2 first,
+// a key frame base pointer, GetArray()[i] (all 33). Untried: AnimNode locals for both nodes assigned before the
+// key frames together with InitTransformAdditive's pKey2-first order.
+// PARKED: prologue scheduling of the two AnimNode chains (24 aligned); behaviour identical
 // STUB: LITHTECH 0x0049c770
 void TransformMaker::InitTransform(uint32 iAnim, uint32 iNode, LTRotation &outQuat, LTVector &outVec)
 {
@@ -111,6 +120,12 @@ void TransformMaker::InitTransform(uint32 iAnim, uint32 iNode, LTRotation &outQu
 
 
 // Remaining diff: register allocation and stack slot assignment of the by-value vector temporaries.
+// Wave 7 phase 2: audit: behaviour matches. pKey2 assigned before pKey1 (with pBase first) took the aligned score from
+// 92 (95) to 49 (23 ignoring stack offsets); what remains is the order of the two frame-index loads in the prologue
+// (the exe reads m_Prev.m_iFrame first) and the stack slots of the lerp temporaries (exe 0x30.., ours 0x20..; the
+// final `outVec - pBase->m_vTranslation` temporaries get the low slots in the exe). Tried with no gain: pKey2 before
+// pBase (89), pBase after pTimeRef (59), `pBase + frame`, GetArray()[i], &m_KeyFrames[0], `outVec -= ` (SIZE),
+// the outVec statement first (109), a split lerp (SIZE).
 // STUB: LITHTECH 0x0049c920
 void TransformMaker::InitTransformAdditive(uint32 iAnim, uint32 iNode, LTRotation &outQuat, LTVector &outVec)
 {
@@ -119,8 +134,8 @@ void TransformMaker::InitTransformAdditive(uint32 iAnim, uint32 iNode, LTRotatio
 
 	pTimeRef = &m_Anims[iAnim];
 	pBase = m_pAnimPrev[iAnim]->GetAnimNode(iNode)->m_KeyFrames.GetArray();
-	pKey1 = &pBase[pTimeRef->m_Prev.m_iFrame];
 	pKey2 = &m_pAnimCur[iAnim]->GetAnimNode(iNode)->m_KeyFrames[pTimeRef->m_Cur.m_iFrame];
+	pKey1 = &pBase[pTimeRef->m_Prev.m_iFrame];
 
 	outQuat.Slerp(pKey1->m_Quaternion, pKey2->m_Quaternion, pTimeRef->m_Percent);
 	outVec = pKey1->m_vTranslation + (pKey2->m_vTranslation - pKey1->m_vTranslation) * pTimeRef->m_Percent;
@@ -187,6 +202,12 @@ float TransformMaker::BlendTransform(uint32 iAnim, uint32 iNode, float fTotalWei
 // m_pRelation/pRelation assigned before/after ConvertToMatrix, a local LTMatrix pointer, direct quat_ConvertToMatrix.
 // Wave 6 tried: the assignment inside the call expression, GetArray()[iNode], GetArray() + iNode, Get(iNode), a
 // ChildInfo local, and a statement hill-climb: no change (6 aligned mismatches; edx/eax swap plus the lea order).
+// Wave 7 phase 2: audit: only `data -2 +2`, the function static mScratchMat (0x4e6230, unnamed in the exe): no
+// behaviour difference. 6 aligned at +0x13b..+0x156 (edx/eax swapped for m_pChildInfo / iNode*28 and the lea of
+// &m_mRelation issued before the relation pointer). Tried: the relation assignment inside quat_ConvertToMatrix's
+// argument (same 6; without the pRelation local it is SIZE 576), Jupiter's pNode = GetNode() at the top or after
+// InitTransform (42-43), the relation computed before the first MatMul (21).
+// PARKED: register choice (edx/eax) and one lea order around ConvertToMatrix(m_mRelation); 6 aligned
 // STUB: LITHTECH 0x0049cd00
 void TransformMaker::Recurse(uint32 iNode, LTMatrix *pParentT)
 {

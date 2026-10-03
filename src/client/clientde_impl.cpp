@@ -4117,22 +4117,16 @@ void ci_SetObjectRotation(HLOCALOBJ hObj, LTRotation *pRotation)
 		cm_RotateObject(g_pClientMgr, hObj, pRotation);
 }
 
-// STUB: LITHTECH 0x0040b4a0
-// (Not matching: x87 scheduling of the pOut stores differs (52 bytes): the original copies the `vRight * wx` temporary
-// into *pOut only after the vUp products are issued.) Tried vTemp locals, compound `*=`/`+=` forms, one big expression.
-// Wave 6 tried: m_Pos instead of GetPos(), an LTVector* alias for pOut (worse), pOut->operator=(...), the first two
-// terms in one expression (SIZE), a statement hill-climb: still 5 aligned mismatches. (Phase 2: not revisited beyond
-// re-reading the schedule; the copy of the `vRight * wx` temporary into *pOut is pure scheduling.)
+// Matched in wave 7 phase 2 with Jupiter's named intermediates (xAngle, xCoord, xScale, centerX, ...); the inline
+// expressions scheduled the *pOut = vRight * wx copy differently (5 aligned). Talon has no ltsinf/ltcosf locals.
+// FUNCTION: LITHTECH 0x0040b4a0
 LTRESULT ci_Get3DCameraPt(HLOCALOBJ hCamera, int sx, int sy, LTVector *pOut)
 {
 	CameraInstance *pCamera = (CameraInstance*)hCamera;
-	int left, top, right, bottom;
-	float halfWidth, halfHeight, wx, wy;
-	LTVector vRight, vUp, vForward;
-
 	if(!pCamera || pCamera->m_ObjectType != OT_CAMERA || !pOut)
 		RETURN_ERROR(1, Get3DCameraPt, LT_INVALIDPARAMS);
 
+	int left, top, right, bottom;
 	if(pCamera->m_bFullScreen)
 	{
 		left = top = 0;
@@ -4150,14 +4144,26 @@ LTRESULT ci_Get3DCameraPt(HLOCALOBJ hCamera, int sx, int sy, LTVector *pOut)
 	if(sx < left || sx >= right || sy < top || sy >= bottom)
 		RETURN_ERROR(1, Get3DCameraPt, LT_OUTSIDE);
 
-	halfWidth = (float)((right - left) >> 1);
-	halfHeight = (float)((bottom - top) >> 1);
+	// Figure out the scaling value to scale the FOV to 90 degrees.
+	float xAngle = pCamera->m_xFov * 0.5f;
+	float yAngle = pCamera->m_yFov * 0.5f;
 
-	wx = (((float)sx - ((float)left + halfWidth)) / halfWidth) /
-		(1.0f / (1.0f / (float)tan(MATH_HALFPI - pCamera->m_xFov * 0.5f)));
-	wy = -((((float)sy - ((float)top + halfHeight)) / halfHeight) /
-		(1.0f / (1.0f / (float)tan(MATH_HALFPI - pCamera->m_yFov * 0.5f))));
+	// Find what x coordinate each angle intercepts the y=1 plane at.
+	// A 45 degree angle intercepts at x=1.
+	float xCoord = 1.0f / (float)tan(MATH_HALFPI - xAngle);
+	float yCoord = 1.0f / (float)tan(MATH_HALFPI - yAngle);
+	float xScale = 1.0f / xCoord; // Scale to 45 degree angle to make it x=z.
+	float yScale = 1.0f / yCoord; // Scale to 45 degree angle to make it y=z.
 
+	float halfWidth = (float)((right - left) >> 1);
+	float halfHeight = (float)((bottom - top) >> 1);
+	float centerX = (float)left + halfWidth;
+	float centerY = (float)top + halfHeight;
+
+	float wx = (((float)sx - centerX) / halfWidth) / xScale;
+	float wy = -((((float)sy - centerY) / halfHeight) / yScale);
+
+	LTVector vRight, vUp, vForward;
 	quat_GetVectors((float*)&pCamera->m_Rotation, (float*)&vRight, (float*)&vUp, (float*)&vForward);
 	*pOut = vRight * wx;
 	*pOut += vUp * wy;

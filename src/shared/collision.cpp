@@ -277,6 +277,11 @@ ClassifyFn g_ClassifyFns[] =
 // the original adds 4 to esp (cnt_StartCounter's argument) after the first fabs compare, ours right after the call.
 // Wave 7: tried `v = g_P1 - g_P0`, a direct-initialised v, double constants, nested ifs, an if/else body, `(float)fabs`,
 // pDims set before the test and the CountAdder declared later: no change (or worse); the deferred `add esp,4` stays.
+// Wave 7 phase 2: ALIGNED 3. Audit: behaviour matches. The only difference is where the scheduler puts
+// cnt_StartCounter's `add esp,4` (exe: after the first fabs/fcomp at +0x4e, ours right after the call); the
+// constant (double)0.0001f at 0x4c6eb0 is the same. Next idea: a different CountAdder/Counter form (e.g. the
+// counter started through a member function) changing the call's dependency chain.
+// PARKED: instruction scheduling only (one deferred add esp,4); behaviour and inlining match
 // STUB: LITHTECH 0x00418840
 LTBOOL SetupBox()
 {
@@ -529,13 +534,19 @@ CMovingCylinder::EHeightSection CMovingCylinder::GetHeightSection(float fYValue)
 // pPlane in ebp and pushes ebp in the prologue; the original pushes it just before the vertex loop), keeps vEdge.x
 // on the FPU and gives vEdge.z a second home for the XZ length/projection, and its frame is 4 bytes smaller. Tried:
 // x/z term orders of the XZ length and t, a flat LTVector + Mag/Dot.
+// Wave 7 phase 2: the exe builds vProj in place as `m_vEnd + pPlane->m_Normal * -m_fDistToPlane` (m_vEnd read in
+// place, the scaled normal is the by-value argument; ours copied m_vEnd) and stores it straight into the local
+// (direct initialisation): 371/237 -> 355/188; hillclimb (bInside after bHoriz, m_pClosestNode before the
+// direction) -> 349/181, 2176 bytes. Audit: behaviour matches, no inline-budget question (the model reproduces
+// the exe's calls at any budget). Left: the register/frame layout above and 64 bytes of size in the vertex loop
+// (the exe walks the vertices with a pointer in edx and the count in ebp).
 // STUB: LITHTECH 0x004190f0
 LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 {
 	LTPlane *pPlane;
 	SPolyVertex *pVert;
 	LTVector *pCur;
-	LTVector vProj, vPrev, vPt, vBest, vEdgeNormal, vDiff;
+	LTVector vPrev, vPt, vBest, vEdgeNormal, vDiff;
 	float fPolyRadius, fAbsY, fHeightDiff, fBest, fLen, fInv, t, fSlopeX, fSlopeZ, fDist;
 	int iPrevSection, iCurSection;
 	uint32 i, nVerts;
@@ -554,7 +565,7 @@ LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 		return LTFALSE;
 
 	// The point on the plane nearest the cylinder's end.
-	vProj = pPlane->m_Normal * -m_fDistToPlane + m_vEnd;
+	LTVector vProj = m_vEnd + pPlane->m_Normal * -m_fDistToPlane;
 
 	fAbsY = (float)fabs(pPlane->m_Normal.y);
 	if (fAbsY < 0.01f)
@@ -568,8 +579,8 @@ LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 			vProj.y = pPoly->m_Center.y;
 	}
 
-	bInside = LTTRUE;
 	bHoriz = LTFALSE;
+	bInside = LTTRUE;
 	bStep = LTFALSE;
 	if (fAbsY >= 0.9f)
 	{
@@ -683,9 +694,9 @@ LTBOOL CMovingCylinder::CollideWith(WorldPoly *pPoly, Node *pNode)
 		if (m_fPlaneIntrusion > m_fClosestDist)
 		{
 			m_vClosestPt = vProj;
+			m_pClosestNode = pNode;
 			m_vClosestDir = -pPlane->m_Normal;
 			m_fClosestDist = m_fPlaneIntrusion;
-			m_pClosestNode = pNode;
 		}
 		return LTTRUE;
 	}
@@ -1196,6 +1207,12 @@ void GetSpherePosTestPolys(SphereMoveInfo *pInfo, WorldPoly **pPolies, int *pnPo
 // Wave 7: only the last statement's operator* and operator+= differ in the call list (the original inlines both,
 // operator*'s constructor out of line). Direct `if(0)` lines (own size 1..12) move the line but never give the
 // original's pattern; Init(), a stored 1/n, macros for vPos/vP0/the lerp, pDest assigned first: no help.
+// Wave 7 phase 2 (inline_budget.py 41a7f0 --solve): B 1782u; the exe's last statement (op* inline with its
+// ctor out of line, op+= out of line) needs B 1808-1814u, i.e. 13-16u MORE own code (wave 7 only tried 1-12u of
+// ballast), or one more pending site after the loop's Dot with +13..+36u. Tried as real source (--variants, all
+// +/-1..4u, none in range): vP0 without the named vOffset, nPolies = 0 per step, bWall = 0, a trailing return,
+// vStep = vDelta; vStep *= fStep, a braced fTime clamp. Audit: the call difference is that inlining decision.
+// PARKED: inlining of the last statement (needs 13-16u more own code, source unknown) plus the ebx/ebp swap and a 12-byte larger frame
 // STUB: LITHTECH 0x0041a7f0
 void OrientMovement(SphereMoveInfo *pInfo)
 {
@@ -1519,6 +1536,9 @@ static void GetBoxPBlocks(PBlock **ppBlocks, int *pnBlocks, int nMaxBlocks)
 // still on the FPU stack, ours loads temp.z first; tried a named temp, `*pMax = *pMax + ...` and statement order.
 // Wave 7: VEC_ADD(*pMax, *pMax, ...) (94), `*pMax = *pMax + (...)` (60), Init(LTMAX...) (82), a reference local (same),
 // a pDims local (52): no improvement.
+// Wave 7 phase 2: ALIGNED 19, audit: behaviour matches (hint: SetupBoxPoints is defined earlier, but it is
+// the out-of-line copy reached by the tail jump, so that order is expected).
+// PARKED: x87 operand order of `*pMax += g_BoxOffset + m_Dims` (exe adds temp.z onto the VEC_MAX value on the FPU stack); behaviour matches
 // STUB: LITHTECH 0x0041b930
 static void SetupMoveBox(LTVector *pMin, LTVector *pMax)
 {
@@ -1876,6 +1896,12 @@ inline void MoveToFrontside(Node *pRoot, CollideInfo *pInfo, ClassifyPoints *pCP
 // aligned mismatches (212 ignoring stack offsets). Left: the first copy's compare/push isn't merged into the last
 // (ours is 48 bytes larger), the side test's Norm still calls Mag out of line, and the ebx/ebp swap. A single shared
 // tail (no fDot) is worse (645). AddMovement is now defined after this function, in exe order (no code change).
+// Wave 7 phase 2 (inline_budget.py 41c460 --solve): no budget change with up to 6 extra pending sites
+// reproduces the exe's out-of-line calls: the remaining call difference (the side test's Norm calling Mag out of
+// line; inline in the exe) needs a different site tree, not a size change. Audit: that Mag call plus the
+// unmerged first copy of the "go into the start side" tail (ours-only immediates 1/0x4100/2/0xfffe/0xffff, -0.001f
+// and three je: the same code the exe has once), i.e. inlining and tail merging, no behaviour difference.
+// PARKED: tail merging and one inlining decision the budget model can't reproduce; ebx/ebp swap
 // STUB: LITHTECH 0x0041c460
 LTBOOL ClipBoxIntoTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bSecondPass, LTBOOL *pbHit)
 {
@@ -2136,6 +2162,8 @@ void AddPushPlane(LTPlane *pPlane, void *pID)
 // Wave 7: toy copies of this function (scratch w7_collision/p1.cpp) reproduce ours (y, z, x); explicit products and VEC_DOT
 // give the original's z, x, y but drop the by-value copy the original has; copy + VEC_DOT/explicit/Dot forms give x, z, y.
 // `pos = g_P1 + g_BoxOffset` (61), `g_BoxOffset + g_P1` (12), `pts[j].Dot(normal)` (26): no improvement.
+// Wave 7 phase 2: ALIGNED 11 (10 ignoring stack offsets), audit: behaviour matches.
+// PARKED: x87 operand order of the loop's Dot (z, x, y in the exe) and the counters' clear position; behaviour matches
 // STUB: LITHTECH 0x0041d820
 static void PushBoxOutOfPlanes()
 {
@@ -2413,6 +2441,10 @@ LTBOOL CollideCylinderWithTree(uint16 iRoot, CollideInfo *pInfo, LTBOOL bUnused)
 // g_P0 adds, and 16 bytes of size.
 // Wave 7: `LTVector *pBestPt = &g_MovePts[1][iBest]` (the original's dead `lea eax,[ecx*4+g_MovePts[1]]`) is worse (26),
 // a named fNewY changes nothing.
+// Wave 7 phase 2: ALIGNED 108 / 23 ignoring stack offsets. Audit: only `data 004e2d20` (= g_MovePts[1],
+// an address inside the g_MovePts array; ours references it as g_MovePts+0x60: the same data), i.e. behaviour
+// matches. Left as listed above: plane-normal Dot order, fMinDist's slot, g_P0 add order, 16 bytes.
+// PARKED: x87 operand order and one stack slot (fMinDist shared with AddMovement's fMoveMag in the exe); behaviour matches
 // STUB: LITHTECH 0x0041e290
 void StairStep(uint16 iRoot, CollideInfo *pInfo, LTBOOL *pbHitNonStep)
 {
@@ -2597,6 +2629,11 @@ void StairStep(uint16 iRoot, CollideInfo *pInfo, LTBOOL *pbHitNonStep)
 // g_pCurRequest.
 // Wave 7: `g_P0 += vMove` / VEC_ADD (SIZE), `vMove + g_P0` (same), `g_P1.y < g_P0.y` (12), vMove via the constructor (26),
 // VEC_DOT for the wall factor (SIZE): none fix the two x87 orders.
+// Wave 7 phase 2: ALIGNED 8, audit: behaviour matches. Left: the x87 term order of the wall loop's
+// pCollisionInfo->m_Plane.m_Normal.Dot(pPlane->m_Normal) (exe +0x2c0: y term first) and of g_P0.z + vMove.z (exe
+// +0x513 loads g_P0.z first). Per README wave 6 "x87 operand order", the fix is an earlier statement's first
+// reference to these fields.
+// PARKED: x87 operand order of two sums only; behaviour and calls match
 // STUB: LITHTECH 0x0041edb0
 LTBOOL StairStepOld(uint16 iRoot, CollideInfo *pInfo)
 {

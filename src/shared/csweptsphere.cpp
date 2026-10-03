@@ -39,6 +39,13 @@ inline LTVector* PolyVert(WorldPoly *pPoly, uint32 i) { return ((SPolyVertex*)(p
 // budget, so the first vector constructor inlines (out of line in the original) while the loop's Dot still goes out
 // of line (inline in the original): 207 aligned mismatches (194 ignoring stack offsets; 184 before, with the
 // comparison forms and return wrong).
+// Wave 7 phase 2 (budget model): B = 1298u (size 645u); the model reproduces our build and the exe's counts except
+// the face loop's last Dot (vEdge.Cross(...).Dot(vNormal)): it sees 21u left (cost 54u, refused) where the exe inlines
+// it. --solve: the original was 17..34u bigger in own code (B +34..+68u), with or without extra pending sites; the
+// constructor counts (12 out of line) already agree (the audit's ctor/Dot offsets are the same calls in other places).
+// Tried for that size (real code only): a named fDenom, `else return LTFALSE`, a pV0 local, `bHit = LTTRUE; return
+// bHit`, braces, `*pT = t = 1.0f` (size 1680 = the exe's, 190 ignoring offsets, but the Dot stays out of line).
+// PARKED: inlining decision of the face loop's Dot (the model needs 17-34u more own code) plus register choice; behaviour identical
 // STUB: LITHTECH 0x00424970
 LTBOOL SweptSphereToPoly(LTVector *pStart, LTVector *pEnd, float fRadius, WorldPoly *pPoly, float *pT,
 	LTVector *pNormal)
@@ -129,6 +136,12 @@ Edges:
 // (`fld st(0); fstp [pT]`) where we go through memory, and calls Dot/operator* out of line at the end (we inline them:
 // we still have more budget there). Tried: the Dot/MagSqr forms of a, b, A, B, C (32 combinations), Dist, a named
 // 1/fLen, `vDir *= ...`.
+// Wave 7 phase 2 (budget model): B = 1000u (the floor, so own size can't lower it). The model agrees with our build;
+// the exe calls the final `vRel.Dot(vDir)` and `vDir * dot` out of line (4 out-of-line ctors, ours 5 with those
+// inlined): the Dot sees 128u left where the exe must have < 54u, i.e. ~75u more inline cost charged before it
+// (no pending-site count or budget change reproduces it, --solve). Tried with --variants: vDir from `vEdge / fLen`,
+// `* (1.0f / fLen)` (both fix the ctor count, not the Dot), a Norm()ed copy, `vEdge / vEdge.Mag()`.
+// PARKED: inlining decisions at the end (exe calls Dot/operator* out of line: ~75u more inline cost earlier) and x87 scheduling; behaviour identical
 // STUB: LITHTECH 0x00425000
 LTBOOL SweptSphereToEdge(LTVector *pStart, LTVector *pEnd, float fRadius, LTVector *pV0, LTVector *pV1,
 	float *pT, LTVector *pNormal)
@@ -191,6 +204,11 @@ LTBOOL SweptSphereToEdge(LTVector *pStart, LTVector *pEnd, float fRadius, LTVect
 // (its frame is 12 bytes larger, y and z go through [esp+0x28]/[esp+0x2c] while x stays on the FPU stack) before
 // adding vP; the root selection is `t1 = (disc - b) * inv; t2 = (-b - disc) * inv; t = LTMIN(t1, t2)` with t1 on the
 // FPU stack and t2 in memory, and the positive form `if(0.0f <= t && t <= 1.0f) {...}`; all of that matches.
+// Wave 7 phase 2: audit: behaviour matches (no calls; Mag is inlined in both). 52 aligned (23 ignoring stack offsets):
+// the exe's frame is 0x30 (ours 0x24) because it materialises y and z of `vMove * t` in a stack temporary before
+// adding vP (+0x1c4..+0x20b). Tried: a named vTemp (direct or assigned), vP + vMove * t, direct-initialised vMove/vP
+// (all 52), `*pNormal = vMove * t; *pNormal += vP` (81), pNormal->Norm() / Norm(1.0f) for the hand normalisation (63).
+// PARKED: temporary placement of vMove * t (exe frame 12 bytes bigger; 23 aligned ignoring stack offsets); behaviour identical
 // STUB: LITHTECH 0x004253b0
 LTBOOL SweptSphereToPoint(LTVector *pStart, LTVector *pEnd, float fRadius, LTVector *pVertex, float *pT,
 	LTVector *pNormal)
@@ -254,6 +272,10 @@ LTBOOL SweptSphereToPoint(LTVector *pStart, LTVector *pEnd, float fRadius, LTVec
 // polygon (ours tests j < nVerts after the loop: the audit's one jcc difference, a loop shape, not behaviour), and
 // DistTo's x87 order (z, y, x in the original). `goto NextPoly` out of the inner loop, a `while` head and
 // `if(j != nVerts)` are worse (131+).
+// Wave 7 phase 2: audit `jcc -1 +1` (ours `jb` for `j < nVerts` after the edge loop, the exe's `jle` is the
+// inverted polygon loop's entry test `nPolies <= 0`): loop shape, same behaviour. Tried: the edge loop as an inline
+// helper returning LTFALSE on a failed edge (229 aligned, much worse). Still 32.
+// PARKED: loop shapes (polygon loop not inverted, edge-loop exit test) and DistTo x87 order (32 aligned); behaviour identical
 // STUB: LITHTECH 0x00425630
 uint32 SpherePosTestPolys(LTVector *pPos, float fRadius, WorldPoly **pPolies, int nPolies)
 {

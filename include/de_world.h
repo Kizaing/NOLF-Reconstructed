@@ -80,6 +80,10 @@ struct Surface
 						m_Unknown3C = 0;
 					}
 
+	// Sets the world file's flags (low 29 bits), keeping the top 3 (w_LoadWorldBsp: the exe's
+	// xor-on-memory merge is this &=/|= pair through a parameter).
+	void			SetFlags(uint32 flags)	{m_Flags &= ~0x1FFFFFFF; m_Flags |= (flags & 0x1FFFFFFF);}
+
 	LTVector		O, P, Q;				// 0x00 texture vectors (SurfaceData)
 	Nexus			m_Nexus;				// 0x24
 	SharedTexture	*m_pTexture;			// 0x2c

@@ -361,6 +361,8 @@ LTRESULT CUDPDriver::GetServiceList(NetService* &pListHead)
 // `if(parse.m_nArgs != 0 && parse.m_nArgs > 0)` makes the first compare a load+test but doesn't fix the rest.
 // Wave 6 tried: `for(;;){ if(!parse.Parse()) break; ...}`, storing setsockopt's result, separate bind checks (worse),
 // hillclimb (no move helps).
+// Wave 7 phase 2: audit: only setsockopt's import not named yet (004c62dc). 16 aligned.
+// PARKED: a zero kept in ebp through the parse loop (the exe reloads/pushes 0); behaviour identical
 // STUB: LITHTECH 0x00497d20
 LTRESULT CUDPDriver::StartQuery(char *pInfo)
 {
@@ -522,6 +524,8 @@ char* tcp_GetLastError()
 // Wave 7: a 2-round hillclimb finds no improving move. StartQuery has the same symptom (a zero kept in a
 // callee-saved register, which also turns `inc dword ptr [m_nElements]` into load/inc/store), so the cause is
 // probably shared.
+// Wave 7 phase 2: audit: behaviour matches (9 aligned).
+// PARKED: a zero kept in ebx across the receive loop (same symptom as StartQuery); behaviour identical
 // STUB: LITHTECH 0x00498240
 LTRESULT CUDPDriver::UpdateQuery()
 {
@@ -851,6 +855,9 @@ LTRESULT CUDPDriver::JoinSession(NetSession *pSession)
 // reply's identical tail (ours loads the Release vtable into eax there, the QUERY tail into edx, so they don't
 // merge), and register order in the conn-request/disconnect IP prints. It calls AddHead's InsertBefore out of line
 // as the original does, which emits the InsertBefore copy (wave 7: the stand-in that forced it is gone).
+// Wave 7 phase 2: audit: the only difference is our extra `SendTo; vcall+8` at +0x487, the reject tail the exe
+// cross-jumps into the QUERY reply's; inline_budget: out-of-line calls equal the exe's.
+// PARKED: one cross-jumped reply tail (registers differ so VC6 doesn't merge) and IP-print register order (88 aligned); behaviour identical
 // STUB: LITHTECH 0x00498cb0
 void CUDPDriver::HandleDriverPacket(CPacket *pPacket, sockaddr_in *pSender)
 {

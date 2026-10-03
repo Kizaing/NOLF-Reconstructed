@@ -97,11 +97,16 @@ LTBOOL CModelRayIntersect::Setup()
 }
 
 
-// STUB: LITHTECH 0x0045b170
 // The original keeps aPieces in its argument slot and doesn't duplicate the piece loop test.
 // Wave 6 phase 2 (no change, 33 aligned): nested `if(!hidden){...}` instead of continue, if/else for iPiece,
 // iPiece = i then override, a while loop, swapped NULL/NumPieces stores, m_Pieces.GetSize(), a pRay local,
 // ++iRay; `iPiece = i; if(aPieces) ...` is worse (36).
+// Wave 7 phase 2: ALIGNED 33. Audit: only immediates (ours' extra `mov eax,1` of a duplicated `return LTTRUE`
+// epilogue after the piece-count test, and `add eax,0x1c` where the exe has `lea eax,[edx+0x1c]`): behaviour matches,
+// no inline candidates. Left: aPieces lives in edx at entry (the exe keeps it in its argument slot) and the zero-count
+// test is rotated with its own epilogue (exe: `jbe` to the shared one).
+// PARKED: register/loop-rotation differences only; behaviour matches
+// STUB: LITHTECH 0x0045b170
 LTBOOL CModelRayIntersect::Intersect(HMODELPIECE *aPieces, uint32 nPieceCount, ILTModel::LTRayResult *aRays, uint32 nRayCount)
 {
 	ModelPiece *pPiece;
@@ -222,8 +227,37 @@ void CModelRayIntersect::SetupTris(PieceLOD *pLOD)
 }
 
 
+inline LTBOOL RayIntersectTri(RayTri *pTri, ILTModel::LTRayResult *pRay, float &t)
+{
+	LTVector vP, vT, vQ;
+	float fInvDet, u, v;
+
+	vP = pTri->m_vEdge2.Cross(pRay->m_vDir);
+	fInvDet = 1.0f / pTri->m_vEdge1.Dot(vP);
+
+	vT = pRay->m_vOrigin - pTri->m_vPt;
+	u = vT.Dot(vP) * fInvDet;
+	if(u < 0.0f || u > 1.0f)
+		return LTFALSE;
+
+	vQ = pTri->m_vEdge1.Cross(vT);
+	v = pRay->m_vDir.Dot(vQ) * fInvDet;
+	if(v < 0.0f || u + v > 1.0f)
+		return LTFALSE;
+
+	t = pTri->m_vEdge2.Dot(vQ) * fInvDet;
+	return LTTRUE;
+}
+
+inline LTVector GetTriNormal(RayTri *pTri)
+{
+	LTVector vNormal = pTri->m_vEdge2.Cross(pTri->m_vEdge1);
+	vNormal.Norm();
+	return vNormal;
+}
+
+
 // Moller-Trumbore ray/triangle test against every prepared triangle.
-// STUB: LITHTECH 0x0045b640
 // Call structure recovered from the disassembly: vP = e2.Cross(dir) and vQ = e1.Cross(vT) (the by-value
 // argument is the vector that gets copied), vNormal = e2.Cross(e1).  The original calls the
 // LTVector(x,y,z) constructor out of line in the first Cross and the operator-, Cross out of line for vQ and
@@ -234,40 +268,34 @@ void CModelRayIntersect::SetupTris(PieceLOD *pLOD)
 // deeper: with the Moller-Trumbore part (up to t) in an inline helper `RayIntersectTri(pTri, pRay, t)` the out-of-line
 // set becomes ctor, ctor, Dot, Cross, Dot, Dot (exe: ctor, ctor, Cross, Dot), i.e. the helper's share is ~5-7 units
 // too small; the whole loop body in a helper gives ctor, Cross, Norm (worse). Not adopted.
+// Wave 7 phase 2 (tools/inline_budget.py --variants): the Moller-Trumbore helper plus a second inline helper that
+// returns the normal by value (`pRay->m_vNormal = GetTriNormal(pTri)`) reproduces every exe out-of-line call (ctor,
+// ctor, Cross, Dot; the model and the build agree): one pending site after RayIntersectTri instead of two (Cross,
+// Norm) gives its children the share the exe needs (336-390u). ALIGNED 245/217 -> 160/53 (helper names invented;
+// both are always inlined, so the exe has no copy). Left: the frame (ours 0x80, exe 0x64: the helpers' locals don't
+// share slots like the original's), `1.0f / Dot` as fdivr where the exe does fld 1.0; fdiv st(1), and 64 bytes of
+// size. Direct-initialised vP/vT/vQ in the helper (constructed in place, as the exe reads the Cross result
+// buffer directly) score 125 but inline Cross and Dot (the build disagrees with the model there).
+// STUB: LITHTECH 0x0045b640
 void CModelRayIntersect::IntersectRay(ILTModel::LTRayResult *pRay)
 {
 	RayTri *pTri;
-	LTVector vP, vT, vQ, vNormal;
-	float fInvDet, u, v, t;
+	float t;
 	uint32 i;
 
 	for(i=0; i < m_nTris; i++)
 	{
 		pTri = &s_RayTris[i];
 
-		vP = pTri->m_vEdge2.Cross(pRay->m_vDir);
-		fInvDet = 1.0f / pTri->m_vEdge1.Dot(vP);
-
-		vT = pRay->m_vOrigin - pTri->m_vPt;
-		u = vT.Dot(vP) * fInvDet;
-		if(u < 0.0f || u > 1.0f)
+		if(!RayIntersectTri(pTri, pRay, t))
 			continue;
 
-		vQ = pTri->m_vEdge1.Cross(vT);
-		v = pRay->m_vDir.Dot(vQ) * fInvDet;
-		if(v < 0.0f || u + v > 1.0f)
-			continue;
-
-		t = pTri->m_vEdge2.Dot(vQ) * fInvDet;
 		if(t < pRay->m_fDistance && t > pRay->m_fMinDist)
 		{
 			pRay->m_fDistance = t;
 			pRay->m_bIntersect = LTTRUE;
 
-			vNormal = pTri->m_vEdge2.Cross(pTri->m_vEdge1);
-			vNormal.Norm();
-
-			pRay->m_vNormal = vNormal;
+			pRay->m_vNormal = GetTriNormal(pTri);
 			pRay->m_nPiece = m_iPiece;
 		}
 	}

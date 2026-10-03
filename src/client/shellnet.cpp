@@ -378,6 +378,11 @@ inline LTRESULT ReadObjectSubPacket(CClientShell *pShell, CPacket *pPacket, uint
 // Wave 6: Jupiter's per-branch `if(dResult != LT_OK) return dResult;` and ReadObjectSubPacket's pObject store
 // after the packet_Get (the original's store order) take it from 148 to 99 aligned (ignoring stack offsets);
 // the two inline decisions above (and the 4-byte frame difference from the inlined ReadType) remain.
+// Wave 7 phase 2: inline_budget: the first ReadType<uint8> is refused at 142.9u (cost 143), the CF_OTHER one
+// inlined at 166u where the exe refuses it (needs one more pending site after it, or 143u+ charged before);
+// ReadObjectSubPacket's children all get 28u, so every ~CPacketRef (42u) is refused where the exe inlines one.
+// The two requirements pull in opposite directions; --solve finds no combination (<= 6 sites, |dB| <= 300).
+// PARKED: inlining decisions only (CF_OTHER ReadType, one ~CPacketRef); the budget model finds no single change
 // STUB: LITHTECH 0x0048ada0
 LTRESULT OnUpdatePacket(CClientShell *pShell, CPacket *pPacket)
 {
@@ -791,6 +796,9 @@ static void ReadAnimInfoSet(CClientShell *pShell, CPacket *pPacket, AnimInfoSet 
 // the m_CreateFlags word once before the 0x20 test (ours reloads pStruct from the stack in the else branch), and
 // keeps the constant 2 in edi only from the FILE_SERVERFILE store on (ours puts it in ebx from the start).
 // Tried: if/else bodies swapped or braced, a ternary (1008 bytes), hillclimb (no move helps).
+// Wave 7 phase 2: inline_budget: our out-of-line calls equal the exe's. The audit's `exe only: 2, 2, 2, 2` are
+// the immediates the exe uses where ours has the constant 2 in a register (register allocation).
+// PARKED: register allocation only (pStruct/ebx, the constant 2 in edi; 61 aligned); behaviour identical
 // STUB: LITHTECH 0x0048bfe0
 static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct, CPacket *pSFXData)
 {
@@ -867,6 +875,8 @@ static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct
 // original has one more pending inline site there that is not Init().
 // Wave 7: VEC_INIT alone (1088 bytes), `= LTVector(0,0,0)` (1008), VEC_INIT with Jupiter's unused `LTVector vUp,
 // vRight;`, `LTVector(GetPos())` or `->m_Pos` instead of GetPos(): none supplies the missing site.
+// Wave 7 phase 2: audit: behaviour matches. The two differing stores are m_vPosition's zeros (z,y,x vs x,y,z).
+// PARKED: zero-store order of m_vPosition (VEC_INIT + one unknown pending site would match); behaviour identical
 // STUB: LITHTECH 0x0048c380
 static LTRESULT ReadPlaySound(CClientShell *pShell, CPacket *pPacket)
 {
@@ -1247,13 +1257,15 @@ LTRESULT OnServerGameTime(CClientShell *pShell, CPacket *pPacket)
 }
 
 
-// STUB: LITHTECH 0x0048d0f0
 // The original computes &pPacket->m_Message before loading messageID for the call (aligned: 5 mismatches; the
 // original pushes &m_Message, then loads the shell, then reloads messageID).
 // Wave 6 tried: locals for the client shell or the client manager (before SetupPacketMessage too, worse), inline
 // accessors for both, GetMessageImpl(), an HMESSAGEREAD cast, uint32/int/uint16 messageID (worse).
 // Phase 2 also tried: `messageID = 0;` before the if, an inline helper for the last-byte read, an inline bytes-left
 // helper, a pMsg local before/after SetupPacketMessage, a (uint8) cast in the call: all unchanged or worse.
+// Wave 7 phase 2: audit: behaviour matches. Same symptom as the server's OnMessagePacket (0x00476ca0).
+// PARKED: load order around the OnMessage call (5 aligned); behaviour identical
+// STUB: LITHTECH 0x0048d0f0
 LTRESULT OnMessagePacket(CClientShell *pShell, CPacket *pPacket)
 {
 	uint8 messageID;

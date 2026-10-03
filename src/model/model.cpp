@@ -1080,13 +1080,17 @@ uint32 Model::CalcNumParentAnims()
 
 
 // Parses the model's command string (the "ModelEdit" properties).
-// STUB: LITHTECH 0x0044fa10
 // Wave 6 (hillclimb): storing m_iNormalRefNode before m_bNormalRef fixes the register choice of the NormalRef
 // matrix copy (orig `idx << 6` in esi, base in eax) and of the ShadowCenterOffset atof loads; what is left is the
 // order of those two stores before FindNode (orig: m_bNormalRef (ebp) first, then [edi] = -1). Writing m_bNormalRef
 // first restores the store order but brings the register differences back (0 for LTFALSE, INVALID_MODEL_NODE,
 // 0xFFFFFFFF, hoisting m_iNormalRefAnim's reset, `!= LTNULL`, GetArray()[] give the same).
 // Earlier: GetAt/Get, pointer arithmetic in both operand orders, a local index, a local pointer, memcpy.
+// Wave 7 phase 2: audit: behaviour matches. Of the 21 aligned, 7 are string-address immediates (relocated, same
+// strings) and 12 the switch jump table decoded as code; the real difference is the one store moved at +0x395
+// (m_iNormalRefNode / m_bNormalRef order before FindNode, 12 bytes). Not reworked this phase.
+// PARKED: order of two stores before FindNode (12 bytes; the fix costs register choices elsewhere); behaviour identical
+// STUB: LITHTECH 0x0044fa10
 void Model::ParseCommandString()
 {
 	struct FloatCommand
@@ -1320,10 +1324,17 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 // FUNCTION: LITHTECH 0x00450be0 ?GenFindElement@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UBEHABVAnimKeyFrame@@AAVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00450c10 ?GenGetNext@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBE?AVNodeRelation@@AAVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00450c60 ?GenGetAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBE?AVNodeRelation@@AAVGenListPos@@@Z
-// STUB: LITHTECH 0x00450cb0 ?GenAppend@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHAAVNodeRelation@@@Z
 // The original runs out of inline budget after two copy loops and calls NodeRelation::operator= out of line.
 // That copy is 0x00453c40 (??4NodeRelation@@QAEAAV0@ABV0@@Z, after GenAppendList<AnimInfo>); annotate it once
 // this matches.
+// Wave 7 phase 2: audit: `calls 5` = the exe's two calls of NodeRelation::operator= (0x453c40, the memberwise copy
+// with LTRotation::operator= inlined) and its BaseDelete under an ICF name, where ours inlines NodeRelation's
+// operator= three times and calls LTRotation::operator= (0x4502a0) once: inlining decisions only. inline_budget.py
+// can't analyse it (the body is the stock dynarray.h template: "no body"). An explicit
+// `NodeRelation& operator=(const NodeRelation&)` in model.h (tried once, reverted) changes nothing: VC6 still
+// inlines it at all three sites (GenAppend's B is the 1000u floor; Append -> Insert -> Insert2 -> operator=).
+// PARKED: inlining decisions inside the stock CMoArray::Insert2 (NodeRelation::operator= out of line twice in the exe); behaviour identical
+// STUB: LITHTECH 0x00450cb0 ?GenAppend@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHAAVNodeRelation@@@Z
 // FUNCTION: LITHTECH 0x00450ea0 ?GenRemoveAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00451040 ?GenRemoveAll@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXXZ
 // FUNCTION: LITHTECH 0x00451070 ?GenCopyList@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHABV?$GenList@VNodeRelation@@@@@Z

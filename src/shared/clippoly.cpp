@@ -52,6 +52,11 @@ struct PolyClipBuffer
 // Wave 7: the plane loop counts iPlane < 6 (VC6 strength-reduces it to the dist pointer but keeps the signed `jl`;
 // a pointer compare gave `jb`) and the min/max loop is `while (nIn--)` (no pre-test; nIn is known non-zero): the
 // audit now matches except the function static's names (s_Buf/its guard have no exe names yet). 167 -> 157 aligned.
+// Wave 7 phase 2: ALIGNED 157 (123 ignoring stack offsets). Audit: only the function static's data (ours
+// ?$S1 guard and s_Buf, the exe's unnamed 0x4df010 guard, 0x4df018 m_In, 0x4df418 m_NewVerts, 0x4e0070 m_Out: the
+// same objects at the same offsets), i.e. behaviour matches; no inline candidates. Remaining: register assignment
+// as described above (esi/ebp/ebx/edx in the exe vs ours).
+// PARKED: register allocation only (pOut/plane index in ebp/ebx in the exe, ebx/edi here); behaviour matches
 // STUB: LITHTECH 0x00416f10 ?PolyTouchesBox@@YAIPAUWorldPoly@@PAX1@Z
 LTBOOL PolyTouchesBox(WorldPoly *pPoly, void *pUnknown1, void *pUnknown2)
 {

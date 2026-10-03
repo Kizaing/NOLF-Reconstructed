@@ -154,6 +154,11 @@ void w_FilterPointsIntoLeaves(WorldBsp *pBsp, Node *pRoot, LTVector *pPoints, in
 // Wave 5: permuting the eight Init() statements (swaps/moves) only gets 299 -> 77 differing bytes, never a match;
 // the original issues all six y-constant stores before the first FPU op, and per-member assignments, a VEC_SET
 // form and negated locals all compile the same as Init().
+// Wave 7 phase 2: audit: behaviour matches. 10 aligned: the exe hoists the last three y-constant stores
+// (+0x71..+0x81) above the first fld, ours interleaves them after it, and the exe stores pts[6].z with
+// `fld st(0); fstp` where ours uses `fst` (+0xd3). Tried: min/max vectors (SIZE, 23), a halfY local (29), an
+// aggregate initialiser (LTVector has a constructor: does not compile).
+// PARKED: x87 scheduling of the eight corner Init() stores (10 aligned); behaviour identical
 // STUB: LITHTECH 0x004303a0
 void w_AddPolyGridToLeaves(WorldBsp *pBsp, LTPolyGrid *pGrid)
 {

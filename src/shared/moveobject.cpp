@@ -593,6 +593,25 @@ inline void GetSphereMoveBox(MoveState *pState, float fRadius)
 //   --solve: one extra pending site anywhere after loop 2's Mag plus 21-44u less own code also works.
 // - The exe passes two different stack locals (8 bytes apart) as MaybeCollide's unused pointer arguments, not
 //   &vTemp/&vMin.x, so the locals differ from ours too. ALIGNED 655 -> 535 this wave (MaybeCollide's if/else).
+// Wave 7 phase 2: the exe zeroes the 4th-argument local right after pHitObjects ([esp+0x54] at 0x45e2e8, passed
+// to the out-of-line MaybeCollide in loop 2): `float fTemp; ... fTemp = 0.0f;` (535 -> 530). Budget model:
+// GetDims() in all three places (both m_fMoveRadius and the sphere radius) gives 3 more pending sites and fixes
+// the LTVector ctor count, but with our own size (B 2536u) it also inlines MaybeCollide in loop 2 (964); the exe
+// needs B 2436-2480u with them, i.e. 28-50u less own code. A probe (GetDims x3 and three statements deleted, B
+// 2482u) reproduces every exe out-of-line call yet scores 520: the remaining ~520 is frame layout (ours 0x5d4,
+// exe 0x5bc), register choice and scheduling, not inlining. Tried as inline helpers (all refuted by the model or
+// the build): the custom-test-objects loop (B -306u, overshoots), the whole sphere block (with and without
+// GetSphereMoveBox), loop 2's reset block (ResetMoveInfo), a MoveBackToStart helper for the three
+// "go back to the start" blocks; a pointer walk over objectArray.m_Objects (-5u only); the seven sphereInfo
+// stores as a SphereMoveInfo(pState, &objectArray) constructor or a setup helper (fixes ??_H, but overshoots: the
+// exe then needs ~35u *more* own code). With DoNonsolidCollision now inline and MaybeCollide's in-place vMin/vMax
+// (its notes) the requirement is the same: -57..-77u own code without GetDims, which would also make MaybeCollide
+// itself match (it is refused in loop 2 only below 527u).
+// Audit: only ??_H (exe calls it out of line for m_GroundNormals) and one more out-of-line LTVector ctor (loop 1's
+// m_vDeltaPos): inlining decisions. Most promising next idea: find the 28-50u of own code (an SDK macro instead
+// of a written-out expression, or a block that was an inline helper in Talon) and then work the frame (the exe's
+// vMin/vMax for GetBoxIntersection sit at esp+0x6c/0x78, MaybeCollide's 3rd/4th args at esp+0x5c/0x54).
+// PARKED: remaining ~530 is frame/register layout; inlining differs by 2 calls the budget model explains (needs 28-50u less own code)
 // STUB: LITHTECH 0x0045ddf0
 void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, const LTVector &destPos)
 {
@@ -600,6 +619,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 	LTObject *pTestObj;
 	LTObject *pHitObjects[2];
 	LTVector vMin, vMax, vTemp;
+	float fTemp;
 	IntersectingObjectArray objectArray;
 
 	pState->m_pStartPos = &startPos;
@@ -663,6 +683,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 	}
 
 	pHitObjects[0] = pHitObjects[1] = LTNULL;
+	fTemp = 0.0f;
 
 	if(objectArray.m_nObjects == 0)
 		return;
@@ -680,7 +701,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 			// Keep track of whether or not this is a re-iteration hit of the same object for stairstepping support
 			pState->m_Unknown64 = ((pTestObj == pHitObjects[0]) || (pTestObj == pHitObjects[1])) ? nRestarts : 0;
 
-			if(MaybeCollide(pState, pTestObj, &vTemp, &vMin.x))
+			if(MaybeCollide(pState, pTestObj, &vTemp, &fTemp))
 			{
 				// If we hit this guy last time or the time before, then stop the madness...
 				if((nRestarts >= 2) && ((pTestObj == pHitObjects[0]) || (pTestObj == pHitObjects[1])))
@@ -710,7 +731,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 		{
 			pTestObj = objectArray.m_Objects[i].m_pObject;
 
-			if(!MaybeCollide(pState, pTestObj, &vTemp, &vMin.x))
+			if(!MaybeCollide(pState, pTestObj, &vTemp, &fTemp))
 				continue;
 
 			if(pTestObj == pHitObjects[0] && pTestObj == pHitObjects[1])
@@ -752,8 +773,12 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 
 
 // Gives each object a touch notification and creates container links for them.
+// Wave 7 phase 2: `inline` in Talon (moveobject.h still declares it plainly; only this file calls it). Its copy
+// sits after DetectAndProcessCollisions with the other copies DAPC requests (IsWorldModel, DoObjectsIntersect,
+// DoSolidWMCollision); as an inline it is a refused site, i.e. one more pending site at the end of
+// MaybeCollideWorldModel (which then MATCHES, as tools/inline_budget.py --solve predicted: k=1 at the end).
 // FUNCTION: LITHTECH 0x0045ea50
-void DoNonsolidCollision(MoveAbstract *pAbstract, LTObject *pObj1, LTObject *pObj2)
+inline void DoNonsolidCollision(MoveAbstract *pAbstract, LTObject *pObj1, LTObject *pObj2)
 {
 	CollisionInfo *pInfo;
 	LTVector zeroVec;
@@ -792,6 +817,12 @@ void DoNonsolidCollision(MoveAbstract *pAbstract, LTObject *pObj1, LTObject *pOb
 
 
 // Collides the two solid objects using WorldModel physics for the one that is a WorldModel.
+// Wave 7 phase 2: ALIGNED 204 (215 ignoring stack offsets), audit: behaviour matches, same size. The exe keeps the
+// zero of `bCollision = LTFALSE` and the MoveState ctor stores in eax (ours ebx) and &pTestObj->m_Pos in ebx, and
+// its frame slots differ from 0x60 on. hillclimb: `pos1 = vecTo + pos2` gives 100 here, but CheckIntersectOnMovement's
+// inlined copy (0x4602c7: operator+ out of line with this = pos2, vecTo copied) proves the original wrote
+// `pos2 + vecTo`, and that change costs CheckIntersectOnMovement 143 aligned: not adopted. This is the exe's
+// DoSolidWMCollision (Jupiter has it static, Talon inline: CheckIntersectOnMovement inlines it).
 // STUB: LITHTECH 0x0045eaf0
 inline LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision)
 {
@@ -1271,6 +1302,19 @@ inline void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *p
 // (copies annotated before MaybeCollide). Budget model (aliases 460c60/460c80): the exe needs B +156..+260u with one
 // more free pending site before the final MoveObjectTo (own size +78..+130u): the original is BIGGER here; with 36
 // call-sequence differences (audit) this is missing code, not an inlining question.
+// Wave 7 phase 2 (decoded from the exe, 0x4609cd-0x460b14): two behaviour bugs fixed. The non-pushing branch
+// calls CollideAgainstWorld with bNotify = LTFALSE (ours passed LTTRUE), does not adjust m_vDeltaPos, and
+// notifies through DoNonsolidCollision only when bStopped (also when neither object is a WorldModel); the
+// box-physics push passes pState->m_pObj->m_Pos itself as DoSolidBBoxCollision's destPos (no copy, no SetPos
+// afterwards). With DoNonsolidCollision inline: ALIGNED 591 -> 434 (3824 bytes, exe ~4080). Audit now: only
+// inlining decisions: the exe also inlines DoNonsolidCollision's two LTVector::Init, the final MoveObjectTo (with
+// its operator!= and SetObjectBoundingBox) and its operator+, and calls one more LTVector ctor out of line
+// (0x46084b, DoSolidBBoxCollision's vTestPos) where we call operator-. Budget model: no budget reproduces the
+// exe (more budget also inlines DoSolidWMCollision's MoveState ctor, which the exe calls out of line at
+// 0x460206), and no <= 6 extra pending sites do: the end of the function must be cheaper or DoSolidWMCollision
+// (842u, itself a STUB) different in the original. Next idea: settle DoSolidWMCollision's source first, then
+// rerun `inline_budget.py 45fc60 --solve`.
+// PARKED: behaviour now matches the exe; remaining call differences are inlining decisions at the end that the budget model can't reproduce yet
 // STUB: LITHTECH 0x0045fc60
 LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bPushAway)
 {
@@ -1386,9 +1430,7 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 				}
 				else
 				{
-					LTVector vDestPos = pState->m_pObj->GetPos();
-					bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, vDestPos);
-					pState->m_pObj->SetPos(vDestPos);
+					bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_pObj->m_Pos);
 				}
 			}
 			else
@@ -1407,7 +1449,7 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 							((WorldModelInstance*)pTestObj)->m_pValidBsp,
 							pTestObj,
 							pState->m_pObj, *(LTVector*)pState->m_pStartPos, vTempDestPos,
-							LTFALSE, LTTRUE);
+							LTFALSE, LTFALSE);
 					}
 					else if(pState->m_pObj->HasWorldModel() && !(pState->m_pObj->m_Flags & FLAG_BOXPHYSICS))
 					{
@@ -1415,16 +1457,13 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 							((WorldModelInstance*)pState->m_pObj)->m_pValidBsp,
 							pState->m_pObj,
 							pTestObj, *(LTVector*)pState->m_pStartPos, vTempDestPos,
-							LTFALSE, LTTRUE);
+							LTFALSE, LTFALSE);
 					}
-
-					// Adjust the delta position based on the collision
-					if(bStopped)
-						pState->m_vDeltaPos = vTempDestPos - *pState->m_pStartPos;
 				}
-				else
+
+				// Notify the objects if they really touch.
+				if(bStopped)
 				{
-					// Ok, it has box physics, do a simple collision.
 					DoNonsolidCollision(pState->m_pAbstract, pTestObj, pState->m_pObj);
 				}
 
@@ -1447,6 +1486,11 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 }
 
 
+// Out-of-line copies requested by CheckIntersectOnMovement (it calls them out of line now):
+// FUNCTION: LITHTECH 0x00460c60 ??0MoveState@@QAE@XZ
+// FUNCTION: LITHTECH 0x00460c80 ?Inherit@MoveState@@QAEXPAV1@PAVLTObject@@@Z
+
+
 // Collides the mover with one object.  Returns LTTRUE if the mover was stopped.
 // Approximation: the original inlines this into DetectAndProcessCollisions' first loop and
 // inlines DoSolidBBoxCollision into this out-of-line copy.
@@ -1462,9 +1506,17 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 // B 1104u, the exe needs 1076-1168u). `dims < fabs(delta)` per axis (the exe's `and eax,0x4100` tests) and
 // `if(bPushAway){...} else {DoNonsolidCollision; return}` (DoNonsolidCollision last, SetPos tail-duplicated) took it
 // from SIZE 1280 / ALIGNED 272 to DIFF 1264 (exe size) / ALIGNED 197.
-// Out-of-line copies requested by CheckIntersectOnMovement (it calls them out of line now):
-// FUNCTION: LITHTECH 0x00460c60 ??0MoveState@@QAE@XZ
-// FUNCTION: LITHTECH 0x00460c80 ?Inherit@MoveState@@QAEXPAV1@PAVLTObject@@@Z
+// Wave 7 phase 2: DoNonsolidCollision is inline (see there), one more pending site after DoSolidBBoxCollision,
+// which then starved its MoveState ctor (limit 87.7 < 110u); writing the DoSolidWMCollision branch first
+// (`if(bWorldModel || bTestWorldModel) DSWM else DSBB`, same block layout) restores the exe's decisions (197).
+// `LTVector vMin = start - dims; LTVector vMax = start + dims;` declared in the tunnel block (constructed in place,
+// as the exe does: no temp copies) scores 112 with a forced out-of-line copy, but lowers MaybeCollide's cost
+// 554 -> 527u so that DetectAndProcessCollisions inlines it in loop 2 too (limit 551u) and the copy disappears
+// (ERROR). Adopt it together with DetectAndProcessCollisions' missing -57..-77u of own code (its notes): that
+// change drops loop 2's limit below 527u. Audit: one SetPos call fewer than the exe: the exe duplicates the
+// `if(bStopped) SetPos; return bStopped;` tail into the inlined DoSolidBBoxCollision's `return LTTRUE` path (a
+// layout difference, not behaviour); writing the tail in both branches gives 184 here but DAPC 594.
+// PARKED: inline decisions match the exe; the rest waits for DAPC's own-size fix (then adopt the in-place vMin/vMax: 112)
 // STUB: LITHTECH 0x00460cb0
 inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2)
 {
@@ -1520,14 +1572,14 @@ inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnu
 
 	if(bPushAway)
 	{
-		if(!bWorldModel && !bTestWorldModel)
-		{
-			bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos);
-		}
-		else
+		if(bWorldModel || bTestWorldModel)
 		{
 			bStopped = DoSolidWMCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos,
 				LTTRUE, bCollide);
+		}
+		else
+		{
+			bStopped = DoSolidBBoxCollision(pState, pTestObj, *(LTVector*)pState->m_pStartPos, pState->m_vDestPos);
 		}
 
 		if(bStopped)
@@ -1557,6 +1609,12 @@ void GetBoxIntersection(LTVector *pMin1, LTVector *pMax1, LTVector *pMin2, LTVec
 // Register allocation: pObject/pArray get ebx/esi here, edi/ebx in the original (orig: esi holds the 0x400/server-flag
 // temporaries); the vCenter tail also differs (orig keeps the (vMax-vMin) temps in [esp+0x10..0x30] and calls nothing).
 // Tried: pArray before pObject, declaration order swaps, a local MoveState *pState (worse).
+// Wave 7 phase 2: ALIGNED 84 (64 ignoring stack offsets); audit: behaviour matches, no inline candidates. The code
+// is the exe's instruction for instruction under a register permutation (exe pObject=edi, pArray=ebx, 0x400 in esi;
+// ours ebx/esi/edi) plus the vMin/vMax slots (exe 0x1c/0x28, ours 0x10/0x1c). Tried: Jupiter's type test on
+// pTreeObj before the cast (either assignment order), no iObject local (89), vCenter.DistSqr / VEC_DISTSQR / one
+// expression for the distance (84/85/84).
+// PARKED: register permutation only (pObject/pArray/0x400 temp); behaviour matches
 // STUB: LITHTECH 0x00461260
 void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser)
 {
@@ -1946,7 +2004,9 @@ void RotateWorldModel(MoveState *pState, LTRotation *pRotation, LTBOOL bDoCollis
 // the ctor of `m_Velocity = pos2 - pos1` is still inlined. IsWorldModel's braces now charge 41u before Norm (it was
 // free). Budget model: B 1248u, the exe needs 1160-1204u (~22-44u less own code), or --solve: two more free pending
 // sites at the end with -7..+25u own size, or one more before Inherit with 11-31u less.
-// STUB: LITHTECH 0x00461ff0
+// Wave 7 phase 2: MATCH: the pending site at the end is the else branch's DoNonsolidCollision, an inline function
+// (refused here, so it is called out of line but still counts).
+// FUNCTION: LITHTECH 0x00461ff0
 void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj)
 {
 	LTVector pos1, pos2;

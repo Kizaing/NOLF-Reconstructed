@@ -58,6 +58,16 @@ inline LTBOOL InsideConvex(WorldPoly *pPoly, LTVector *pPt)
 // worse (388+). `vTemp = currVec - *pPrev; Cross(-vTemp)` (one more inline site, wrong arithmetic) gives exactly the
 // original's call list (ctor, Mag, Dot, Dot): the original has one more inline site in the loop than ours. LTPlane's
 // Normal() accessor for the m_Dist Dot puts the ctor out of line but inlines both Dots (209/123).
+// Wave 7 phase 2 (budget model): B = 1068u (size 530u). Top level: two Node::GetPlane (51u, charged) + DistTo, then
+// InsideConvex (245u) with 613u for its own sites; Cross's 3-float ctor gets (331 - 108) / 4 = 55.8u >= 47u (inlined;
+// the exe refuses it), and the m_Dist Dot sees 87u >= 54u (inlined; refused in the exe). No B in [1000, 4000] and no
+// <= 6 extra pending sites reproduce the exe (--sweep/--solve). `--cost InsideConvex=330` (about +85u) reproduces the
+// exe's call list exactly, as does charging ~90u more inside InsideConvex before Cross (two WorldPoly::GetNumVertices
+// calls for pEnd/pPrev do it in the model and in our build, but the exe reads m_nVertices directly: not the source).
+// So the original InsideConvex was ~85u bigger before Cross, or the caller charged that much more before it. Tried with
+// --variants: DistSqr for the radius test (worse), LTPlane::Normal() for the m_Dist Dot, Cross(*pPrev - currVec),
+// vertex accessors (free, change nothing).
+// PARKED: inlining decisions only (Cross's ctor and one Dot out of line in the exe); the model needs ~85u more cost in InsideConvex
 // STUB: LITHTECH 0x004442a0
 static LTBOOL InternalIntersectLineNode(
 	Node *pRoot,

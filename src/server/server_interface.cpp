@@ -120,6 +120,14 @@ LTBOOL si_GetPointShade(LTVector *pPoint, LTVector *pColor)
 // (e.g. in the ServerLightAnimLT or ServerModelLT constructor): with them this is a MATCH. 1-4 are too few, 16 too
 // many; pending free calls in CreateLTServer don't change anything, and after the map they un-inline the whole map
 // constructor. The real source of that cost is unknown.
+// Wave 7 phase 2: inline_budget can't measure the STLport callee costs (all "unknown"; --solve finds nothing).
+// Its tree: CLTServer's member constructors are charged 47 (ServerModelLT), 54 (ServerCommonLT), 61
+// (SPhysicsLT), 47 (ServerLightAnimLT) before the map, whose sites get 498u; _M_empty_initialize (0x487d10)
+// must be refused, i.e. ~55-90u more charged before the map. Candidates not tried (they need an edit of
+// serverde_impl.h, which clientde_impl.cpp shares): explicit member constructors with more statements, e.g.
+// a ServerCommonLT(CServerMgr*) constructor, or the ILTSoundMgr conversion in the member init list. The audit's
+// data/str differences are the vtable stand-in (unnamed exe vtables 0x4c8304/0x4c8318/0x4c83c0).
+// PARKED: inlining decision only (_M_empty_initialize inlined, exe calls 0x487d10); STLport costs unmeasurable; keeps the CLTServer vtable stand-in
 // STUB: LITHTECH 0x004798b0
 ILTServer* CreateLTServer(CServerMgr *pServerMgr)
 {
@@ -284,11 +292,13 @@ static inline WorldPoly* w_GetPolyFromHPoly(MainWorld *pWorld, HPOLY hPoly)
 }
 
 
-// STUB: LITHTECH 0x00479ec0
 // The original pushes edi after the parameter check; this pushes it in the prologue.
 // Wave 6 tried: oldFlags declared at its first use, the check written out as an if block: 5 aligned.
 // Wave 7 tried: a switch on flagType (with and without default), the CHECK_PARAMS2 expanded, the body in a
 // block: 5 aligned. The audit's data difference is only the FN_NAME pointer (0x004d5df4) not being named yet.
+// Wave 7 phase 2: audit: only the unnamed FN_NAME pointer (0x004d5df4).
+// PARKED: edi pushed in the prologue instead of after the parameter check (6 aligned); behaviour identical
+// STUB: LITHTECH 0x00479ec0
 LTRESULT ServerCommonLT::SetObjectFlags(HOBJECT hObj, const ObjFlagType flagType, uint32 dwFlags)
 {
 	FN_NAME(ServerCommonLT::SetObjectFlags);

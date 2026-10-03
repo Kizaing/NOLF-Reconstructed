@@ -366,6 +366,8 @@ def call_expr(mangled):
             # the object escapes: VC6 deletes a known side-effect-free ctor call on a dead local
             return ('{ %s __ib_o(%s); __ib_p = &__ib_o; }' % (cls, args)) if args else '{ %s __ib_o; __ib_p = &__ib_o; }' % cls
         if name.startswith('~'):
+            if '<' in cls:    # a qualified template dtor name trips VC6 (C2908): call it unqualified
+                return '((%s *)__ib_p)->~%s();' % (cls, base)
             return '((%s *)__ib_p)->%s::%s();' % (cls, cls, name)
         if name == "`scalar deleting destructor'":
             return 'delete (%s *)__ib_p;' % cls
@@ -449,7 +451,7 @@ def measure_costs(unit, text, callees, log=print, jobs=6):
                 t += probe_def('__ib_Q%d' % i, Wp[c])
                 t += 'void __ib_S%d() {\n\t__ib_Q%d();\n%s\t%s\n}\n' % (i, i, lift, exprs[c])
         return t
-    for _ in range(10):
+    for _ in range(200):
         try:
             compile_asm(unit, text_for({c: 0 for c in exprs}, {c: 0 for c in exprs}))
             break

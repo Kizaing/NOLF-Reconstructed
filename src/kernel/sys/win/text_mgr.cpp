@@ -440,6 +440,13 @@ inline void tmgr_RasterizeText_T(
 // Phase 2 also tried: `!= 0`, the inverted test (7), `*pSrcPos++` in the test (50), a ternary store (61).
 // Tried without effect: declaration order of the template's locals, order of `++pSrcPos; ++destPos;` (worse), order of
 // the two pointer initialisations (worse), `while(xCounter--)`, `pSrcPos += srcX`, `srcX + ptr`, `!= 0`.
+// Wave 7 phase 2: audit: behaviour matches (no call/constant difference). Also tried `&((uint16*)pSrcLine)[srcX]`,
+// braced if/else bodies, `pSrcPos[0]` (all still 1), `*pSrcPos == 0` with swapped arms (7). The remaining
+// instruction is at +0x3ba, the 16-bit fg+bg loop: VC6 rewrites pSrcPos as destPos + (2*srcX - pDestLine +
+// pSrcLine) and our base/index order is [ecx(destPos) + eax(delta)], the exe's [eax + ecx]. Our template is
+// Jupiter's text verbatim. Untried: the template definition order in the file (symbol-table order), a Pixel16
+// copy with a different member order (shared header interface_helpers.h).
+// PARKED: one commutative address operand order ([ecx+eax] vs [eax+ecx]) in the inlined 16-bit tmgr_RasterizeText_T
 // STUB: LITHTECH 0x0049bae0
 static void tmgr_DrawTextToSurface(CisSurface *pDest, LTRect *pSrcRect, LTRect *pDestRect,
 	HLTCOLOR hForeColor, HLTCOLOR hBackColor)

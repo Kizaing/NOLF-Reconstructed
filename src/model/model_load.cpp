@@ -498,7 +498,6 @@ LTBOOL Model::LoadWeightSets(ILTStream &file)
 }
 
 
-// STUB: LITHTECH 0x00456390
 // Wave 7 decoded the child-model block from the exe (was SIZE 3472 vs 3328; now 3312, 246 aligned mismatches,
 // 131 ignoring stack offsets):
 // - Behaviour fix: for a child model listed in the extra child map the exe evaluates `(*pExtraChildren)[pName]`
@@ -521,6 +520,15 @@ LTBOOL Model::LoadWeightSets(ILTStream &file)
 // 0x00457df0 and 0x00458800.
 // Earlier waves: childRequest is built before the ModelAllocations ctor; 0x00457e10 is the out-of-line 2-argument
 // basic_string::_M_range_initialize<const char*>.
+// Wave 7 phase 2 (budget model): B = 5060u (size 2526u). inline_budget.py needed two fixes to run on this unit
+// (destructor probes of STLport classes, more probe-filter rounds); it then measures the CMoArray/BaseNew sites but
+// none of the STLport costs (their call expressions don't compile in its probes), so it can't place the
+// _Construct / ~string / lower_bound decisions. Its exe column confirms the audit up to ICF names: the exe has one more
+// _Construct out of line (4 vs our 3), one more ~_String_base (3 vs 2 + one inlined _M_deallocate_block) and no
+// out-of-line _Rb_tree lower_bound (ours 2): less budget in the child-model block's first half, more in its second.
+// No behaviour difference besides these inlining decisions.
+// PARKED: STLport inlining decisions in the child-model block (push_back _Construct, ~string, map lower_bound) and the shared error-cleanup layout
+// STUB: LITHTECH 0x00456390
 LTRESULT Model::Load(ModelLoadRequest *pRequest)
 {
 	ILTStream *pFile;

@@ -163,6 +163,9 @@ char* SMoveAbstract::GetObjectClassName(LTObject *pObject)
 // Wave 6 phase 2: the exe also adds with `add [ecx],eax` and folds the pops into one `add esp,0x90` (no esi saved);
 // CPhysicsLT::MoveObject's matched CountAdder uses load/add/store. MoveState first: 208 bytes, 40 aligned; counter
 // before ++g_nMoveObjectCalls: 38; a WorldTree* local, an inner block, postincrement: no change.
+// Wave 7 phase 2: audit: behaviour matches. The exe uses immediate zeros (push 0, mov [..],0) and no esi at
+// all, and CountAdder's destructor as `add [ecx],eax`; ours keeps 0 in esi (55 vs 45 instructions).
+// PARKED: register allocation of the zero constant (esi) and the CountAdder add form; behaviour identical
 // STUB: LITHTECH 0x0048f130
 void FullMoveObject(CServerMgr *pServerMgr, LTObject *pObj, const LTVector *pP1, uint32 flags)
 {

@@ -223,7 +223,6 @@ LTRESULT SmackVideoInst::Init(const char *pFilename, uint32 flags, LTBOOL bTextu
 }
 
 
-// STUB: LITHTECH 0x0049d810
 // Remaining diff (36 aligned): the error tails are cross-jumped differently. The original's GetDisplayMode block jumps
 // into the first CreateSurface block's print code and every `jl` goes to that block's epilogue; ours merges the first
 // CreateSurface block into the GetDisplayMode one and sends the `jl`s to the last block's epilogue. Wave 6 tried (no
@@ -233,6 +232,11 @@ LTRESULT SmackVideoInst::Init(const char *pFilename, uint32 flags, LTBOOL bTextu
 // the 565 error as an else branch, the final NOT_INITIALIZED as an else with `return LT_OK` after it, an unbraced
 // GetDisplayMode test; nesting the convert path's second CreateSurface in the first's success branch, or giving the
 // 565 path its own Clear and return, both give 544 bytes (more merging, 108+ aligned).
+// Wave 7 phase 2: audit: `calls 2` is the same dsi_ConsolePrint call at a different offset (the cross-jumped error
+// tails sit in different places); no inline candidates are involved (the budget model has nothing to change), and
+// no behaviour difference. SIZE 624 vs 608, 36 aligned, all in the tail merging of the four RETURN_ERROR blocks.
+// PARKED: cross-jumping (tail merge) direction of the identical error tails; behaviour identical
+// STUB: LITHTECH 0x0049d810
 LTRESULT SmackVideoInst::InitScreen()
 {
 	LPDIRECTDRAW7 pDD;

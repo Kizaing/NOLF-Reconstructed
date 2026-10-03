@@ -652,6 +652,9 @@ void CConsole::FreeBackground()
 // Tried without effect: pSrc[x], array-subscript forms of pDest/pSrc/pRowStart, `*pDest = bits; pDest++`,
 // `(hDC = GetDC()) != LTNULL`, a separate index for the width fill, `iRow << 4`, a statement hill-climb.
 // Wave 7: the console variable is "ConsoleFont" and the resource type "#12345" (we had "ConsoleFontRes" and "PCX").
+// Wave 7 phase 2: audit: `calls 2` are GetDC/ReleaseDC through IAT slots the namemap doesn't name yet (0x4c6280,
+// 0x4c627c): same calls, no behaviour difference. 107 aligned, a cyclic permutation of the callee-saved registers.
+// PARKED: register allocation only (callee-saved registers permuted, 107 aligned); behaviour identical
 // STUB: LITHTECH 0x004212f0
 LTBOOL CConsole::InitFont()
 {

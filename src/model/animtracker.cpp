@@ -24,6 +24,11 @@ void LTAnimTracker::SetupTimeRef(AnimTimeRef *pRef)
 //  ----------------------------------------------------------------
 // Remaining diff: register allocation in the pModel block (orig: pModel esi, iAnim edx, flags bx).
 // Also tried: Jupiter's chained iAnim/iFrame stores, local flags copy, nested AllowInvalid ifs (no change).
+// Wave 7 phase 2: audit: behaviour matches. 19 aligned, all register choice in the pModel block (+0x51..+0x8f: exe
+// pModel esi, iAnim edx loaded before `push ebx`, flags bx; ours pModel edi, iAnim esi, flags dx; store order of the
+// two m_iAnim words around the flags store follows). Tried: the raw AT_ALLOWINVALID test, a ternary, nested ifs,
+// separate Prev/Cur iAnim stores around the flags store (all 19), Jupiter's statement order (20).
+// PARKED: register allocation only in the pModel block (19 aligned); behaviour identical
 // STUB: LITHTECH 0x00401050
 void trk_Init(LTAnimTracker *pTracker, Model *pModel, uint32 iAnim)
 {

@@ -590,6 +590,15 @@ inline void w_LoadProgress(WorldLoadInfo *pInfo, LTBOOL bProgress)
 // bytes. Also left: the Surface::m_Flags / WorldPoly::m_Flags stores (the exe re-reads memory: xor/and/xor; bitfield
 // views and explicit xor forms compile to our CSE'd code), the x87 order of the first Dot, register choices around
 // the progress calls and the terrain section memory sum.
+// Wave 7 phase 2: the two flag merges are inline setters with a parameter: Surface::SetFlags(uint32) and
+// WorldPoly::SetLMPlaneVector(uint16), each `m_Flags &= ~M; m_Flags |= (v & M);` (written in the caller, the same
+// statements compile to and/or; through a parameter VC6 emits the exe's xor-on-memory merge with two reads).
+// 280 (105) -> 257 (86 ignoring stack offsets); both sites now match. Audit: `calls 2` are ICF names
+// (_DeleteAndDestroyArray<uint32>/BaseNew<uint32> folded with identical instances), `imm` the frame offsets: no
+// behaviour difference. Budget model: every site's decision agrees with the exe once ICF names are
+// accounted for (its "operator new 0/0/3" row is a naming artefact). Left: the sub-dword local packing above
+// (frame 4 bytes smaller), the x87 order of the first Dot, register choices around the progress calls.
+// PARKED: stack slot packing of the sub-dword locals and register choice (86 aligned ignoring stack offsets); behaviour identical
 // STUB: LITHTECH 0x00428ac0
 LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgress,
 	WorldBsp **ppBsp, uint32 *pLoadTicks, uint32 *pPrecalcTicks, LTBOOL bUsePlaneTypes)
@@ -808,7 +817,7 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgres
 		STREAM_READ(pSurface->Q);
 		STREAM_READ(pSurface->m_Unknown36);
 		STREAM_READ(surfaceFlags);
-		pSurface->m_Flags ^= (pSurface->m_Flags ^ surfaceFlags) & 0x1FFFFFFF;
+		pSurface->SetFlags(surfaceFlags);
 		STREAM_READ(pSurface->m_Unknown3C);
 		STREAM_READ(colorR);
 		STREAM_READ(colorG);
@@ -893,7 +902,7 @@ LTRESULT w_LoadWorldBsp(WorldLoadInfo *pInfo, MainWorld *pWorld, LTBOOL bProgres
 		if (planeIndex >= pBsp->m_nPlanes)
 			goto Error;
 		pPoly->m_pPlane = &pBsp->m_Planes[planeIndex];
-		pPoly->m_Flags ^= ((SelectLMPlaneVector(pPoly->m_pPlane->m_Normal) << 11) ^ pPoly->m_Flags) & 0x3800;
+		pPoly->SetLMPlaneVector(SelectLMPlaneVector(pPoly->m_pPlane->m_Normal));
 
 		STREAM_READ(O);
 		STREAM_READ(P);
@@ -1158,6 +1167,12 @@ void w_InitLightTable(CLightTable *pTable, char *pInfoString, LTVector *pMin, LT
 // stack offsets). Left: stack slot assignment (most offsets differ), the std::find loop keeping end() in a
 // register, and register choices in the inlined __node_alloc deallocation at the end. Scoping objectDataLen /
 // objectPos / propType / propDataLen into the loops made it worse.
+// Wave 7 phase 2: audit: `calls 2` are ICF names (the exe's _STL_alloc_proxy ctor and ~CHashBin are folded with
+// identical functions) and `data` is StaticLight's vtable (0x4c70f4, unnamed in the exe): no behaviour difference.
+// Budget model: every STLport callee cost is unknown to the tool (STL call expressions don't
+// compile in its probes), so it can't say more; the out-of-line call counts match the exe up to ICF names.
+// Still 97 aligned (21 ignoring stack offsets).
+// PARKED: stack slot assignment and register choice (21 aligned ignoring stack offsets); behaviour identical
 // STUB: LITHTECH 0x00429fa0
 void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTable)
 {
@@ -1343,6 +1358,11 @@ void w_AddStaticLights(ILTStream *pStream, MainWorld *pWorld, CLightTable *pTabl
 // extracted later than in the original.
 // Wave 6 tried for the colour: separate component stores, VEC_SET, Init without casts (no change), LTVector
 // temporary or reading through pSample (SIZE).
+// Wave 7 phase 2: audit: behaviour matches. 6 aligned: the prologue loads pTable (esi) before `push edi` in ours and
+// after it in the exe (+0x5), and the `and eax, 0xff` of the blue byte is scheduled first in the exe (+0x1ae), last in
+// ours. Tried (no change): a block-scoped `LTRGB color`, a block-scoped newColor, the LTVector(r,g,b) constructor,
+// `(float)(int)` casts. Untried: a different source for the six range[] lines (e.g. a min/max LTVector pair).
+// PARKED: register/scheduling only (prologue load order, one byte-mask placement; 6 aligned)
 // STUB: LITHTECH 0x0042ab60
 void w_LightTableAddLight(LTVector *pPos, LTVector *pColor, float radius, CLightTable *pTable)
 {
@@ -1673,6 +1693,13 @@ LTBOOL MainWorld::InitWorldModel(WorldModelInstance *pInstance, const char *pNam
 // Wave 6 phase 2: the original keeps iCurData in [esp+0x14] and `this` in ebx; ours gives iCurData ebx and spills
 // this (246 aligned, 225 ignoring stack). A 2-round statement hill-climb, `> m_LightAnimData` (operator DWORD) and
 // the counters' declaration order change nothing.
+// Wave 7 phase 2: audit: only `imm 4` (ours strength-reduces one pointer with `add ecx, 4`): no call, string or
+// branch difference; the return codes match (1 after ErrorStatus/Error, LT_OUTOFMEMORY after the SetSize chain).
+// Budget model: B = 2552u; the five SetSize -> SetSize2 sites are refused in the model, our build and the exe (the
+// exe's names for two of them are ICF copies), every other site is free: the earlier "1 free site"/ballast results
+// were register-allocation side effects, not inlining. What remains is register allocation (`this` in ebx in the exe,
+// spilled to [esp+0x14] in ours) and the frame layout that follows from it.
+// PARKED: register allocation only (exe keeps this in ebx, ours spills it; 225 aligned ignoring stack offsets); behaviour identical
 // STUB: LITHTECH 0x0042b6e0
 LTRESULT MainWorld::LoadObjects(ILTStream *pStream)
 {

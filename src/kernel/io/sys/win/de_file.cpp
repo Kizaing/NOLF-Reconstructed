@@ -872,6 +872,11 @@ int df_GetRawInfo(HLTFileTree *hTree, const char *pName, char* sFileName, unsign
 // m_SeekOffset read before EnterCriticalSection, an inverted condition, unbraced bodies, a CRezItm* local,
 // Jupiter/DosFileStream's `if(sizeRead == size) {...} else {memset...}` (worse).
 // Wave 7 tried (no change): seekOffset declared at function scope, a CRezItm* local, a BYTE* local at the top.
+// Wave 7 phase 2: audit: behaviour matches (same calls, globals, constants). The 6 aligned are one load placement at
+// +0x3a..+0x54: the exe loads g_pDeFileLastRezItm into eax and pData into edi before the first compare and m_SeekOffset
+// after it; ours loads m_SeekOffset before the compare and pData at the merged Read call. Register/scheduling only.
+// Untried: the RezFileStream class body (in-class inline Read) moved after the code that first uses its vtable.
+// PARKED: load scheduling of pData/m_SeekOffset around the cached-position test (6 aligned); behaviour identical
 // STUB: LITHTECH 0x004273e0 ?Read@RezFileStream@@UAEKPAXK@Z
 // FUNCTION: LITHTECH 0x00427ac0 ?AllocVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00427b30 ?AllocVoid@?$ObjectBank@VRezFileStream@@VLCriticalSection@@@@UAEPAXXZ

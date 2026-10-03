@@ -59,6 +59,9 @@ extern LeechDef g_ServerModelLeechDef;
 // or assigning the result (dResult, LTBOOL, `!x`, `== LTFALSE`), the error test first. The LT_MISSINGMODELFILE tails
 // now merge like the original's: the final error is an else branch and the bind failure repeats it (README, wave 6).
 // The bRet local keeps se_LoadChildModels matched (it flips to DIFF on the plain `if (se_LoadChildModels(...) == 0)`).
+// Wave 7 phase 2: audit: behaviour matches; 15 aligned, all at the se_LoadChildModels call and the success
+// return (+0x23a..+0x266).
+// PARKED: register choice for the se_LoadChildModels arguments and the folded success return (15 aligned); behaviour identical
 // STUB: LITHTECH 0x004781d0
 LTRESULT se_LoadChildModel(ModelLoadRequest *pRequest, Model **ppModel)
 {
@@ -500,6 +503,8 @@ static LTRESULT se_InitSprite(CServerMgr *pServerMgr, LTObject *pObject, ObjectC
 // Wave 5 tried: local declaration order, pInstance in Setup, a MainWorld pointer local: no change.
 // Wave 6 tried: early RETURN_ERROR guard, early return for untransformed BSPs (SIZE), Jupiter's single block, MoveState
 // declared in the inner block (lazy construction, worse), a statement hill-climb: no change (16 aligned).
+// Wave 7 phase 2: audit: behaviour matches (16 aligned, ebx/edi swap only).
+// PARKED: register allocation only (pServerMgr and the zero constant swap ebx/edi); behaviour identical
 // STUB: LITHTECH 0x00478de0
 static LTRESULT se_InitWorldModel(CServerMgr *pServerMgr, LTObject *pObject, ObjectCreateStruct *pStruct)
 {

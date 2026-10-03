@@ -1368,6 +1368,9 @@ inline uint32 GetPacketBytesLeft(CPacket *pPacket)
 // local, a nested if or do/while(0)); a switch, or the FRAGMENT test written success-first (`if(ok){...} err`),
 // keeps them apart, but the first changes the dispatch code and the second puts the error block after the body.
 // The ping copy as a two-float struct assignment is 67 (memcpy 69).
+// Wave 7 phase 2: inline_budget: our out-of-line calls equal the exe's (the model alone predicts one fewer
+// ReadTypeImpl). 69 aligned: x87 order, memcpy load order, register naming and the FRAGMENT cross-jump.
+// PARKED: register/x87 order and one cross-jumped error tail; inlining and behaviour identical
 // STUB: LITHTECH 0x00464fb0
 LTBOOL CNetMgr::HandleNetMgrPacket(CBaseConn *pSender, CPacket *pPacket)
 {

@@ -45,6 +45,10 @@ struct WorldPoly
 
 	LTPlane*	GetPlane()	{ return m_pPlane; }
 
+	// Lightmap plane index (SelectLMPlaneVector) in bits 11-13 of m_Flags (w_LoadWorldBsp: the exe's
+	// xor-on-memory merge is this &=/|= pair on a uint16).
+	void		SetLMPlaneVector(uint16 iPlane)	{ m_Flags &= ~0x3800; m_Flags |= ((iPlane << 11) & 0x3800); }
+
 	uint32		GetNumVertices()
 	{
 		return (m_pVertices != (SPolyVertex*)(this + 1)) ? m_nExtraVertices + m_nVertices : m_nVertices;
