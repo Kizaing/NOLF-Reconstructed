@@ -22,16 +22,16 @@ void GetSmallestPushaway(LTVector &moverMin, LTVector &moverMax, LTVector &mover
 LTBOOL IsSolidWorldBsp(LTObject *pObj);
 void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, const LTVector &destPos);
 inline LTBOOL DoSolidWMCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos, LTBOOL bNotify, LTBOOL &bCollision);
-LTBOOL DoSolidBBoxCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos);
+inline LTBOOL DoSolidBBoxCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos);
 LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bPushAway);
-void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *pvDeltaPos, LTVector *pMinBox, LTVector *pMaxBox);
+inline void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *pvDeltaPos, LTVector *pMinBox, LTVector *pMaxBox);
 void GetBoxIntersection(LTVector *pMin1, LTVector *pMax1, LTVector *pMin2, LTVector *pMax2,
 	LTVector *pOutMin, LTVector *pOutMax);
 void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser);
 int CompareObjectDists(const void *pA, const void *pB);
 LTBOOL DoBoxesIntersect(LTVector &min1, LTVector &max1, LTVector &min2, LTVector &max2, float fTolerance);
 void MaybeCollideWorldModel(MoveState *pState, LTObject *pTestObj);
-LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2);
+inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2);
 void quat_ConvertToMatrix(const float *pQuat, float mat[4][4]);
 void GrowDim(MoveState *pState, int32 nDim, float *pNewDim);
 void CollideWorldModelCB(WorldTreeObj *pObj, void *pUser);
@@ -208,7 +208,9 @@ void InitialWorldModelRotate(WorldModelInstance *pInstance)
 inline LTBOOL IsWorldModel(LTObject *pObj)
 {
 	if(pObj->HasWorldModel() && !(pObj->m_Flags & FLAG_BOXPHYSICS))
+	{
 		return LTTRUE;
+	}
 
 	return LTFALSE;
 }
@@ -532,25 +534,47 @@ inline LTBOOL IsWorldModel(LTObject *pObj1, LTObject *pObj2)
 }
 
 
-// Close in size; the sphere-physics box is unrolled per axis in the original and the inline
-// budget differs (IsWorldModel/DoObjectsIntersect/Mag/MagSqr are called out of line there).
-// Wave 6 phase 2 (decoded from the exe; a rewrite along these lines is kept in the stream's notes, not here):
-// - VC6 inlines an `inline` function defined LATER in the file (toy-checked), and its out-of-line copy then sits at
-//   its definition. That is the original's shape: GetMovementBox (0x45fb80), DoSolidBBoxCollision (0x45f460) and
-//   MaybeCollide (0x460cb0) are `inline` (Jupiter has GetMovementBox/MaybeCollide inline too). Loop 1 inlines
-//   MaybeCollide (calling IsWorldModel(pTestObj) 0x45e960, DoObjectsIntersect 0x45e990, the operator-/+ 0x41f740/
-//   0x41f710, DoSolidBBoxCollision and DoSolidWMCollision out of line), loop 2 calls it; the first GetMovementBox
-//   (right after m_UnknownDC = 5) is inlined, the one at the end of loop 2 is not.
-// - The sphere block declares `SphereMoveInfo sphereInfo` inside the block (the `??_H` array-ctor call 0x401000 is
-//   there), copies m_vStartPos from *pState->m_pStartPos and writes the three axes out (no loop); the custom-object
-//   loop sets objectArray.m_nObjects = 0 and uses pState->m_pStartPos->DistSqr(pTestObj->GetPos()) (operator- inline,
-//   ctor 0x412960 and MagSqr 0x438f72 out of line).
-// - With that rewrite every helper is inlined (MaybeCollide/GetMovementBox lose their copies: ERROR). The exe's call
-//   pattern appears with ~90 units of code-free ballast at the top (k90: only IsWorldModel(pTestObj) still inline,
-//   aligned 586 vs ~1220 without); adding 10 `if(0)` statements directly to the function cancels most of it, so the
-//   original's own size (inline budget = ~2x own size) is ~20+ units smaller than this source. Moving the sphere box
-//   into an inline helper moves part of the way (1101). DoSolidWMCollision's copy is only compiled in the exe's order
-//   (frame 0xc0, 1712 bytes, aligned 204) when DAPC calls it out of line, i.e. once this structure is right.
+inline void GetSphereMoveBox(MoveState *pState, float fRadius)
+{
+	float fDiameter;
+
+	fDiameter = fRadius + fRadius;
+	if(pState->m_pStartPos->x > pState->m_vDestPos.x)
+	{
+		pState->m_vMoveMin.x = pState->m_vDestPos.x - fDiameter;
+		pState->m_vMoveMax.x = fDiameter + pState->m_pStartPos->x;
+	}
+	else
+	{
+		pState->m_vMoveMin.x = pState->m_pStartPos->x - fDiameter;
+		pState->m_vMoveMax.x = fDiameter + pState->m_vDestPos.x;
+	}
+
+	if(pState->m_pStartPos->y > pState->m_vDestPos.y)
+	{
+		pState->m_vMoveMin.y = pState->m_vDestPos.y - fDiameter;
+		pState->m_vMoveMax.y = fDiameter + pState->m_pStartPos->y;
+	}
+	else
+	{
+		pState->m_vMoveMin.y = pState->m_pStartPos->y - fDiameter;
+		pState->m_vMoveMax.y = fDiameter + pState->m_vDestPos.y;
+	}
+
+	if(pState->m_pStartPos->z > pState->m_vDestPos.z)
+	{
+		pState->m_vMoveMin.z = pState->m_vDestPos.z - fDiameter;
+		pState->m_vMoveMax.z = fDiameter + pState->m_pStartPos->z;
+	}
+	else
+	{
+		pState->m_vMoveMin.z = pState->m_pStartPos->z - fDiameter;
+		pState->m_vMoveMax.z = fDiameter + pState->m_vDestPos.z;
+	}
+
+}
+
+
 // STUB: LITHTECH 0x0045ddf0
 void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, const LTVector &destPos)
 {
@@ -558,7 +582,6 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 	LTObject *pTestObj;
 	LTObject *pHitObjects[2];
 	LTVector vMin, vMax, vTemp;
-	SphereMoveInfo sphereInfo;
 	IntersectingObjectArray objectArray;
 
 	pState->m_pStartPos = &startPos;
@@ -571,30 +594,18 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 	// Sphere physics objects do their own collisions.
 	if(pState->m_pObj->m_Flags2 & FLAG2_SPHEREPHYSICS)
 	{
+		SphereMoveInfo sphereInfo;
 		float fDiameter;
 
-		sphereInfo.m_pObj = pState->m_pObj;
 		sphereInfo.m_pState = pState;
-		sphereInfo.m_pObjects = &objectArray;
-		sphereInfo.m_vStartPos = startPos;
+		sphereInfo.m_vStartPos = *pState->m_pStartPos;
 		sphereInfo.m_vDestPos = pState->m_vDestPos;
+		sphereInfo.m_pObj = pState->m_pObj;
 		sphereInfo.m_fRadius = pState->m_pObj->m_Dims.y;
+		sphereInfo.m_pObjects = &objectArray;
 		objectArray.m_pState = pState;
 
-		fDiameter = sphereInfo.m_fRadius + sphereInfo.m_fRadius;
-		for(i=0; i < 3; i++)
-		{
-			if(((LTVector&)startPos)[i] > pState->m_vDestPos[i])
-			{
-				pState->m_vMoveMin[i] = pState->m_vDestPos[i] - fDiameter;
-				pState->m_vMoveMax[i] = fDiameter + ((LTVector&)startPos)[i];
-			}
-			else
-			{
-				pState->m_vMoveMin[i] = ((LTVector&)startPos)[i] - fDiameter;
-				pState->m_vMoveMax[i] = fDiameter + pState->m_vDestPos[i];
-			}
-		}
+		GetSphereMoveBox(pState, sphereInfo.m_fRadius);
 
 		pState->m_pWorldTree->FindObjectsInBox(&pState->m_vMoveMin, &pState->m_vMoveMax,
 			FindObjectsCB, &objectArray, NOA_Objects);
@@ -606,25 +617,14 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 
 	pState->m_pObj->m_UnknownDC = 5;
 
-	pState->m_vMoveMin = pState->m_pObj->m_MinBox;
-	pState->m_vMoveMax = pState->m_pObj->m_MaxBox;
-	if(pState->m_vDeltaPos.x > 0.0f)
-		pState->m_vMoveMin.x -= pState->m_vDeltaPos.x;
-	else if(pState->m_vDeltaPos.x < 0.0f)
-		pState->m_vMoveMax.x -= pState->m_vDeltaPos.x;
-	if(pState->m_vDeltaPos.y > 0.0f)
-		pState->m_vMoveMin.y -= pState->m_vDeltaPos.y;
-	else if(pState->m_vDeltaPos.y < 0.0f)
-		pState->m_vMoveMax.y -= pState->m_vDeltaPos.y;
-	if(pState->m_vDeltaPos.z > 0.0f)
-		pState->m_vMoveMin.z -= pState->m_vDeltaPos.z;
-	else if(pState->m_vDeltaPos.z < 0.0f)
-		pState->m_vMoveMax.z -= pState->m_vDeltaPos.z;
+	GetMovementBox(&pState->m_vMoveMin, &pState->m_vMoveMax, &pState->m_vDeltaPos,
+		&pState->m_pObj->m_MinBox, &pState->m_pObj->m_MaxBox);
 
 	objectArray.m_pState = pState;
 
 	if(pState->m_CustomTestObjects)
 	{
+		objectArray.m_nObjects = 0;
 		for(i=0; i < (int32)pState->m_nCustomTestObjects; i++)
 		{
 			pTestObj = pState->m_CustomTestObjects[i];
@@ -634,7 +634,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 				GetBoxIntersection(&pTestObj->m_MinBox, &pTestObj->m_MaxBox,
 					&pState->m_vMoveMin, &pState->m_vMoveMax, &vMin, &vMax);
 				objectArray.m_Objects[objectArray.m_nObjects].m_pObject = pTestObj;
-				objectArray.m_Objects[objectArray.m_nObjects].m_fDistSqr = (*pState->m_pStartPos - pTestObj->GetPos()).MagSqr();
+				objectArray.m_Objects[objectArray.m_nObjects].m_fDistSqr = pState->m_pStartPos->DistSqr(pTestObj->GetPos());
 				objectArray.m_nObjects++;
 			}
 		}
@@ -683,7 +683,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 
 				// Reset some info...
 				pState->m_vDestPos = pState->m_pObj->GetPos();
-				pState->m_vDeltaPos = pState->m_vDestPos - *pState->m_pStartPos;
+				pState->m_vDeltaPos = pState->m_vDestPos - startPos;
 			}
 		}
 	}
@@ -717,7 +717,7 @@ void DetectAndProcessCollisions(MoveState *pState, const LTVector &startPos, con
 
 			// Reset some info...
 			pState->m_vDestPos = pState->m_pObj->GetPos();
-			pState->m_vDeltaPos = pState->m_vDestPos - *pState->m_pStartPos;
+			pState->m_vDeltaPos = pState->m_vDestPos - startPos;
 			pState->m_vMoveCenter = *pState->m_pStartPos + pState->m_vDeltaPos * 0.5f;
 			pState->m_fMoveRadius = (0.5f * pState->m_vDeltaPos.Mag()) + pState->m_pObj->m_Dims.Mag();
 			GetMovementBox(&pState->m_vMoveMin, &pState->m_vMoveMax, &pState->m_vDeltaPos,
@@ -1016,7 +1016,7 @@ LTBOOL CollideAgainstWorld(
 
 
 // FUNCTION: LITHTECH 0x0045f460
-LTBOOL DoSolidBBoxCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos)
+inline LTBOOL DoSolidBBoxCollision(MoveState *pState, LTObject *pTestObj, LTVector &startPos, LTVector &destPos)
 {
 	int32 pushPlane;
 	float fPlaneDist;
@@ -1204,7 +1204,7 @@ void GetSmallestPushaway(LTVector &moverMin, LTVector &moverMax, LTVector &mover
 
 
 // FUNCTION: LITHTECH 0x0045fb80
-void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *pvDeltaPos, LTVector *pMinBox, LTVector *pMaxBox)
+inline void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *pvDeltaPos, LTVector *pMinBox, LTVector *pMaxBox)
 {
 	*pvMoveMin = *pMinBox;
 	*pvMoveMax = *pMaxBox;
@@ -1438,7 +1438,7 @@ LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bP
 // DoObjectsIntersect 0x45e990 out of line, then DoSolidBBoxCollision/DoSolidWMCollision/DoNonsolidCollision/
 // CheckIntersectOnMovement out of line) and only the second loop calls MaybeCollide.
 // STUB: LITHTECH 0x00460cb0
-LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2)
+inline LTBOOL MaybeCollide(MoveState *pState, LTObject *pTestObj, LTVector *pUnused, float *pUnused2)
 {
 	LTBOOL bWorldModel, bTestWorldModel, bPushAway, bStopped, bCollide;
 	LTVector vMin, vMax;
@@ -1527,10 +1527,6 @@ void GetBoxIntersection(LTVector *pMin1, LTVector *pMax1, LTVector *pMin2, LTVec
 // Register allocation: pObject/pArray get ebx/esi here, edi/ebx in the original (orig: esi holds the 0x400/server-flag
 // temporaries); the vCenter tail also differs (orig keeps the (vMax-vMin) temps in [esp+0x10..0x30] and calls nothing).
 // Tried: pArray before pObject, declaration order swaps, a local MoveState *pState (worse).
-// Wave 6 phase 2: the exe's tail keeps (vMax - vMin) * 0.5f in a stack temp that is copied as operator+'s by-value
-// argument and subtracts *m_pStartPos straight from memory (ours copies *m_pStartPos instead). No change (84) from:
-// the whole distance as one expression, Jupiter's pTreeObj->GetObjType() test before the cast, a named half vector,
-// VEC_SUB/VEC_MAGSQR, VEC_DISTSQR and DistSqr (85-88, or 400 bytes), vCenter -= start.
 // STUB: LITHTECH 0x00461260
 void FindObjectsCB(WorldTreeObj *pTreeObj, void *pCBUser)
 {

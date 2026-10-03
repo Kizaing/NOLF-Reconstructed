@@ -6,14 +6,19 @@ r"""VC6 inline-budget model and oracle (wave 7).
       --sweep     find the budget range for which the model reproduces the exe's out-of-line calls
       --no-cost   don't measure callee costs (only B(F) and the tree)
       -j N        parallel compiles (default 6)
+      --alias VA=MANGLED   name an exe address no matched function has named yet (repeatable)
+      --cost NAME=U        what-if: use cost U for a callee (mangled or undecorated name; repeatable)
   python tools/inline_budget.py --validate [names...]
       run the model on matched functions (default: the README's inline cases) and score its predictions
+  python tools/inline_budget.py --variants <function> <variants.py> [--sweep]
+      score vtry-style source variants in memory (the source file is never touched): B, size, model and build
+      out-of-line calls vs the exe
   python tools/inline_budget.py --at <function> "<anchor text>"
       remaining top-level budget just before <anchor text> inside the function (probe inserted there; the probe is
       one more pending site for everything before it, so nested shares before the anchor shrink a little)
 
 How it works (all measurements use the real compiler on a temporary copy of the unit, written next to it as
-src/<dir>/__ib_*.cpp and deleted afterwards; the unit itself is never edited):
+src/<dir>/__ib_*.ibtmp (compiled with /Tp) and deleted afterwards; the unit itself is never edited):
   B(F)    an inline probe made of global stores is put first in F; the largest probe that still inlines is B(F)
           (exact to 1u). size(F) = B/2 - 4 (the probe call) when B > 1000.
   tree    the unit is compiled /Od /Ob0 /FAs: every call of an inline candidate (a COMDAT function) is a site;
@@ -59,7 +64,9 @@ from coffobj import undecorate  # noqa: E402
 VC6CL = os.environ.get('VC6CL') or r'E:\AVP2Source\scripts\vc6cl.bat'
 COST_CACHE = os.path.join(ROOT, 'build', 'inline_costs.json')
 NAMEMAPS = [os.path.join(ROOT, 'build', 'namemap.json'), r'E:\AVP2Source\decomp\build\namemap.json']
-FLOOR, FREE, MAXDEPTH = 1000, 36, 8
+FLOOR, FREE, MAXDEPTH = 1000, 40, 8
+# compiler-generated inline candidates whose cost can't be probed with a call expression (toy-measured)
+FIXED_COSTS = {'??_H@YGXPAXIHP6EX0@Z@Z': 49}     # `vector constructor iterator' (arrays of classes with ctors)
 OPT_FLAGS = re.compile(r'^/(O[12xdgitysab]\w*|Gy|Ob\d)$')
 _ctr = [0]
 _ctr_lock = threading.Lock()
@@ -70,7 +77,7 @@ def _tmpname(unit_dir):
     with _ctr_lock:
         _ctr[0] += 1
         n = _ctr[0]
-    return os.path.join(unit_dir, '__ib_%d_%d.cpp' % (os.getpid(), n))
+    return os.path.join(unit_dir, '__ib_%d_%d.ibtmp' % (os.getpid(), n))
 
 
 def compile_asm(unit, text, flags=None):
@@ -81,7 +88,7 @@ def compile_asm(unit, text, flags=None):
     open(cpp, 'w', newline='', encoding='latin1').write(text)
     try:
         fl = unit.flags if flags is None else flags
-        args = [VC6CL] + build.COMMON_FLAGS + fl + ['/FAs', '/Fa' + asm, '/Fo' + obj, cpp]
+        args = [VC6CL] + build.COMMON_FLAGS + fl + ['/FAs', '/Fa' + asm, '/Fo' + obj, '/Tp' + cpp]
         r = subprocess.run(['cmd', '/c'] + args, capture_output=True, text=True, cwd=os.path.dirname(cpp))
         if not os.path.exists(asm) or r.returncode != 0:
             errs = [l for l in r.stdout.splitlines() if ' error ' in l or 'fatal error' in l]
@@ -129,7 +136,7 @@ def desc_name(desc):
 
 def find_function(key):
     """(unit, annotation) for a name (undecorated, qualified or not) or hex address."""
-    units = build.find_units()
+    units = [u for u in build.find_units() if not os.path.basename(u.path).startswith('__ib_')]   # our temp copies
     va = None
     if re.match(r'^(0x)?[0-9a-fA-F]{6,8}$', key):
         va = int(key, 16)
@@ -320,6 +327,8 @@ def call_expr(mangled):
             return '{ %s __ib_o(%s); }' % (cls, args) if args else '{ %s __ib_o; }' % cls
         if name.startswith('~'):
             return '((%s *)__ib_p)->%s::%s();' % (cls, cls, name)
+        if name == "`scalar deleting destructor'":
+            return 'delete (%s *)__ib_p;' % cls
         if static:
             call = '%s::%s(%s)' % (cls, name, args)
         else:
@@ -345,8 +354,15 @@ def load_costs():
 
 
 def save_costs(c):
+    """Merge into the cache file (several runs may share it) and replace it atomically."""
     os.makedirs(os.path.dirname(COST_CACHE), exist_ok=True)
-    json.dump(c, open(COST_CACHE, 'w'), indent=1, sort_keys=True)
+    cur = load_costs()
+    for k, v in c.items():
+        if v.get('cost') is not None or k not in cur:
+            cur[k] = v
+    tmp = COST_CACHE + '.%d.tmp' % os.getpid()
+    json.dump(cur, open(tmp, 'w'), indent=1, sort_keys=True)
+    os.replace(tmp, COST_CACHE)
 
 
 BW_STORES = 500                   # wrapper ballast: B(W) = 2*(12 + 6*500 + 4) = 6032
@@ -356,6 +372,7 @@ BW = 2 * (12 + 6 * BW_STORES + 4)
 def measure_costs(unit, text, callees, log=print, jobs=6):
     """{mangled: cost} for callees, via wrappers appended to the unit (cached by mangled name + unit flags)."""
     cache = load_costs()
+    cache.update({k: {'cost': v, 'why': 'fixed (toy-measured)'} for k, v in FIXED_COSTS.items()})
     todo = [c for c in callees if c not in cache]
     exprs = {}
     for c in todo:
@@ -475,7 +492,8 @@ def build_tree(lst, root, depth=0, stack=()):
     if depth >= 12:
         return sites
     for c in lst[root]['calls']:
-        if c in lst and lst[c]['comdat'] and not c.startswith('??_'):     # not compiler helpers (??_H, ??_G)
+        if c in lst and lst[c]['comdat'] and (not c.startswith('??_') or c in FIXED_COSTS or
+                                                    c.startswith('??_G')):   # helpers: ??_H, ??_G
             s = Site(c, depth + 1)
             if c not in stack:
                 s.children = build_tree(lst, c, depth + 1, stack + (c,))
@@ -546,7 +564,35 @@ def exe_calls(va, symtab):
             t = int(ins.op_str, 16)
             if ins.mnemonic == 'jmp' and va <= t < end:
                 continue
-            out.append(names.get(t) or symtab.names.get(t) or '%08x' % t)
+            out.append(ALIASES.get(t) or names.get(t) or symtab.names.get(t) or '%08x' % t)
+    return out
+
+
+COST_OVERRIDES = {}
+ALIASES = {}     # exe address -> mangled name, for out-of-line copies no matched function has named yet (--alias)
+
+
+def _norm(n):
+    n = undecorate(n) if n.startswith('?') else n
+    n = re.sub(r'<[^<>]*>', '', re.sub(r'<[^<>]*>', '', n))
+    return n.replace(' ', '')
+
+
+def map_exe(ex_calls, callees):
+    """Exe call names -> our callee keys (mangled when known; Ghidra names matched by unqualified-template name)."""
+    by_norm = {}
+    for c in callees:
+        by_norm.setdefault(_norm(c), []).append(c)
+    out = {}
+    for n, k in ex_calls.items():
+        if n in callees:
+            key = n
+        else:
+            hits = by_norm.get(_norm(n), [])
+            if len(hits) != 1:
+                continue
+            key = hits[0]
+        out[key] = out.get(key, 0) + k
     return out
 
 
@@ -567,10 +613,28 @@ def short(m):
     return u.replace('_CVector<float>', 'LTVector')
 
 
-def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6, quiet=False):
+def apply_variant(text, ann, repls):
+    """Apply (old, new) replacements in memory; returns (text, annotation with its new line number)."""
+    import copy
+    for old, new in repls:
+        if text.count(old) != 1:
+            raise SystemExit('variant: %r occurs %d times' % (old[:60], text.count(old)))
+        text = text.replace(old, new)
+    a = copy.copy(ann)
+    for i, l in enumerate(text.split('\n')):
+        m = build.ANNOT.match(l)
+        if m and int(m.group(2), 16) == ann.va:
+            a.line = i + 1
+            break
+    return text, a
+
+
+def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6, quiet=False, variant=None):
     log = (lambda *a: None) if quiet else print
     unit, ann = find_function(key)
     text = open(unit.path, encoding='latin1').read()
+    if variant:
+        text, ann = apply_variant(text, ann, variant)
     log('%s  (%s:%d, %s)' % (ann.name, unit.rel, ann.line, ' '.join(unit.flags)))
     # our /O2 build and the /Od /Ob0 tree, in parallel with B
     with concurrent.futures.ThreadPoolExecutor(3) as ex:
@@ -588,6 +652,11 @@ def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6
     log('B(F) = %s u  -> size(F) = %s u%s' % (B, size if size is not None else '<= %d' % (FLOOR // 2 - 4),
                                                 '' if size is not None else ' (budget at the 1000u floor)'))
     costs = measure_costs(unit, text, callees, log=log, jobs=jobs) if costs_on else {}
+    for k, v in COST_OVERRIDES.items():           # --cost: what-if costs (mangled or undecorated name)
+        for c in callees:
+            if c == k or undecorate(c) == k:
+                costs[c] = {'cost': v}
+                log('cost override: %s = %d' % (short(c), v))
     simulate(sites, B if B else FLOOR, costs)
     pred = refused_multiset(sites)
     ours = {k: v for k, v in count(o2[root_o2]['calls']).items() if k in tl and tl[k]['comdat'] or k in pred}
@@ -596,7 +665,7 @@ def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6
         st = build.SymTab()
         if ann.va in st.funcs:
             ex_calls = count(exe_calls(ann.va, st))
-            res['exe'] = {k: v for k, v in ex_calls.items() if k in callees}
+            res['exe'] = map_exe(ex_calls, callees)
     if not quiet:
         report(res, verbose)
     if sweep and 'exe' in res:
@@ -637,13 +706,23 @@ def report(res, verbose):
 def do_sweep(res, sites, costs, B):
     want = res['exe']
     ok = []
+    best = (10 ** 9, None)
     for b in range(FLOOR, max(3 * (B or FLOOR), 4000), 4):
         simulate(sites, b, costs)
         p = refused_multiset(sites)
-        p = {k: v for k, v in p.items() if v}
-        if all(p.get(k, 0) == want.get(k, 0) for k in set(p) | set(want)):
+        miss = sum(abs(p.get(k, 0) - want.get(k, 0)) for k in set(p) | set(want))
+        if miss < best[0]:
+            best = (miss, b)
+        if miss == 0:
             ok.append(b)
     simulate(sites, B or FLOOR, costs)
+    if not ok:
+        simulate(sites, best[1], costs)
+        p = refused_multiset(sites)
+        print('closest budget: %s u (%d out-of-line calls differ from the exe: %s)' % (best[1], best[0], ', '.join(
+            '%s model %d exe %d' % (short(k), p.get(k, 0), want.get(k, 0)) for k in sorted(set(p) | set(want))
+            if p.get(k, 0) != want.get(k, 0))))
+        simulate(sites, B or FLOOR, costs)
     if ok:
         rngs = []
         for b in ok:
@@ -685,7 +764,32 @@ VALIDATE = ['SweptSphereOrient', 'FillSoundTrackPacketFromInfo', '4995f0', 'Thre
             'CSoundMgr::Update', 'w_LoadWorldBsp', 'MoveObject', 'DoNonsolidCollision', 'GrowDim',
             'RotateWorldModel', 'ChangeObjectDimensions', 'CollideAgainstWorld', 'GetPushawayPos',
             'CreateServerMgr', 'ReallySendPacket', 'CSoundMgr::Init', 'dsi_LoadServerObjects', 'ClientLoadChildModelCB',
-            'ModelExtraInit', 'sm_WriteLightAnimInfo', 'AddDataToGroupPacket', 'SetObjectFilenames', 'LockTexture']
+            'sm_WriteLightAnimInfo', 'AddDataToGroupPacket', 'SetObjectFilenames', 'LockTexture']
+
+
+def run_variants(key, path, jobs, sweep):
+    """Score source variants in memory (vtry-style variants file: VARIANTS = [(label, old, new), ...], old/new may be
+    lists): B, size, and how many of the exe's out-of-line calls the model reproduces, plus our build's calls."""
+    import runpy
+    vs = runpy.run_path(path)['VARIANTS']
+    pre = runpy.run_path(path).get('PRE', [])
+    for label, old, new in [('base', [], [])] + list(vs):
+        olds = old if isinstance(old, list) else [old]
+        news = new if isinstance(new, list) else [new]
+        try:
+            r = analyse(key, use_exe=True, jobs=jobs, quiet=True, variant=list(pre) + list(zip(olds, news)))
+        except (SystemExit, CompileError) as e:
+            print('%-24s %s' % (label, str(e)[:200]))
+            continue
+        want = r.get('exe', {})
+        keys = set(r['pred']) | set(want) | set(r['ours'])
+        dm = sum(abs(r['pred'].get(k, 0) - want.get(k, 0)) for k in keys)
+        db = sum(abs(r['ours'].get(k, 0) - want.get(k, 0)) for k in keys)
+        print('%-24s B=%-5s size=%-7s model-vs-exe %d  build-vs-exe %d   build: %s' % (
+            label, r['B'], r['size'], dm, db, ', '.join('%s %d' % (short(k)[:28], v) for k, v in sorted(r['ours'].items()))),
+            flush=True)
+        if sweep:
+            do_sweep(r, r['sites'], r['costs'], r['B'])
 
 
 def validate(names, jobs):
@@ -717,12 +821,25 @@ def validate(names, jobs):
 
 def main(argv):
     jobs = 6
+    while '--cost' in argv:           # --cost IsWorldModel=41  (what-if; all overloads with that name)
+        i = argv.index('--cost')
+        a, v = argv[i + 1].rsplit('=', 1)
+        COST_OVERRIDES[a] = int(v)
+        del argv[i:i + 2]
+    while '--alias' in argv:          # --alias 45e960=?IsWorldModel@@YAIPAVLTObject@@@Z
+        i = argv.index('--alias')
+        a, m = argv[i + 1].split('=', 1)
+        ALIASES[int(a, 16)] = m
+        del argv[i:i + 2]
     if '-j' in argv:
         i = argv.index('-j')
         jobs = int(argv[i + 1])
         del argv[i:i + 2]
     if argv and argv[0] == '--validate':
         validate(argv[1:] or VALIDATE, jobs)
+        return
+    if argv and argv[0] == '--variants':
+        run_variants(argv[1], argv[2], jobs, '--sweep' in argv)
         return
     if argv and argv[0] == '--at':
         measure_at(argv[1], argv[2])
