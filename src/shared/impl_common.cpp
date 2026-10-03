@@ -499,18 +499,22 @@ void ic_ReadCompRotation(ILTMessage *pMsg, LTRotation *pRot)
 
 // FUNCTION: LITHTECH 0x0043e540 ?SetBasisVectors@LTMatrix@@QAEXPAV?$_CVector@M@@00@Z
 
-// STUB: LITHTECH 0x0043e5b0
-// The original keeps CMoArray::Insert2 (0x00414630) out of line inside the inlined CPacket::WriteType (as in
-// CNetMgr::SendFragmented); ours inlines it. A top-level cost of >= 8 units before the WriteType gives the right
-// size (224) with 91 bytes still differing; free pending sites (1-6) do nothing, nor does LTMatrix::El().
+// LTMatrix::GetBasisVectors (SDK inline) is the code-free cost the inline budget needs: seven of its nine
+// stores are dead and vanish, but its size still counts, which keeps CMoArray::Insert2 out of line inside the
+// inlined WriteType. The char local gives the original's early conversion.
+// FUNCTION: LITHTECH 0x0043e5b0
 void ic_WriteYRotation(CPacket *pPacket, LTRotation *pRot)
 {
 	LTMatrix mat;
+	LTVector right, up, forward;
 	float fAngle;
+	char angle;
 
 	quat_ConvertToMatrix((float*)pRot, mat.m);
-	fAngle = (float)atan2(mat.m[0][2], mat.m[2][2]);
-	pPacket->WriteType((char)(fAngle * (127.0f / MATH_PI)));
+	mat.GetBasisVectors(&right, &up, &forward);
+	fAngle = (float)atan2(forward.x, forward.z);
+	angle = (char)(fAngle * (127.0f / MATH_PI));
+	pPacket->WriteType(angle);
 }
 
 // FUNCTION: LITHTECH 0x0043e690
