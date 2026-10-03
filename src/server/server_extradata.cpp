@@ -53,10 +53,11 @@ LTRESULT sm_OnModelUnload(void *pUser, struct ModelUnloadMsg *pMsg, LTRESULT sta
 extern LeechDef g_ServerModelLeechDef;
 
 // Loads a child model (the model's path is the parent's directory).
-// Remaining diff: the two LT_MISSINGMODELFILE error tails swap places (the original's two jl to the shared
-// epilogue both go to the FIRST copy [pop x3; mov eax,0x2f; pop ebx] and the second tail's own fall-through copy
-// is [mov eax; pop x4]; VC6 here keeps the last copy), and the success path returns the eax of the
-// se_LoadChildModels test (no xor eax,eax). Tried returning/assigning the se_LoadChildModels result.
+// Remaining diff (15 aligned): the success path returns the eax of the se_LoadChildModels test (no xor eax,eax), and
+// the se_LoadChildModels call loads its arguments into other registers (ecx/eax/ecx vs edx/ecx/edx). Tried returning
+// or assigning the result (dResult, LTBOOL, `!x`, `== LTFALSE`), the error test first. The LT_MISSINGMODELFILE tails
+// now merge like the original's: the final error is an else branch and the bind failure repeats it (README, wave 6).
+// The bRet local keeps se_LoadChildModels matched (it flips to DIFF on the plain `if (se_LoadChildModels(...) == 0)`).
 // STUB: LITHTECH 0x004781d0
 LTRESULT se_LoadChildModel(ModelLoadRequest *pRequest, Model **ppModel)
 {
@@ -115,15 +116,21 @@ LTRESULT se_LoadChildModel(ModelLoadRequest *pRequest, Model **ppModel)
 	if (dResult == LT_OK && pModel->SetFilename(fullName))
 	{
 		pModel->m_FileID = pUsedFile->m_FileID;
-		if (se_LoadChildModels(pInfo->m_pServerMgr, pModel, pUsedFile, 0) == 0)
+		LTBOOL bRet = se_LoadChildModels(pInfo->m_pServerMgr, pModel, pUsedFile, 0);
+		if (!bRet)
 		{
 			*ppModel = pModel;
 			return LT_OK;
 		}
-	}
 
-	delete pModel;
-	RETURN_ERROR(1, se_LoadChildModel, LT_ERROR);
+		delete pModel;
+		RETURN_ERROR(1, se_LoadChildModel, LT_ERROR);
+	}
+	else
+	{
+		delete pModel;
+		RETURN_ERROR(1, se_LoadChildModel, LT_ERROR);
+	}
 }
 
 // Turns forward slashes into backslashes, in place.
