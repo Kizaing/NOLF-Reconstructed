@@ -195,8 +195,11 @@ LTRESULT CLTTexMod::GetTextureInfo(const HTEXTURE hTexture, TextureInfo &info)
 
 
 // STUB: LITHTECH 0x0049b260
-// Only the error blocks differ (same tail-merge family as dsi_LoadServerObjects): the original keeps `mov eax,[fn]; mov
-// ecx,[err]` per block before the const pushes and merges only the call; we merge from the pushes on.
+// The format test is an early `!= BPP_32` error whose ERR(1, LT_NOTINITIALIZED) VC merges with the final one: that
+// gives the original's layout and leaves the two LT_INVALIDPARAMS blocks merged only from the call on (README, wave 6).
+// Remaining diff (8 aligned): in the alpha-mask branch the original loads &pData, stores, then loads &lPitch after
+// `pop edi`; we load both references first. Tried `!= LTNULL`, a TextureMipData local, swapping the two stores, a
+// plain `if` instead of `else if`, `lockType == TLOCK_BUMPMAP &&`.
 LTRESULT CLTTexMod::LockTexture(const HTEXTURE hTexture, const LTRect *pRect,
 	const uint32 lockType, uint8* &pData, long &lPitch)
 {
@@ -220,20 +223,22 @@ LTRESULT CLTTexMod::LockTexture(const HTEXTURE hTexture, const LTRect *pRect,
 		(lockType == TLOCK_TEXTURE || lockType == TLOCK_BUMPMAP))
 	{
 		pTextureData->SetupPFormat(&format);
-		if(format.m_eType == BPP_32)
+		if(format.m_eType != BPP_32)
 		{
-			if(lockType == TLOCK_TEXTURE)
-			{
-				pData = pTextureData->m_Mips[0].m_Data;
-				lPitch = pTextureData->m_Mips[0].m_Pitch;
-				return LT_OK;
-			}
-			else if(pTextureData->m_Mips[0].m_AlphaMask)
-			{
-				pData = pTextureData->m_Mips[0].m_AlphaMask;
-				lPitch = pTextureData->m_Mips[0].m_AlphaPitch;
-				return LT_OK;
-			}
+			ERR(1, LT_NOTINITIALIZED);
+		}
+
+		if(lockType == TLOCK_TEXTURE)
+		{
+			pData = pTextureData->m_Mips[0].m_Data;
+			lPitch = pTextureData->m_Mips[0].m_Pitch;
+			return LT_OK;
+		}
+		else if(pTextureData->m_Mips[0].m_AlphaMask)
+		{
+			pData = pTextureData->m_Mips[0].m_AlphaMask;
+			lPitch = pTextureData->m_Mips[0].m_AlphaPitch;
+			return LT_OK;
 		}
 
 		ERR(1, LT_NOTINITIALIZED);
