@@ -1,7 +1,7 @@
 """PARKED.md: the parked STUBs (build.py parked [-a]; -a lists every STUB).
 
 A STUB is parked when no known lever is left: its remaining difference is explained (the behaviour audit shows
-no difference, or only inlining decisions) and every README rule and tool has been tried on it. Its comment block
+no difference, or only inlining decisions) and every NOTES.md rule and tool has been tried on it. Its comment block
 (directly above the `// STUB:` line) carries `// PARKED: <reason>`; remove that line to unpark it. Parked
 functions stay in the build and are still checked and diffed; agents skip them until a new rule or tool arrives.
 """
@@ -38,7 +38,7 @@ def write(results, objs, exe, symtab, audits, aligned_counts, all_stubs=False):
          '',
          'A parked function is a STUB with no known lever left: its remaining difference is explained '
          '(`build.py audit` shows the same behaviour as the exe, or only different inlining decisions) and every '
-         'README rule and tool has been tried (the notes say against which wave\'s rules). It stays in the build '
+         'NOTES.md rule and tool has been tried (the notes say against which wave\'s rules). It stays in the build '
          '(compiled, checked, diffed); agents skip it until a new rule or tool arrives. To unpark one, delete '
          'the `// PARKED:` line in the comment block above its `// STUB:` line. The audit column\'s hints '
          '(mset, zero-reg, lazy-push) are explained in tools/audit.py.',

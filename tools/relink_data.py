@@ -6,7 +6,7 @@ fully matched unit's own data sections reproduce the exe's bytes, and the per-un
   python tools/relink.py --mode mixed --split-standin --own-data            fully matched units whose data matches supply
                                                                             their own .data/.rdata sections
 
-How the exe's data is laid out (LINK 6, see the README "Data layout"):
+How the exe's data is laid out (LINK 6, see NOTES.md "Data layout"):
   .rdata  0x4c6000 IAT (.idata$5) | 0x4c6480 '.rdata' contributions in link order | '.rdata$r' (RTTI) | '.xdata$x' (EH)
           | import descriptors and names (.idata$2-$6)
   .data   0x4cf000 the merged .CRT$X?? tables (initialiser pointers, link order inside $XCU) | 0x4cf150 '.data'

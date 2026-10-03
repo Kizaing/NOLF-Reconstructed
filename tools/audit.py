@@ -10,7 +10,7 @@
           a swapped or off-by-one comparison doesn't
   order   (a hint, not a difference) callees defined earlier in the same file whose exe address is higher than
           the caller's: the original compiled them after the caller, so VC6 knew nothing about them when compiling
-          it (README "Order and definitions"). Matching functions have such callees too (templates, inlines).
+          it (NOTES.md "Order and definitions"). Matching functions have such callees too (templates, inlines).
 
 A difference in calls/str/data/float is usually a semantic bug or a different inlining decision; imm/jcc
 differences are often semantic too (swapped comparison, wrong constant). A function with no differences only
@@ -370,7 +370,7 @@ _ALIASES = {'ebx': ('ebx', 'bx', 'bl', 'bh'), 'esi': ('esi', 'si'), 'edi': ('edi
 
 def zero_regs(insns):
     """Callee-saved registers that hold 0 for the whole function (one `xor r, r`, no other write): {reg: uses}.
-    VC6 does this once a function stores the integer constant 0 four or more times (README, hand pass)."""
+    VC6 does this once a function stores the integer constant 0 four or more times (NOTES.md, hand pass)."""
     out = {}
     for r in SAVED:
         names = _ALIASES[r]

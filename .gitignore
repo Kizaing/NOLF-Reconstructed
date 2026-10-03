@@ -5,3 +5,7 @@ __pycache__/
 *.pyc
 *.tmp
 .claude/
+
+# Internal notes stay local (NOTES.md = the developer handbook, PARKED.md, briefs); only the public README is published
+*.md
+!/README.md
