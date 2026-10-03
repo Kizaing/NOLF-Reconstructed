@@ -530,6 +530,7 @@ void CClientMgr::OnExitWorld(CClientShell *pShell)
 // Starts a shell: hosts or joins a game, or runs one locally, and sends the hello message.
 // Remaining diff: register allocation only (the original keeps pShell in esi and pRequest in edi). Wave 5 tried
 // `pShell->m_ShellMode` instead of `pRequest->m_Type` in the switch and the HOST test (worse: ~980 bytes).
+// Wave 6: SAFE_STRCPY for the playback world name (697 -> 674 bytes differ).
 // STUB: LITHTECH 0x00410500
 LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 {
@@ -687,8 +688,7 @@ LTRESULT CClientMgr::StartShell(StartGameRequest *pRequest)
 			// If they asked for a playdemo, fill in the world name.
 			if(pRequest->m_PlaybackFilename[0] != 0)
 			{
-				strncpy(pRequest->m_WorldName, playbackWorldName, 99);
-				pRequest->m_WorldName[99] = 0;
+				SAFE_STRCPY(pRequest->m_WorldName, playbackWorldName);
 			}
 		}
 		break;

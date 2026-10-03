@@ -345,12 +345,9 @@ void ServerStringKeyCallback(LTAnimTracker *pTracker, AnimKeyFrame *pFrame, char
 
 
 // Creates the world's objects from the world file.
-// STUB: LITHTECH 0x00477750
-// Wave 5: 4 bytes (eax/ecx for the two cb_FindClass arguments). It becomes a MATCH if ONE extra free inline call
-// is pending anywhere after the createStruct ctor (e.g. a dead `pServerMgr->GetClassModule();` before
-// createStruct.Clear()): the original's ctor expansion (Init x3 out of line) needs a smaller budget share.
-// Using the accessor for cb_FindClass's module gives the 4-byte state below; the source of the real extra
-// site is not known (ruled out: pClassMgr local, accessor for cb_IsClassFlagSet (56 bytes worse)).
+// SAFE_STRCPY for the class name (the SDK's inline LTStrCpy) is the pending inline site that keeps the
+// createStruct constructor's Init calls out of line.
+// FUNCTION: LITHTECH 0x00477750
 LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldName, LTBOOL bAllObjects)
 {
 	uint32 i, k, nObjects, nProperties, nObjectDataOffset, dwDummy;
@@ -387,7 +384,7 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 		}
 
 		// Get the class.
-		pClass = cb_FindClass(pServerMgr->GetClassModule(), typeName);
+		pClass = cb_FindClass(pServerMgr->m_ClassMgr.m_ClassModule, typeName);
 
 		// Set things up to succeed anyway if we don't have that class.
 		if (pClass)
@@ -454,8 +451,7 @@ LTRESULT LoadObjects(CServerMgr *pServerMgr, ILTStream *pStream, char *pWorldNam
 
 		if (pClass && pObject)
 		{
-			strncpy(createStruct.m_ClassName, typeName, sizeof(createStruct.m_ClassName) - 1);
-			createStruct.m_ClassName[sizeof(createStruct.m_ClassName) - 1] = 0;
+			SAFE_STRCPY(createStruct.m_ClassName, typeName);
 
 			pObject->EngineMessageFn(MID_PRECREATE, &createStruct, PRECREATE_WORLDFILE);
 

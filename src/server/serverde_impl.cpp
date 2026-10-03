@@ -778,22 +778,18 @@ LTRESULT CLTServer::SetModelFilenames(HOBJECT hObj, char *pFilename, char *pSkin
 	return SetObjectFilenames(hObj, pFilename, pSkinName);
 }
 
-// Differs: ObjectCreateStruct: the original calls Clear() out of line from the constructor, then inlines the explicit Clear().
-// Three free pending inline calls right after the declaration (inline_ballast ... pending) make it MATCH, so the
-// original has three more inline call sites after the constructor's than our source has (Common() instead of
-// m_pCommonLT gives one; 2 more unknown).
-// STUB: LITHTECH 0x0047cef0
+// SAFE_STRCPY (the SDK's inline LTStrCpy) and Common() are the three pending inline sites that keep the
+// constructor's Clear() out of line while the explicit Clear() is inlined.
+// FUNCTION: LITHTECH 0x0047cef0
 LTRESULT CLTServer::SetObjectFilenames(HOBJECT hObj, char *pFilename, char *pSkinName)
 {
 	ObjectCreateStruct theStruct;
 
 	INIT_OBJECTCREATESTRUCT(theStruct);
-	strncpy(theStruct.m_Filename, pFilename, MAX_CS_FILENAME_LEN);
-	theStruct.m_Filename[MAX_CS_FILENAME_LEN] = 0;
-	strncpy(theStruct.m_SkinName, pSkinName, MAX_CS_FILENAME_LEN);
-	theStruct.m_SkinName[MAX_CS_FILENAME_LEN] = 0;
+	SAFE_STRCPY(theStruct.m_Filename, pFilename);
+	SAFE_STRCPY(theStruct.m_SkinName, pSkinName);
 
-	return m_pCommonLT->SetObjectFilenames(hObj, &theStruct);
+	return Common()->SetObjectFilenames(hObj, &theStruct);
 }
 
 // FUNCTION: LITHTECH 0x0047d010
