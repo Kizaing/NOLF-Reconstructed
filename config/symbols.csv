@@ -725,7 +725,8 @@ addr,end,kind,name,extra
 0041b2a0,0041b380,func,"SimpleBoxBSPIntersect",
 0041b380,0041b4d0,func,"DoPointCollision",
 0041b4d0,0041b930,func,"FUN_0041b4d0",
-0041b930,0041bdd0,func,"FUN_0041b930",noncontig
+0041b930,0041bb90,func,"FUN_0041b930",
+0041bb90,0041bdd0,func,"SetupBoxPoints",
 0041bdd0,0041c400,func,"CollideWithWorld",
 0041c400,0041c460,func,"FUN_0041c400",
 0041c460,0041d620,func,"ClipBoxIntoTree",

@@ -4,6 +4,9 @@ r"""lithtech.exe decomp build driver.
   python tools/build.py check [-v] [F]  compile and check annotated functions (F = substring of unit/name/addr)
   python tools/build.py diff [-a] <F>   side-by-side disassembly for matching functions; every diff ends with an
                                         ALIGNED line (instruction mismatches after alignment); -a prints aligned hunks
+  python tools/build.py audit [-v] [-m] [F]  behaviour audit of every non-matching function: call sequence, constants,
+                                        strings, globals, jump classes, callee order vs the exe (tools/audit.py);
+                                        -m audits the matching functions instead (self-test: expect none)
   python tools/build.py relink         layout gate: mixed relink of every fully matched unit (tools/relink_gate.py)
   python tools/build.py base <obj>      rebuild one base object (objdiff's "custom make" entry point)
 
@@ -433,8 +436,14 @@ def check_function(a, o, exe, symtab, name2va, ghidra_conflicts, local=None):
     return r
 
 
+LAST_OBJS = {}     # unit name -> CoffObj of the last run_check (build.py audit reads them)
+ALL_NAMES = {}     # every name -> va the last run_check knows, ICF-folded duplicates included (build.py audit)
+
+
 def run_check(units, exe, symtab, verbose=False, filt=None, libs=None):
     objs = {u.name: CoffObj(u.base_obj) for u in units if os.path.exists(u.base_obj)}
+    LAST_OBJS.clear()
+    LAST_OBJS.update(objs)
     bind_symbols(units, objs)
     va2name, name2va, local, problems = build_namemap(units, symtab)
     # GLOBAL annotations in include/ name the symbol in every object that references it
@@ -499,6 +508,12 @@ def run_check(units, exe, symtab, verbose=False, filt=None, libs=None):
     for n, at in sorted(learned_at.items()):
         if len(at) > 1:
             print('MULTI  %s learned at %s' % (n, ', '.join('%08x (%s)' % (v, a.where()) for v, a in sorted(at.items()))))
+    ALL_NAMES.clear()
+    ALL_NAMES.update(name2va)
+    for a, tva, n, other in clash:
+        ALL_NAMES.setdefault(n, tva)
+    for tva, n in learned.items():
+        ALL_NAMES.setdefault(n, tva)
     namemap = dict(va2name)
     namemap.update({k: v for k, v in learned.items() if k not in namemap})
     namemap.update({k: v for k, v in lib_names.items() if k not in namemap})
@@ -837,6 +852,15 @@ def lint():
 
 # ---------------------------------------------------------------- main
 
+def full_build_refused():
+    """Unfiltered builds on the main checkout, from a Claude Code shell, need DECOMP_LEAD=1 (agents share master's
+    build/; a worktree's is private). DECOMP_AGENT=1 refuses them anywhere."""
+    if os.environ.get('DECOMP_AGENT'):
+        return True
+    main_checkout = os.path.normcase(ROOT) == os.path.normcase(r'E:\AVP2Source\decomp')
+    return main_checkout and bool(os.environ.get('CLAUDECODE')) and not os.environ.get('DECOMP_LEAD')
+
+
 def main(argv):
     cmd = argv[0] if argv else 'all'
     if cmd == 'relink':         # layout gate over the last full build's objects (tools/relink_gate.py)
@@ -856,12 +880,16 @@ def main(argv):
     verbose = '-v' in argv
     global ALIGNED_ONLY
     ALIGNED_ONLY = '-a' in argv
-    rest = [x for x in argv[1:] if x not in ('-v', '-a')]
+    rest = [x for x in argv[1:] if x not in ('-v', '-a', '-m')]
     filt = rest[0] if rest else None
     # a filtered check/diff/todo only compiles the units it names (several agents may run checks at once;
     # other units' existing objects are still read for names)
-    mine = [u for u in units if filt and filt in u.name] if cmd in ('check', 'diff', 'todo') else []
-    if cmd in ('check', 'diff', 'todo') and filt and not mine:
+    if (cmd == 'all' or not filt) and full_build_refused():
+        print('build.py %s without a filter rewrites the shared outputs on master: agents always pass a unit or '
+              'function filter (the lead runs full builds with DECOMP_LEAD=1)' % cmd)
+        return 2
+    mine = [u for u in units if filt and filt in u.name] if cmd in ('check', 'diff', 'todo', 'audit') else []
+    if cmd in ('check', 'diff', 'todo', 'audit') and filt and not mine:
         print('no unit matches %r: checking the existing objects without compiling' % filt)
     ok = all([compile_unit(u) for u in (mine or units)])
     standins = lint() if cmd in ('all', 'check') else 0
@@ -870,6 +898,11 @@ def main(argv):
     if cmd == 'diff':
         run_check(units, exe, symtab, verbose=True, filt=filt, libs=libs)
         return 0
+    if cmd == 'audit':
+        import io, contextlib, audit
+        with contextlib.redirect_stdout(io.StringIO()):
+            results, namemap = run_check(units, exe, symtab, False, None, libs)
+        return audit.run(results, namemap, exe, symtab, LAST_OBJS, filt, verbose, '-m' in argv, ALL_NAMES)
     results, namemap = run_check(units, exe, symtab, verbose, filt if cmd in ('check', 'todo') else None, libs)
     if cmd == 'todo':
         show_todo(filt or '', units, symtab, results)

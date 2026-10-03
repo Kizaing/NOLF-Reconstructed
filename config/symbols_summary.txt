@@ -1,14 +1,14 @@
 source: /named/lithtech.exe
 .text 00401000-004c54b5 (Ghidra block, end clamped to PE VirtualSize)
-rows: 12721
+rows: 12722
   data: 6745
-  func: 5098
+  func: 5099
   gap: 34
   import: 277
   jumptable: 52
   label: 515
 func bytes (sum of extents): 803253 (0xc41b5)
-noncontig funcs: 16
+noncontig funcs: 15
 funcs whose Ghidra body leaves [entry,end): 12
 thunks to external (emitted as label): 4
 jumptables: 52  gaps: 34  imports: 277  data: 6744  labels: 511
@@ -48,7 +48,6 @@ first 30 gaps:
   004bc185-004bc188 in 004bbf70 _memcpy bytes=8d4900
 
 first 30 noncontig funcs:
-  0041b930 FUN_0041b930 end=0041bdd0 body: 0041b930-0041bb8e 0041bb90-0041bdc2
   004a0690 FUN_004a0690 end=004a0700 body: 004a0690-004a0700 004a0706-004a0720
   004a2aa0 WONAPI::PeerAuthClient::HandleRecvMsg end=004a2bb5 body: 004a2aa0-004a2bb5 004a2bbb-004a2bd3
   004a36f0 FUN_004a36f0 end=004a3838 body: 004a36f0-004a3838 004a3845-004a3877
