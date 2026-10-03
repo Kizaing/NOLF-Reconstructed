@@ -26,7 +26,7 @@ from coffobj import CoffObj, undecorate, REL_DIR32, REL_REL32, REL_SIZES  # noqa
 
 EXE = r'E:\AVP2Source\bin\lithtech.exe'
 VC6CL = os.environ.get('VC6CL') or r'E:\AVP2Source\scripts\vc6cl.bat'   # worktrees: set VC6CL=tools\vc6cl_wt.bat
-OBJDIFF = r'E:\AVP2Source\tools\objdiff\objdiff-cli.exe'
+OBJDIFF = os.environ.get('OBJDIFF_CLI') or r'E:\AVP2Source\tools\objdiff\objdiff-cli.exe'
 SRC, INC, BUILD = os.path.join(ROOT, 'src'), os.path.join(ROOT, 'include'), os.path.join(ROOT, 'build')
 SYMBOLS_CSV = os.path.join(ROOT, 'config', 'symbols.csv')
 RENAMES_CSV = os.path.join(ROOT, 'config', 'renames.csv')
@@ -795,6 +795,34 @@ def rel(p):
     return os.path.relpath(p, ROOT).replace('\\', '/')
 
 
+PROGRESS_CATEGORIES = [
+    {'id': 'engine', 'name': 'Engine'},             # src/ units and the unassigned blocks
+    {'id': 'lithshared', 'name': 'lithshared'},     # src/lithshared: RezMgr, StdLith, ... compiled by the engine build
+    {'id': 'wonapi', 'name': 'WONAPI'},             # prebuilt library objects (tools/libmatch.py)
+    {'id': 'crt', 'name': 'VC6 CRT'},
+]
+
+
+def unit_category(name):
+    if name.startswith('lib/'):
+        return 'wonapi' if 'WONAPI' in name else 'crt'
+    if name.startswith('lithshared/'):
+        return 'lithshared'
+    return 'engine'
+
+
+def mark_complete(units_json, results):
+    """A source unit is complete when every function in its target object matches (decomp.dev's 'complete'
+    measures; prebuilt library units are always complete)."""
+    matched = {r.a.va for r in results if r.a.kind == 'FUNCTION' and r.status == 'MATCH'}
+    for e in units_json:
+        md = e.setdefault('metadata', {})
+        md['progress_categories'] = [unit_category(e['name'])]
+        if 'source_path' in md:
+            vas = OBJVAS.get(e['name'], [])
+            md['complete'] = bool(vas) and all(va in matched for va in vas)
+
+
 def write_objdiff_json(units_json):
     cfg = {
         '$schema': 'https://raw.githubusercontent.com/encounter/objdiff/main/config.schema.json',
@@ -804,6 +832,7 @@ def write_objdiff_json(units_json):
         'build_base': True,
         'watch_patterns': ['src/**/*.cpp', 'src/**/*.c', 'include/**/*.h'],
         'units': units_json,
+        'progress_categories': PROGRESS_CATEGORIES,
     }
     json.dump(cfg, open(os.path.join(ROOT, 'objdiff.json'), 'w'), indent=2)
 
@@ -958,6 +987,7 @@ def main(argv):
         save_namemap(namemap)
         units_json = write_targets(units, symtab, namemap, libs)
         if units_json is not None:
+            mark_complete(units_json, results)
             write_objdiff_json(units_json)
             json.dump({k: v for k, v in sorted(SYMVA.items()) if not (k.startswith('$L') and len(k) >= 8)},
                       open(os.path.join(BUILD, 'symva.json'), 'w'), indent=0)
