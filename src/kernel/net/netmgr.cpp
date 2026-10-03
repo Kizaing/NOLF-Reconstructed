@@ -1663,12 +1663,8 @@ void CNetMgr::DeleteGPackets(GPacketList *pList)
 }
 
 
-// The original inlines WriteType but calls CMoArray::Insert2; this build inlines both (inline budget).
-// inline_scan: one more (free) inline call site anywhere after the WriteType statement makes it MATCH, so the
-// original has a pending inline call here that we haven't identified. (wave 5: a discarded
-// `pGroup->GetPacketID();` or `pGroup->GetMessageImpl();` after WriteRaw gives a byte match; ResetWrite() or a
-// GetPacketID() between the two writes does not. Not shipped: no known real caller of such an accessor here.)
-// STUB: LITHTECH 0x00465b20
+// WriteRaw is an inline wrapper around WriteData (packet.h): its pending site keeps CMoArray::Insert2 out of line.
+// FUNCTION: LITHTECH 0x00465b20
 void CNetMgr::AddDataToGroupPacket(CPacket *pGroup, void *pData, uint32 dataLen)
 {
 	pGroup->WriteType((uint16)dataLen);
