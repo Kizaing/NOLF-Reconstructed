@@ -1267,6 +1267,10 @@ inline void GetMovementBox(LTVector *pvMoveMin, LTVector *pvMoveMax, LTVector *p
 // Waiting on this function: the original calls MoveState's constructor (0x00460c60, zeroes +0/+4/+8/+0x64/+0x68) twice
 // and MoveState::Inherit (0x00460c80) three times out of line, and those copies sit right after it; annotate them
 // (mangled names) once this compiles that way. MaybeCollide calls Inherit too.
+// Wave 7: with DoSolidBBoxCollision inline (wave-6 rewrite) it calls the ctor twice and Inherit twice out of line
+// (copies annotated before MaybeCollide). Budget model (aliases 460c60/460c80): the exe needs B +156..+260u with one
+// more free pending site before the final MoveObjectTo (own size +78..+130u): the original is BIGGER here; with 36
+// call-sequence differences (audit) this is missing code, not an inlining question.
 // STUB: LITHTECH 0x0045fc60
 LTBOOL CheckIntersectOnMovement(MoveState *pState, LTObject *pTestObj, LTBOOL bPushAway)
 {
