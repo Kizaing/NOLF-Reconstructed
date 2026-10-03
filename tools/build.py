@@ -7,6 +7,7 @@ r"""lithtech.exe decomp build driver.
   python tools/build.py audit [-v] [-m] [F]  behaviour audit of every non-matching function: call sequence, constants,
                                         strings, globals, jump classes, callee order vs the exe (tools/audit.py);
                                         -m audits the matching functions instead (self-test: expect none)
+  python tools/build.py parked [-a]     write PARKED.md: every parked STUB (-a: every STUB) with its scores, audit and notes
   python tools/build.py relink         layout gate: mixed relink of every fully matched unit (tools/relink_gate.py)
   python tools/build.py base <obj>      rebuild one base object (objdiff's "custom make" entry point)
 
@@ -130,6 +131,8 @@ class Annot:
         self.kind, self.va, self.mangled, self.unit, self.line, self.name = kind, va, mangled, unit, line, name
         self.symbol = None
         self.error = None
+        self.notes = []         # the comment block directly above the annotation
+        self.parked = None      # STUB parked by a `// PARKED: <reason>` line in that block
 
     def where(self):
         return '%s:%d' % (self.unit.rel, self.line)
@@ -152,6 +155,13 @@ class Unit:
             if m:
                 a = Annot(m.group(1), int(m.group(2), 16), m.group(3), self, i + 1)
                 a.name = _decl_name(lines, i + 1, a.kind == 'GLOBAL')
+                k = i - 1
+                while k >= 0 and lines[k].lstrip().startswith('//') and not ANNOT.match(lines[k]):
+                    k -= 1
+                a.notes = [x.strip()[2:].strip() for x in lines[k + 1:i]]
+                for n in a.notes:
+                    if n.startswith('PARKED:') and a.kind == 'STUB':
+                        a.parked = n[len('PARKED:'):].strip() or '(no reason given)'
                 self.annots.append(a)
 
 
@@ -489,7 +499,7 @@ def run_check(units, exe, symtab, verbose=False, filt=None, libs=None):
     for r in results:
         if filt and filt not in r.a.unit.name and filt not in (r.a.name or '') and filt not in '%08x' % r.a.va:
             continue
-        flag = '' if r.a.kind == 'FUNCTION' else ' (stub)'
+        flag = '' if r.a.kind == 'FUNCTION' else ' (stub)' + (' parked' if r.a.parked else '')
         print('%-6s %08x %5d  %-45s %s%s' % (r.status, r.a.va, r.size, (r.a.mangled or r.a.name or '?')[:45], r.detail, flag))
         if verbose and r.status in ('DIFF', 'SIZE', 'RELOC'):
             print_diff(r, objs[r.a.unit.name], exe)
@@ -589,6 +599,19 @@ def aligned_score(left, right, relocs, stack):
     B = [_norm_insn(t, False, stack) for a, s, t in right]
     sm = difflib.SequenceMatcher(None, A, B, autojunk=False)
     return sum(max(i2 - i1, j2 - j1) for tag, i1, i2, j1, j2 in sm.get_opcodes() if tag != 'equal'), sm
+
+
+def aligned_counts(r, o, exe):
+    """(mismatches, mismatches ignoring stack offsets, our instructions, exe instructions) for a result."""
+    import capstone
+    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    sec, start, end = o.extent(r.a.symbol)
+    base = sec.data[start:end]
+    target = exe.read(r.a.va, max(r.size, len(base)))
+    relocs = {off: s.name for off, s, _, _ in o.relocs_in(sec, start, end)}
+    left = [(i.address, i.size, '%s %s' % (i.mnemonic, i.op_str)) for i in md.disasm(base, 0)]
+    right = [(i.address, i.size, '%s %s' % (i.mnemonic, i.op_str)) for i in md.disasm(target, r.a.va)]
+    return aligned_score(left, right, relocs, False)[0], aligned_score(left, right, relocs, True)[0], len(left), len(right)
 
 
 def print_aligned(r, left, right, relocs):
@@ -884,20 +907,27 @@ def main(argv):
     filt = rest[0] if rest else None
     # a filtered check/diff/todo only compiles the units it names (several agents may run checks at once;
     # other units' existing objects are still read for names)
-    if (cmd == 'all' or not filt) and full_build_refused():
+    if cmd != 'parked' and (cmd == 'all' or not filt) and full_build_refused():     # parked compiles nothing
         print('build.py %s without a filter rewrites the shared outputs on master: agents always pass a unit or '
               'function filter (the lead runs full builds with DECOMP_LEAD=1)' % cmd)
         return 2
     mine = [u for u in units if filt and filt in u.name] if cmd in ('check', 'diff', 'todo', 'audit') else []
     if cmd in ('check', 'diff', 'todo', 'audit') and filt and not mine:
         print('no unit matches %r: checking the existing objects without compiling' % filt)
-    ok = all([compile_unit(u) for u in (mine or units)])
+    ok = all([compile_unit(u) for u in (mine or ([] if cmd == 'parked' else units))])
     standins = lint() if cmd in ('all', 'check') else 0
     exe, symtab = Exe(EXE), SymTab()
     libs = Libraries()
     if cmd == 'diff':
         run_check(units, exe, symtab, verbose=True, filt=filt, libs=libs)
         return 0
+    if cmd == 'parked':
+        import io, contextlib, audit, parked
+        with contextlib.redirect_stdout(io.StringIO()):
+            results, namemap = run_check(units, exe, symtab, False, None, libs)
+        summaries = {}
+        audit.run(results, namemap, exe, symtab, LAST_OBJS, None, False, False, ALL_NAMES, out=summaries)
+        return parked.write(results, LAST_OBJS, exe, symtab, summaries, aligned_counts, '-a' in argv)
     if cmd == 'audit':
         import io, contextlib, audit
         with contextlib.redirect_stdout(io.StringIO()):
@@ -913,6 +943,10 @@ def main(argv):
     total = sum(e - va for va, (e, _) in symtab.funcs.items())
     print('%d/%d annotated functions match; %d of %d .text function bytes (%.3f%%)  [symbols: %s]' % (
         m, n, mb, total, 100.0 * mb / max(total, 1), os.path.basename(symtab.source)))
+    stubs = [r for r in results if r.a.kind == 'STUB']
+    if stubs and not filt:
+        print('%d STUBs (%d bytes), %d of them parked (build.py parked lists them)' % (
+            len(stubs), sum(r.size for r in stubs), sum(1 for r in stubs if r.a.parked)))
     if libs.units:
         lb = libs.code_bytes()
         print('libraries: %d prebuilt objects, %d functions, %d code bytes (%.3f%%) matched by tools/libmatch.py' % (

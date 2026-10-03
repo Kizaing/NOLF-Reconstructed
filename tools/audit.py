@@ -300,7 +300,9 @@ def order_problems(results, a, called):
     return out
 
 
-def run(results, namemap, exe, symtab, objs_by_unit, filt=None, verbose=False, matched=False, all_names=None):
+def run(results, namemap, exe, symtab, objs_by_unit, filt=None, verbose=False, matched=False, all_names=None,
+        out=None):
+    """Print the audit; with out={} fill out[va] = one-line summary instead of printing."""
     aud = Auditor(exe, namemap, all_names)
     rows = []
     for r in results:
@@ -345,6 +347,9 @@ def run(results, namemap, exe, symtab, objs_by_unit, filt=None, verbose=False, m
             parts.append('hint: order %d' % len(order))
         kind = 'STUB' if a.kind == 'STUB' else r.status
         shown = ', '.join(parts) if parts and not parts[0].startswith('hint') else             'behaviour matches' + (' (%s)' % parts[0] if parts else '')
+        if out is not None:
+            out[a.va] = shown
+            continue
         print('%-5s %08x %-40s %s' % (kind, a.va, (a.name or a.symbol.name)[:40], shown))
         if not verbose or not parts:
             continue
@@ -360,6 +365,8 @@ def run(results, namemap, exe, symtab, objs_by_unit, filt=None, verbose=False, m
                 print('      %-5s  exe only:  %s' % ('', ', '.join(_show(v) for v in y)[:300]))
         if order:
             print('      order  defined earlier but later in the exe: %s' % ', '.join(order))
+    if out is not None:
+        return 0
     print('audit: %d functions, %d with no behaviour difference (layout/register allocation only)' % (len(rows), clean))
     return 0
 
