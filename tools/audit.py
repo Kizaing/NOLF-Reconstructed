@@ -15,6 +15,16 @@
 A difference in calls/str/data/float is usually a semantic bug or a different inlining decision; imm/jcc
 differences are often semantic too (swapped comparison, wrong constant). A function with no differences only
 differs in layout or register allocation.
+
+Hints (shown after the differences; they don't count against "behaviour matches"):
+  mset      the two listings as multisets of register-abstracted instructions (registers -> r32/r16/r8, stack and
+            ebp-frame slots -> [STK], addresses -> SYM; calls, jumps and x87 left out). Zero for a pure register
+            permutation or frame layout difference. An exe-only store, a re-read member or a copy of another operand
+            means the source differs (ReadNewObjectInfo's redundant m_FileType store). -v lists them, x87 separately.
+  zero-reg  one side keeps 0 in a callee-saved register for the whole function and the other doesn't: count the
+            integer-0 stores (4+ -> register); a float member zeroed as an int, or the reverse, is the usual cause.
+  lazy-push one side pushes a callee-saved register after an early `ret`: early `return` inside a nested block vs
+            the wrapped `if (x != y) { ... }` form.
 """
 import collections, difflib, re, struct
 
@@ -29,6 +39,12 @@ CATS = ('calls', 'imm', 'float', 'str', 'data', 'jcc', 'order')
 class Side:
     def __init__(self):
         self.calls, self.imm, self.float, self.str, self.data, self.jcc = [], [], [], [], [], []
+        self.shape = []         # register-abstracted instructions (mset)
+        self.insns = []         # the instructions up to the switch tables (zero-reg, lazy-push)
+
+
+GP32 = ('eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp')
+SAVED = ('ebx', 'esi', 'edi', 'ebp')
 
 
 def _cstring(exe, va, min_len=1):
@@ -158,6 +174,46 @@ class Auditor:
                         other.remove(k)
                         break
 
+    def shape(self, ins, addr_disp, addr_imm, frame):
+        """One instruction with registers reduced to their size class, stack slots to [STK] and addresses to SYM:
+        a register permutation or a different frame layout leaves the multiset of shapes unchanged."""
+        X86 = self.cs.x86
+        m = ins.mnemonic
+        if m == 'nop' or m == 'call' or m.startswith(('j', 'ret', 'int3')):
+            return None
+        ops = []
+        for op in ins.operands:
+            if op.type == X86.X86_OP_REG:
+                r = ins.reg_name(op.reg)
+                if r in GP32:
+                    r = 'r32'
+                elif r in ('ax', 'bx', 'cx', 'dx', 'si', 'di', 'bp'):
+                    r = 'r16'
+                elif r in ('al', 'ah', 'bl', 'bh', 'cl', 'ch', 'dl', 'dh'):
+                    r = 'r8'
+                ops.append(r)
+            elif op.type == X86.X86_OP_IMM:
+                ops.append('SYM' if addr_imm else '0x%x' % (op.imm & 0xffffffff))
+            elif op.type == X86.X86_OP_MEM:
+                base = ins.reg_name(op.mem.base) if op.mem.base else ''
+                if base == 'esp' or (frame and base == 'ebp'):
+                    ops.append('%d[STK]' % op.size)
+                    continue
+                t = []
+                if op.mem.segment:
+                    ops.append('%d[%s:]' % (op.size, ins.reg_name(op.mem.segment)))   # fs:[0] (__except_list)
+                    continue
+                if base:
+                    t.append('r32')
+                if op.mem.index:
+                    t.append('r32*%d' % op.mem.scale)
+                if addr_disp:
+                    t.append('SYM')
+                elif op.mem.disp:
+                    t.append('0x%x' % (op.mem.disp & 0xffffffff))
+                ops.append('%d[%s]' % (op.size, '+'.join(t)))
+        return m + ' ' + ','.join(ops)
+
     @staticmethod
     def _table_cut(insns, lo, hi, field):
         """Switch tables follow the code: stop at the first table a memory operand indexes into."""
@@ -185,11 +241,18 @@ class Auditor:
             return None
         cut = self._table_cut(insns, 0, len(base), own)
         side = Side()
+        frame = _ebp_frame(insns)
         for ins in insns:
             if ins.address >= cut:
                 break
             m = ins.mnemonic
             rel = [relocs[k] for k in range(ins.address, ins.address + ins.size) if k in relocs]
+            side.insns.append(ins)
+            d = ins.disp_size and any(ins.address + ins.disp_offset + k in relocs for k in range(ins.disp_size))
+            i = ins.imm_size and any(ins.address + ins.imm_offset + k in relocs for k in range(ins.imm_size))
+            sh = self.shape(ins, d, i, frame)
+            if sh:
+                side.shape.append(sh)
             if not rel:
                 if m == 'call':
                     side.calls.append((ins.address, self._indirect(ins.operands[0], ins)))
@@ -237,10 +300,22 @@ class Auditor:
             return None
         cut = self._table_cut(insns, va, va + n, table)
         side = Side()
+        frame = _ebp_frame(insns)
         for ins in insns:
             if ins.address >= cut:
                 break
             m = ins.mnemonic
+            side.insns.append(ins)
+            d = i = False
+            for op in ins.operands:
+                if op.type == X86.X86_OP_MEM and ins.disp_size == 4 and self.in_image(op.mem.disp & 0xffffffff):
+                    d = True
+                elif op.type == X86.X86_OP_IMM and ins.imm_size == 4 and self.in_image(op.imm & 0xffffffff) \
+                        and (op.imm & 0xffffffff) >= 0x401000:
+                    i = True
+            sh = self.shape(ins, d, i, frame)
+            if sh:
+                side.shape.append(sh)
             if m in JCC or m.startswith('loop'):
                 self._common(side, ins)
                 continue
@@ -282,6 +357,66 @@ def _literal(o, s):
     if s.name.startswith('??_C@'):
         return bytes(sec.data[s.value:s.value + 256])
     return bytes(sec.data[s.value:s.value + len(s.name.split('@')[1]) // 2])     # __real@3f000000 (float), 16 digits: double
+
+
+def _ebp_frame(insns):
+    """push ebp; mov ebp, esp: ebp-based operands are stack slots."""
+    return len(insns) > 1 and insns[0].mnemonic == 'push' and insns[0].op_str == 'ebp' and \
+        insns[1].mnemonic == 'mov' and insns[1].op_str == 'ebp, esp'
+
+
+_ALIASES = {'ebx': ('ebx', 'bx', 'bl', 'bh'), 'esi': ('esi', 'si'), 'edi': ('edi', 'di'), 'ebp': ('ebp', 'bp')}
+
+
+def zero_regs(insns):
+    """Callee-saved registers that hold 0 for the whole function (one `xor r, r`, no other write): {reg: uses}.
+    VC6 does this once a function stores the integer constant 0 four or more times (README, hand pass)."""
+    out = {}
+    for r in SAVED:
+        names = _ALIASES[r]
+        zeroed, other, uses = False, False, 0
+        for ins in insns:
+            ops = ins.operands
+            if not ops:
+                continue
+            m = ins.mnemonic
+            dst = ops[0].type == 1 and ins.reg_name(ops[0].reg) in names        # X86_OP_REG
+            if m == 'xor' and ins.op_str == '%s, %s' % (r, r):
+                zeroed = True
+            elif dst and m not in ('push', 'pop', 'cmp', 'test'):
+                other = True
+                break
+            elif m in ('mov', 'push', 'cmp') and any(o.type == 1 and ins.reg_name(o.reg) == r for o in ops):
+                uses += 1
+        if zeroed and not other and uses >= 2:
+            out[r] = uses
+    return out
+
+
+def int0_stores(insns, zr):
+    """Stores of the integer constant 0 (an immediate 0 or a register known to hold 0) to memory."""
+    n = 0
+    for ins in insns:
+        ops = ins.operands
+        if ins.mnemonic != 'mov' or len(ops) != 2 or ops[0].type != 3 or ops[0].size != 4:     # X86_OP_MEM
+            continue
+        if ops[1].type == 2 and ops[1].imm == 0 or ops[1].type == 1 and ins.reg_name(ops[1].reg) in zr:
+            n += 1
+    return n
+
+
+def lazy_push(insns):
+    """A callee-saved push after the first `ret` (the register is saved after an early exit), within the first
+    40 instructions."""
+    seen_ret = False
+    for k, ins in enumerate(insns[:40]):
+        if ins.mnemonic == 'ret':
+            seen_ret = True
+        elif seen_ret and ins.mnemonic == 'push' and ins.op_str in SAVED:
+            return True
+        elif seen_ret and ins.mnemonic == 'call':
+            return False
+    return False
 
 
 def _multiset_diff(a, b):
@@ -331,6 +466,12 @@ def run(results, namemap, exe, symtab, objs_by_unit, filt=None, verbose=False, m
             diffs[cat] = (x, y)
         aud.reconcile(diffs)
         order = order_problems(results, a, called)
+        x, y = _multiset_diff(ours.shape, theirs.shape)
+        diffs['mset'] = ([s for s in x if not s.startswith('f')], [s for s in y if not s.startswith('f')])
+        diffs['x87'] = ([s for s in x if s.startswith('f')], [s for s in y if s.startswith('f')])
+        zo, ze = zero_regs(ours.insns), zero_regs(theirs.insns)
+        diffs['zero'] = (zo, ze, int0_stores(ours.insns, zo), int0_stores(theirs.insns, ze))
+        diffs['lazy'] = (lazy_push(ours.insns), lazy_push(theirs.insns))
         rows.append((a, r, diffs, hunks, ours, theirs, order))
     clean = 0
     for a, r, diffs, hunks, ours, theirs, order in rows:
@@ -343,15 +484,27 @@ def run(results, namemap, exe, symtab, objs_by_unit, filt=None, verbose=False, m
                 parts.append('%s -%d +%d' % (cat, len(x), len(y)))
         if not parts:
             clean += 1
+        hints = []
         if order:
-            parts.append('hint: order %d' % len(order))
+            hints.append('order %d' % len(order))
+        x, y = diffs['mset']
+        if x or y:
+            hints.append('mset -%d +%d' % (len(x), len(y)))
+        zo, ze, no, ne = diffs['zero']
+        if bool(zo) != bool(ze):
+            hints.append('zero-reg %s' % ('ours' if zo else 'exe'))
+        lo, le = diffs['lazy']
+        if lo != le:
+            hints.append('lazy-push %s' % ('exe' if le else 'ours'))
         kind = 'STUB' if a.kind == 'STUB' else r.status
-        shown = ', '.join(parts) if parts and not parts[0].startswith('hint') else             'behaviour matches' + (' (%s)' % parts[0] if parts else '')
+        shown = ', '.join(parts) if parts else 'behaviour matches'
+        if hints:
+            shown += (', hint: %s' if parts else ' (hint: %s)') % ', '.join(hints)
         if out is not None:
             out[a.va] = shown
             continue
         print('%-5s %08x %-40s %s' % (kind, a.va, (a.name or a.symbol.name)[:40], shown))
-        if not verbose or not parts:
+        if not verbose or not (parts or hints):
             continue
         for tag, i1, i2, j1, j2 in hunks:
             for k in range(max(i2 - i1, j2 - j1)):
@@ -365,6 +518,24 @@ def run(results, namemap, exe, symtab, objs_by_unit, filt=None, verbose=False, m
                 print('      %-5s  exe only:  %s' % ('', ', '.join(_show(v) for v in y)[:300]))
         if order:
             print('      order  defined earlier but later in the exe: %s' % ', '.join(order))
+        for cat in ('mset', 'x87'):
+            x, y = diffs[cat]
+            if x and len(x) + len(y) <= 40 or y and len(x) + len(y) <= 40:
+                for k, v in sorted(collections.Counter(x).items()):
+                    print('      %-5s  ours only x%d  %s' % (cat, v, k))
+                for k, v in sorted(collections.Counter(y).items()):
+                    print('      %-5s  exe only  x%d  %s' % (cat, v, k))
+            elif x or y:
+                print('      %-5s  ours only %d, exe only %d (too many to list)' % (cat, len(x), len(y)))
+        zo, ze, no, ne = diffs['zero']
+        if zo or ze:
+            print('      zero   zero kept in %s (ours) / %s (exe); integer-0 dword stores: ours %d, exe %d' % (
+                ','.join('%s:%d' % kv for kv in zo.items()) or '-', ','.join('%s:%d' % kv for kv in ze.items()) or '-',
+                no, ne))
+        lo, le = diffs['lazy']
+        if lo != le:
+            print('      lazy   %s pushes a callee-saved register after an early ret; %s saves it in the prologue '
+                  '(early return in a nested block vs the wrapped if-form)' % (('exe', 'ours') if le else ('ours', 'exe')))
     if out is not None:
         return 0
     print('audit: %d functions, %d with no behaviour difference (layout/register allocation only)' % (len(rows), clean))
