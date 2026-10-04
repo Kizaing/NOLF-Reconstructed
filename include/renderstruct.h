@@ -120,7 +120,10 @@ struct RenderStruct
 	struct RSTextureRef
 	{
 		SharedTexture	*m_pTexture;
-		uint8			m_Pad04[0x14 - 0x4];
+		float			m_Unk04;			// 0x04 texture offset u (d3d.ren FUN_10007930: DAT_1004ffb0)
+		float			m_Unk08;			// 0x08 texture offset v
+		float			m_Unk0c;			// 0x0c texture width (the stage UV scale is divided by it)
+		float			m_Unk10;			// 0x10 texture height
 	}				m_TextureRefs[2];	// 0x110
 	LTVector		m_GlobalLightDir;	// 0x138 (0,-2,-1) normalized by r_InitRenderStruct
 	uint8			m_Pad144[0x150 - 0x144];

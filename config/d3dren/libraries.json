@@ -1,0 +1,7745 @@
+{
+ "units": [
+  {
+   "name": "lib/LT_StdLith/dynarray",
+   "obj": "E:\\AVP2Source\\libs_objs\\LT_StdLith\\dynarray.obj",
+   "lib": "LT_StdLith",
+   "comp_id": "11/8966",
+   "functions": {
+    "1003b6d0": "?MoArray_FindElementMemcmp@@YAKPBX0KK@Z"
+   },
+   "sections": {
+    "1003b6d0": [
+     2,
+     64,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?MoArray_FindElementMemcmp@@YAKPBX0KK@Z",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/LT_StdLith/l_allocator",
+   "obj": "E:\\AVP2Source\\libs_objs\\LT_StdLith\\l_allocator.obj",
+   "lib": "LT_StdLith",
+   "comp_id": "11/8966",
+   "functions": {
+    "1003b650": "_$E4",
+    "1003b660": "_$E1",
+    "1003b670": "_$E3",
+    "1003b680": "_$E2",
+    "1003b690": "?Alloc@LAlloc@@UAEPAXK@Z",
+    "1003b6a0": "?Free@LAlloc@@UAEXPAX@Z",
+    "1003b6b0": "??_GLAlloc@@UAEPAXI@Z"
+   },
+   "sections": {
+    "1003b650": [
+     4,
+     16,
+     "verified",
+     "adjacent",
+     ".text",
+     [
+      [
+       0,
+       "_$E4",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003b660": [
+     6,
+     16,
+     "verified",
+     "adjacent",
+     ".text",
+     [
+      [
+       0,
+       "_$E1",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003b670": [
+     9,
+     16,
+     "verified",
+     "adjacent",
+     ".text",
+     [
+      [
+       0,
+       "_$E3",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003b680": [
+     11,
+     16,
+     "verified",
+     "adjacent",
+     ".text",
+     [
+      [
+       0,
+       "_$E2",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003b690": [
+     32,
+     16,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?Alloc@LAlloc@@UAEPAXK@Z",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b6a0": [
+     34,
+     16,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?Free@LAlloc@@UAEXPAX@Z",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b6b0": [
+     38,
+     32,
+     "verified",
+     "adjacent",
+     ".text",
+     [
+      [
+       0,
+       "??_GLAlloc@@UAEPAXI@Z",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093b84": "?g_DefAlloc@@3VLAlloc@@A",
+    "1004664c": "??_7LAlloc@@6B@"
+   }
+  },
+  {
+   "name": "lib/LT_StdLith/struct_bank",
+   "obj": "E:\\AVP2Source\\libs_objs\\LT_StdLith\\struct_bank.obj",
+   "lib": "LT_StdLith",
+   "comp_id": "11/8966",
+   "functions": {
+    "1003b520": "?sb_Init@@YAXPAUStructBank_t@@KK@Z",
+    "1003b570": "?sb_Init2@@YAHPAUStructBank_t@@KKK@Z",
+    "1003b5a0": "?sb_Term2@@YAXPAUStructBank_t@@H@Z",
+    "1003b5e0": "?sb_Term@@YAXPAUStructBank_t@@@Z",
+    "1003b5f0": "?sb_AllocateNewStructPage@@YAHPAUStructBank_t@@K@Z"
+   },
+   "sections": {
+    "1003b520": [
+     3,
+     80,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?sb_Init@@YAXPAUStructBank_t@@KK@Z",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b570": [
+     5,
+     48,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?sb_Init2@@YAHPAUStructBank_t@@KKK@Z",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b5a0": [
+     9,
+     64,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?sb_Term2@@YAXPAUStructBank_t@@H@Z",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b5e0": [
+     11,
+     16,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?sb_Term@@YAXPAUStructBank_t@@@Z",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b5f0": [
+     13,
+     96,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?sb_AllocateNewStructPage@@YAHPAUStructBank_t@@K@Z",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/87cdisp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\87cdisp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10040db0": "__cintrindisp2",
+    "10040dee": "__cintrindisp1",
+    "10040e2b": "__ctrandisp2",
+    "10040fab": "__ctrandisp1",
+    "10040fde": "__fload"
+   },
+   "sections": {
+    "10040db0": [
+     1,
+     618,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cintrindisp2",
+       2,
+       32
+      ],
+      [
+       62,
+       "__cintrindisp1",
+       2,
+       32
+      ],
+      [
+       123,
+       "__ctrandisp2",
+       2,
+       32
+      ],
+      [
+       507,
+       "__ctrandisp1",
+       2,
+       32
+      ],
+      [
+       558,
+       "__fload",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10046840": "DblMax",
+    "10046848": "DblMin",
+    "10046850": "IeeeAdjO",
+    "10046858": "IeeeAdjU",
+    "10046860": "_infinity",
+    "10046868": "_zero"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/87ctriga",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\87ctriga.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003cd70": "_atan2",
+    "1003cd7a": "__CIatan2"
+   },
+   "sections": {
+    "1003cd70": [
+     1,
+     20,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_atan2",
+       2,
+       32
+      ],
+      [
+       10,
+       "__CIatan2",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/87disp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\87disp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003e1b0": "__trandisp1",
+    "1003e217": "__trandisp2",
+    "1003e2a3": "__rttospopde",
+    "1003e2a8": "__rttospop",
+    "1003e2aa": "__rtnospop",
+    "1003e2ac": "__rttosnpop",
+    "1003e2ad": "__rtnospopde",
+    "1003e2b4": "__rtzeropop",
+    "1003e2b6": "__rtzeronpop",
+    "1003e2bb": "__rtonepop",
+    "1003e2bd": "__rtonenpop",
+    "1003e2c2": "__tosnan1",
+    "1003e2ed": "__nosnan2",
+    "1003e2ef": "__tosnan2",
+    "1003e317": "__nan2",
+    "1003e356": "__rtindfpop",
+    "1003e358": "__rtindfnpop",
+    "1003e369": "__rttosnpopde",
+    "1003e373": "__rtchsifneg"
+   },
+   "sections": {
+    "1003e1b0": [
+     1,
+     458,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__trandisp1",
+       2,
+       32
+      ],
+      [
+       103,
+       "__trandisp2",
+       2,
+       32
+      ],
+      [
+       243,
+       "__rttospopde",
+       2,
+       32
+      ],
+      [
+       248,
+       "__rttospop",
+       2,
+       32
+      ],
+      [
+       250,
+       "__rtnospop",
+       2,
+       32
+      ],
+      [
+       252,
+       "__rttosnpop",
+       2,
+       32
+      ],
+      [
+       253,
+       "__rtnospopde",
+       2,
+       32
+      ],
+      [
+       260,
+       "__rtzeropop",
+       2,
+       32
+      ],
+      [
+       262,
+       "__rtzeronpop",
+       2,
+       32
+      ],
+      [
+       267,
+       "__rtonepop",
+       2,
+       32
+      ],
+      [
+       269,
+       "__rtonenpop",
+       2,
+       32
+      ],
+      [
+       274,
+       "__tosnan1",
+       2,
+       32
+      ],
+      [
+       317,
+       "__nosnan2",
+       2,
+       32
+      ],
+      [
+       319,
+       "__tosnan2",
+       2,
+       32
+      ],
+      [
+       359,
+       "__nan2",
+       2,
+       32
+      ],
+      [
+       422,
+       "__rtindfpop",
+       2,
+       32
+      ],
+      [
+       424,
+       "__rtindfnpop",
+       2,
+       32
+      ],
+      [
+       441,
+       "__rttosnpopde",
+       2,
+       32
+      ],
+      [
+       451,
+       "__rtchsifneg",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c400": "__indefinite",
+    "1004c40a": "__piby2",
+    "1004c414": "One",
+    "1004c41c": "XAMtoTagTab"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/87except",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\87except.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042613": "__87except"
+   },
+   "sections": {
+    "10042613": [
+     1,
+     208,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__87except",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/87tran",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\87tran.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10040971": "__fFEXP",
+    "100409d8": "__rtinfpopse",
+    "100409da": "__rtinfnpopse",
+    "100409ea": "__fFLN",
+    "10040a9f": "__rtinfpop",
+    "10040aa1": "__rtinfnpop",
+    "10040ab1": "_rtforexpinf",
+    "10040abe": "__ffexpm1"
+   },
+   "sections": {
+    "10040960": [
+     1,
+     519,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       17,
+       "__fFEXP",
+       2,
+       32
+      ],
+      [
+       17,
+       "fFEXP",
+       3,
+       32
+      ],
+      [
+       120,
+       "__rtinfpopse",
+       2,
+       32
+      ],
+      [
+       122,
+       "__rtinfnpopse",
+       2,
+       32
+      ],
+      [
+       138,
+       "__fFLN",
+       2,
+       32
+      ],
+      [
+       319,
+       "__rtinfpop",
+       2,
+       32
+      ],
+      [
+       321,
+       "__rtinfnpop",
+       2,
+       32
+      ],
+      [
+       337,
+       "_rtforexpinf",
+       3,
+       32
+      ],
+      [
+       350,
+       "__ffexpm1",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cab0": "__infinity",
+    "1004caba": "__minfinity",
+    "1004cac4": "__logemax",
+    "1004cace": "_log2max",
+    "1004cae2": "_half",
+    "1004caea": "__OP_EXPjmptab"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/87triga",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\87triga.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10040d1c": "__fFATN2",
+    "10040d6c": "__rtpiby2",
+    "10040d75": "_rtforatn20",
+    "10040d92": "_rtforatnby0"
+   },
+   "sections": {
+    "10040d00": [
+     1,
+     162,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       28,
+       "__fFATN2",
+       2,
+       32
+      ],
+      [
+       28,
+       "fFATN2",
+       3,
+       32
+      ],
+      [
+       108,
+       "__rtpiby2",
+       2,
+       32
+      ],
+      [
+       117,
+       "_rtforatn20",
+       3,
+       32
+      ],
+      [
+       146,
+       "_rtforatnby0",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cb10": "__OP_ATAN2jmptab"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_ctype",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_ctype.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c69b": "_iscntrl"
+   },
+   "sections": {
+    "1003c69b": [
+     21,
+     40,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_iscntrl",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_filbuf",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_filbuf.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004021c": "__filbuf"
+   },
+   "sections": {
+    "1004021c": [
+     1,
+     220,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__filbuf",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_file",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_file.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003fe7a": "___initstdio",
+    "1003ff22": "___endstdio",
+    "1003ff36": "__lock_file",
+    "1003ff65": "__lock_file2",
+    "1003ff88": "__unlock_file",
+    "1003ffb7": "__unlock_file2"
+   },
+   "sections": {
+    "1003fe7a": [
+     5,
+     168,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___initstdio",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ff22": [
+     7,
+     20,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___endstdio",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ff36": [
+     9,
+     47,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__lock_file",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ff65": [
+     11,
+     35,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__lock_file2",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ff88": [
+     13,
+     47,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__unlock_file",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ffb7": [
+     15,
+     35,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__unlock_file2",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093c80": "__cflush",
+    "1004c828": "__iob"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_flsbuf",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_flsbuf.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003f309": "__flsbuf"
+   },
+   "sections": {
+    "1003f309": [
+     1,
+     280,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__flsbuf",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_fptostr",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_fptostr.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100420b9": "__fptostr"
+   },
+   "sections": {
+    "100420b9": [
+     1,
+     119,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fptostr",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_freebuf",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_freebuf.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100400ba": "__freebuf"
+   },
+   "sections": {
+    "100400ba": [
+     1,
+     43,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__freebuf",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_getbuf",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_getbuf.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042904": "__getbuf"
+   },
+   "sections": {
+    "10042904": [
+     1,
+     68,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__getbuf",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/_open",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\_open.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10040536": "__openfile"
+   },
+   "sections": {
+    "10040536": [
+     1,
+     368,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__openfile",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/a_env",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\a_env.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100416bc": "___crtGetEnvironmentStringsA"
+   },
+   "sections": {
+    "100416bc": [
+     2,
+     306,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___crtGetEnvironmentStringsA",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093d88": "_?f_use@?1??__crtGetEnvironmentStringsA@@9@9"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/a_map",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\a_map.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003fc2b": "___crtLCMapStringA",
+    "1003fe4f": "_strncnt"
+   },
+   "sections": {
+    "1003fc2b": [
+     2,
+     548,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___crtLCMapStringA",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003fe4f": [
+     6,
+     43,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strncnt",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093c7c": "_?f_use@?1??__crtLCMapStringA@@9@9",
+    "10046818": "??_C@_01A@?$AA?$AA@",
+    "1004681c": "??_C@_13A@?$AA?$AA?$AA?$AA@",
+    "10046820": "$T17201"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/a_str",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\a_str.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100426e3": "___crtGetStringTypeA"
+   },
+   "sections": {
+    "100426e3": [
+     2,
+     329,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___crtGetStringTypeA",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093d90": "_?f_use@?1??__crtGetStringTypeA@@9@9",
+    "10046818": "??_C@_01A@?$AA?$AA@",
+    "1004681c": "??_C@_13A@?$AA?$AA?$AA?$AA@",
+    "10046b78": "$T17182"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/abort",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\abort.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10044b97": "_abort"
+   },
+   "sections": {
+    "10044b97": [
+     1,
+     23,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_abort",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/acos",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\acos.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003ce80": "__CIacos",
+    "1003ce94": "_acos"
+   },
+   "sections": {
+    "1003ce80": [
+     1,
+     203,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CIacos",
+       2,
+       32
+      ],
+      [
+       20,
+       "_acos",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c2b0": "_NAME_"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/adj_fdiv",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\adj_fdiv.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "100433b0": "_fdiv_main_routine",
+    "100434c7": "__adj_fdiv_r",
+    "100434d4": "label0",
+    "100434da": "label1",
+    "100434df": "label2",
+    "100434e5": "label3",
+    "100434ea": "label4",
+    "100434f0": "label5",
+    "100434f6": "label6",
+    "100434fc": "label7",
+    "10043502": "label8",
+    "1004351e": "label9",
+    "10043523": "label10",
+    "10043539": "label11",
+    "1004353e": "label12",
+    "1004355a": "label13",
+    "1004356a": "label14",
+    "1004357e": "label15",
+    "1004358e": "label16",
+    "100435ae": "label17",
+    "100435b3": "label18",
+    "100435cd": "label19",
+    "100435d2": "label20",
+    "100435f2": "label21",
+    "10043606": "label22",
+    "1004361e": "label23",
+    "10043632": "label24",
+    "10043652": "label25",
+    "10043657": "label26",
+    "10043671": "label27",
+    "10043676": "label28",
+    "10043696": "label29",
+    "100436aa": "label30",
+    "100436c2": "label31",
+    "100436d6": "label32",
+    "100436f6": "label33",
+    "100436fb": "label34",
+    "10043715": "label35",
+    "1004371a": "label36",
+    "1004373a": "label37",
+    "1004374e": "label38",
+    "10043766": "label39",
+    "1004377a": "label40",
+    "1004379a": "label41",
+    "1004379f": "label42",
+    "100437b9": "label43",
+    "100437be": "label44",
+    "100437de": "label45",
+    "100437f2": "label46",
+    "1004380a": "label47",
+    "1004381e": "label48",
+    "1004383e": "label49",
+    "10043843": "label50",
+    "1004385d": "label51",
+    "10043862": "label52",
+    "10043882": "label53",
+    "10043896": "label54",
+    "100438ae": "label55",
+    "100438c2": "label56",
+    "100438e2": "label57",
+    "100438e7": "label58",
+    "10043901": "label59",
+    "10043906": "label60",
+    "10043926": "label61",
+    "1004393a": "label62",
+    "10043952": "label63",
+    "10043966": "__fdivp_sti_st",
+    "10043979": "__fdivrp_sti_st",
+    "1004398c": "__adj_fdiv_m32",
+    "100439d8": "__adj_fdiv_m64",
+    "10043a24": "__adj_fdiv_m16i",
+    "10043a58": "__adj_fdiv_m32i",
+    "10043a8c": "__adj_fdivr_m32",
+    "10043ad8": "__adj_fdivr_m64",
+    "10043b24": "__adj_fdivr_m16i",
+    "10043b58": "__adj_fdivr_m32i",
+    "10043b8c": "__safe_fdiv",
+    "10043ba1": "__safe_fdivr",
+    "10043bb6": "__fprem_common",
+    "10043dbc": "__adj_fprem",
+    "10043e6e": "__fprem1_common",
+    "10044074": "__adj_fprem1",
+    "10044129": "__safe_fprem",
+    "1004412f": "__safe_fprem1",
+    "10044135": "__adj_fpatan",
+    "10044138": "__adj_fptan"
+   },
+   "sections": {
+    "100433b0": [
+     1,
+     3467,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_fdiv_main_routine",
+       2,
+       32
+      ],
+      [
+       279,
+       "__adj_fdiv_r",
+       2,
+       32
+      ],
+      [
+       292,
+       "label0",
+       3,
+       32
+      ],
+      [
+       298,
+       "label1",
+       3,
+       32
+      ],
+      [
+       303,
+       "label2",
+       3,
+       32
+      ],
+      [
+       309,
+       "label3",
+       3,
+       32
+      ],
+      [
+       314,
+       "label4",
+       3,
+       32
+      ],
+      [
+       320,
+       "label5",
+       3,
+       32
+      ],
+      [
+       326,
+       "label6",
+       3,
+       32
+      ],
+      [
+       332,
+       "label7",
+       3,
+       32
+      ],
+      [
+       338,
+       "label8",
+       3,
+       32
+      ],
+      [
+       366,
+       "label9",
+       3,
+       32
+      ],
+      [
+       371,
+       "label10",
+       3,
+       32
+      ],
+      [
+       393,
+       "label11",
+       3,
+       32
+      ],
+      [
+       398,
+       "label12",
+       3,
+       32
+      ],
+      [
+       426,
+       "label13",
+       3,
+       32
+      ],
+      [
+       442,
+       "label14",
+       3,
+       32
+      ],
+      [
+       462,
+       "label15",
+       3,
+       32
+      ],
+      [
+       478,
+       "label16",
+       3,
+       32
+      ],
+      [
+       510,
+       "label17",
+       3,
+       32
+      ],
+      [
+       515,
+       "label18",
+       3,
+       32
+      ],
+      [
+       541,
+       "label19",
+       3,
+       32
+      ],
+      [
+       546,
+       "label20",
+       3,
+       32
+      ],
+      [
+       578,
+       "label21",
+       3,
+       32
+      ],
+      [
+       598,
+       "label22",
+       3,
+       32
+      ],
+      [
+       622,
+       "label23",
+       3,
+       32
+      ],
+      [
+       642,
+       "label24",
+       3,
+       32
+      ],
+      [
+       674,
+       "label25",
+       3,
+       32
+      ],
+      [
+       679,
+       "label26",
+       3,
+       32
+      ],
+      [
+       705,
+       "label27",
+       3,
+       32
+      ],
+      [
+       710,
+       "label28",
+       3,
+       32
+      ],
+      [
+       742,
+       "label29",
+       3,
+       32
+      ],
+      [
+       762,
+       "label30",
+       3,
+       32
+      ],
+      [
+       786,
+       "label31",
+       3,
+       32
+      ],
+      [
+       806,
+       "label32",
+       3,
+       32
+      ],
+      [
+       838,
+       "label33",
+       3,
+       32
+      ],
+      [
+       843,
+       "label34",
+       3,
+       32
+      ],
+      [
+       869,
+       "label35",
+       3,
+       32
+      ],
+      [
+       874,
+       "label36",
+       3,
+       32
+      ],
+      [
+       906,
+       "label37",
+       3,
+       32
+      ],
+      [
+       926,
+       "label38",
+       3,
+       32
+      ],
+      [
+       950,
+       "label39",
+       3,
+       32
+      ],
+      [
+       970,
+       "label40",
+       3,
+       32
+      ],
+      [
+       1002,
+       "label41",
+       3,
+       32
+      ],
+      [
+       1007,
+       "label42",
+       3,
+       32
+      ],
+      [
+       1033,
+       "label43",
+       3,
+       32
+      ],
+      [
+       1038,
+       "label44",
+       3,
+       32
+      ],
+      [
+       1070,
+       "label45",
+       3,
+       32
+      ],
+      [
+       1090,
+       "label46",
+       3,
+       32
+      ],
+      [
+       1114,
+       "label47",
+       3,
+       32
+      ],
+      [
+       1134,
+       "label48",
+       3,
+       32
+      ],
+      [
+       1166,
+       "label49",
+       3,
+       32
+      ],
+      [
+       1171,
+       "label50",
+       3,
+       32
+      ],
+      [
+       1197,
+       "label51",
+       3,
+       32
+      ],
+      [
+       1202,
+       "label52",
+       3,
+       32
+      ],
+      [
+       1234,
+       "label53",
+       3,
+       32
+      ],
+      [
+       1254,
+       "label54",
+       3,
+       32
+      ],
+      [
+       1278,
+       "label55",
+       3,
+       32
+      ],
+      [
+       1298,
+       "label56",
+       3,
+       32
+      ],
+      [
+       1330,
+       "label57",
+       3,
+       32
+      ],
+      [
+       1335,
+       "label58",
+       3,
+       32
+      ],
+      [
+       1361,
+       "label59",
+       3,
+       32
+      ],
+      [
+       1366,
+       "label60",
+       3,
+       32
+      ],
+      [
+       1398,
+       "label61",
+       3,
+       32
+      ],
+      [
+       1418,
+       "label62",
+       3,
+       32
+      ],
+      [
+       1442,
+       "label63",
+       3,
+       32
+      ],
+      [
+       1462,
+       "__fdivp_sti_st",
+       2,
+       32
+      ],
+      [
+       1481,
+       "__fdivrp_sti_st",
+       2,
+       32
+      ],
+      [
+       1500,
+       "__adj_fdiv_m32",
+       2,
+       32
+      ],
+      [
+       1576,
+       "__adj_fdiv_m64",
+       2,
+       32
+      ],
+      [
+       1652,
+       "__adj_fdiv_m16i",
+       2,
+       32
+      ],
+      [
+       1704,
+       "__adj_fdiv_m32i",
+       2,
+       32
+      ],
+      [
+       1756,
+       "__adj_fdivr_m32",
+       2,
+       32
+      ],
+      [
+       1832,
+       "__adj_fdivr_m64",
+       2,
+       32
+      ],
+      [
+       1908,
+       "__adj_fdivr_m16i",
+       2,
+       32
+      ],
+      [
+       1960,
+       "__adj_fdivr_m32i",
+       2,
+       32
+      ],
+      [
+       2012,
+       "__safe_fdiv",
+       2,
+       32
+      ],
+      [
+       2033,
+       "__safe_fdivr",
+       2,
+       32
+      ],
+      [
+       2054,
+       "__fprem_common",
+       2,
+       32
+      ],
+      [
+       2572,
+       "__adj_fprem",
+       2,
+       32
+      ],
+      [
+       2750,
+       "__fprem1_common",
+       2,
+       32
+      ],
+      [
+       3268,
+       "__adj_fprem1",
+       2,
+       32
+      ],
+      [
+       3449,
+       "__safe_fprem",
+       2,
+       32
+      ],
+      [
+       3455,
+       "__safe_fprem1",
+       2,
+       32
+      ],
+      [
+       3461,
+       "__adj_fpatan",
+       2,
+       32
+      ],
+      [
+       3464,
+       "__adj_fptan",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cde0": "fdiv_risc_table",
+    "1004cdf0": "fdiv_scale_1",
+    "1004cdf4": "fdiv_scale_2",
+    "1004cdf8": "one_shl_63",
+    "1004cdfc": "fprem_risc_table",
+    "1004ce14": "one_shl_64",
+    "1004ce1c": "one_shr_64",
+    "1004ce2c": "half",
+    "1004ce34": "big_number",
+    "1004ce3e": "dispatch_table"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/atan",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\atan.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c040": "__CIatan",
+    "1003c054": "_atan"
+   },
+   "sections": {
+    "1003c040": [
+     1,
+     159,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CIatan",
+       2,
+       32
+      ],
+      [
+       20,
+       "_atan",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c290": "_NAME_"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/atox",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\atox.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c2ce": "_atol",
+    "1003c359": "_atoi"
+   },
+   "sections": {
+    "1003c2ce": [
+     1,
+     139,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_atol",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003c359": [
+     3,
+     11,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_atoi",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/calloc",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\calloc.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042c5c": "_calloc"
+   },
+   "sections": {
+    "10042c5c": [
+     1,
+     141,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_calloc",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/cfout",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\cfout.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042130": "__fltout2",
+    "1004218c": "___dtold"
+   },
+   "sections": {
+    "10042130": [
+     1,
+     92,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fltout2",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004218c": [
+     2,
+     182,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___dtold",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/chkstk",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\chkstk.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003b830": "__alloca_probe"
+   },
+   "sections": {
+    "1003b830": [
+     1,
+     47,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__alloca_probe",
+       2,
+       32
+      ],
+      [
+       0,
+       "__chkstk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/chsize",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\chsize.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10045381": "__chsize_lk"
+   },
+   "sections": {
+    "10045381": [
+     3,
+     293,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__chsize_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/close",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\close.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003ffda": "__close",
+    "10040037": "__close_lk"
+   },
+   "sections": {
+    "1003ffda": [
+     1,
+     93,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__close",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10040037": [
+     3,
+     131,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__close_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/closeall",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\closeall.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042ce9": "__fcloseall"
+   },
+   "sections": {
+    "10042ce9": [
+     1,
+     129,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fcloseall",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/commit",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\commit.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004304b": "__commit"
+   },
+   "sections": {
+    "1004304b": [
+     1,
+     147,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__commit",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/common",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\common.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003e3e0": "__twoToTOS",
+    "1003e3f5": "__load_CW",
+    "1003e40c": "__convertTOStoQNaN",
+    "1003e425": "__fload_withFB",
+    "1003e468": "__checkTOS_withFB",
+    "1003e47e": "__fast_exit",
+    "1003e48b": "__math_exit",
+    "1003e4b5": "__check_overflow_exit",
+    "1003e4c9": "__check_range_exit"
+   },
+   "sections": {
+    "1003e3e0": [
+     1,
+     396,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__twoToTOS",
+       2,
+       32
+      ],
+      [
+       21,
+       "__load_CW",
+       2,
+       32
+      ],
+      [
+       44,
+       "__convertTOStoQNaN",
+       2,
+       32
+      ],
+      [
+       69,
+       "__fload_withFB",
+       2,
+       32
+      ],
+      [
+       136,
+       "__checkTOS_withFB",
+       2,
+       32
+      ],
+      [
+       158,
+       "__fast_exit",
+       2,
+       32
+      ],
+      [
+       171,
+       "__math_exit",
+       2,
+       32
+      ],
+      [
+       213,
+       "__check_overflow_exit",
+       2,
+       32
+      ],
+      [
+       233,
+       "__check_range_exit",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10046760": "One",
+    "10046768": "__DEFAULT_CW_in_mem",
+    "1004676a": "__pi_by_2_to_61",
+    "10046774": "DblMax",
+    "1004677c": "DblMin",
+    "10046784": "IeeeAdjO",
+    "1004678c": "IeeeAdjU",
+    "10046794": "_infinity",
+    "1004679c": "_zero"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/cos",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\cos.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003bf90": "__CIcos",
+    "1003bfa4": "_cos"
+   },
+   "sections": {
+    "1003bf90": [
+     1,
+     174,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CIcos",
+       2,
+       32
+      ],
+      [
+       20,
+       "_cos",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c280": "_NAME_"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/crt0dat",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\crt0dat.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003d681": "__cinit",
+    "1003d6ae": "__exit",
+    "1003d6bf": "__cexit",
+    "1003d6ce": "_doexit",
+    "1003d773": "__lockexit",
+    "1003d77c": "__unlockexit",
+    "1003d785": "__initterm"
+   },
+   "sections": {
+    "1003d681": [
+     2,
+     45,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cinit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d6ae": [
+     6,
+     17,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__exit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d6bf": [
+     8,
+     15,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cexit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d6ce": [
+     12,
+     165,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_doexit",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003d773": [
+     14,
+     9,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__lockexit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d77c": [
+     16,
+     9,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__unlockexit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d785": [
+     18,
+     26,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__initterm",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093ba4": "__umaskval",
+    "10093ba8": "__osver",
+    "10093bac": "__winver",
+    "10093bb0": "__winmajor",
+    "10093bb4": "__winminor",
+    "10093bb8": "___argc",
+    "10093bbc": "___argv",
+    "10093bc0": "___wargv",
+    "10093bc4": "__environ",
+    "10093bc8": "___initenv",
+    "10093bcc": "__wenviron",
+    "10093bd0": "___winitenv",
+    "10093bd4": "__pgmptr",
+    "10093bd8": "__wpgmptr",
+    "10093bdc": "__exitflag",
+    "10093be0": "__C_Termination_Done",
+    "10093be4": "__C_Exit_Done"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/crt0fp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\crt0fp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042585": "__fptrap"
+   },
+   "sections": {
+    "10042585": [
+     1,
+     9,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fptrap",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/crt0msg",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\crt0msg.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100417ee": "__FF_MSGBANNER",
+    "10041827": "__NMSG_WRITE"
+   },
+   "sections": {
+    "100417ee": [
+     21,
+     57,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__FF_MSGBANNER",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041827": [
+     23,
+     339,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__NMSG_WRITE",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cb90": "_rterrs",
+    "10046870": "??_C@_0P@GGKG@runtime?5error?5?$AA@",
+    "10046880": "??_C@_02PIMC@?$AN?6?$AA@",
+    "10046884": "??_C@_0O@DELO@TLOSS?5error?$AN?6?$AA@",
+    "10046894": "??_C@_0N@OMLL@SING?5error?$AN?6?$AA@",
+    "100468a4": "??_C@_0P@OJAK@DOMAIN?5error?$AN?6?$AA@",
+    "100468b4": "??_C@_0CF@EANP@R6028?$AN?6?9?5unable?5to?5initialize?5he@",
+    "100468dc": "??_C@_0DF@ECGN@R6027?$AN?6?9?5not?5enough?5space?5for?5lo@",
+    "10046914": "??_C@_0DF@FKAC@R6026?$AN?6?9?5not?5enough?5space?5for?5st@",
+    "1004694c": "??_C@_0CG@DPMN@R6025?$AN?6?9?5pure?5virtual?5function?5c@",
+    "10046974": "??_C@_0DF@CKIP@R6024?$AN?6?9?5not?5enough?5space?5for?5_o@",
+    "100469ac": "??_C@_0CJ@GGOE@R6019?$AN?6?9?5unable?5to?5open?5console?5@",
+    "100469d8": "??_C@_0CB@LBOB@R6018?$AN?6?9?5unexpected?5heap?5error?$AN?6@",
+    "100469fc": "??_C@_0CN@FPEG@R6017?$AN?6?9?5unexpected?5multithread?5@",
+    "10046a2c": "??_C@_0CM@OBIC@R6016?$AN?6?9?5not?5enough?5space?5for?5th@",
+    "10046a58": "??_C@_0CB@HPAL@?$AN?6abnormal?5program?5termination?$AN?6@",
+    "10046a7c": "??_C@_0CM@JOOB@R6009?$AN?6?9?5not?5enough?5space?5for?5en@",
+    "10046aa8": "??_C@_0CK@OIBL@R6008?$AN?6?9?5not?5enough?5space?5for?5ar@",
+    "10046ad4": "??_C@_0CF@LKPB@R6002?$AN?6?9?5floating?5point?5not?5load@",
+    "10046afc": "??_C@_0CF@JPDF@Microsoft?5Visual?5C?$CL?$CL?5Runtime?5Lib@",
+    "10046b24": "??_C@_02JJJH@?6?6?$AA@",
+    "10046b28": "??_C@_0BK@DEOK@Runtime?5Error?$CB?6?6Program?3?5?$AA@",
+    "10046b44": "??_C@_03NAME@?4?4?4?$AA@",
+    "10046b48": "??_C@_0BH@NNCD@?$DMprogram?5name?5unknown?$DO?$AA@"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/crtmbox",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\crtmbox.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10044a92": "___crtMessageBoxA"
+   },
+   "sections": {
+    "10044a92": [
+     2,
+     137,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___crtMessageBoxA",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093e00": "_?pfnMessageBoxA@?1??__crtMessageBoxA@@9@9",
+    "10093e04": "_?pfnGetActiveWindow@?1??__crtMessageBoxA@@9@9",
+    "10093e08": "_?pfnGetLastActivePopup@?1??__crtMessageBoxA@@9@9",
+    "10046b84": "??_C@_0BD@NJFP@GetLastActivePopup?$AA@",
+    "10046b98": "??_C@_0BA@GILI@GetActiveWindow?$AA@",
+    "10046ba8": "??_C@_0M@PKCK@MessageBoxA?$AA@",
+    "10046bb4": "??_C@_0L@HKL@user32?4dll?$AA@"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/cvt",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\cvt.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003d25b": "__forcdecpt",
+    "1003d2b5": "__cropzeros",
+    "1003d303": "__positive",
+    "1003d31b": "__fassign",
+    "1003d359": "__cftoe",
+    "1003d3ba": "__cftoe2",
+    "1003d47c": "__cftof",
+    "1003d4d1": "__cftof2",
+    "1003d578": "__cftog",
+    "1003d60b": "__cfltcvt",
+    "1003d65c": "__shift"
+   },
+   "sections": {
+    "1003d25b": [
+     1,
+     90,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__forcdecpt",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d2b5": [
+     3,
+     78,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cropzeros",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d303": [
+     5,
+     24,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__positive",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d31b": [
+     8,
+     62,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fassign",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d359": [
+     9,
+     97,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cftoe",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d3ba": [
+     10,
+     194,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cftoe2",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003d47c": [
+     12,
+     85,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cftof",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d4d1": [
+     13,
+     167,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cftof2",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003d578": [
+     14,
+     147,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cftog",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d60b": [
+     15,
+     81,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cfltcvt",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d65c": [
+     16,
+     37,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__shift",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10046690": "__real@8@00000000000000000000",
+    "10046698": "??_C@_05OFLO@e?$CL000?$AA@"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/delete",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\delete.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "11/8168",
+   "functions": {
+    "1003b710": "??3@YAXPAX@Z"
+   },
+   "sections": {
+    "1003b710": [
+     1,
+     11,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "??3@YAXPAX@Z",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/dllcrt0",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\dllcrt0.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003cf4b": "__CRT_INIT@12",
+    "1003d024": "__DllMainCRTStartup@12",
+    "1003d0c1": "__amsg_exit"
+   },
+   "sections": {
+    "1003cf4b": [
+     3,
+     217,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CRT_INIT@12",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d024": [
+     5,
+     157,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__DllMainCRTStartup@12",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d0c1": [
+     6,
+     51,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__amsg_exit",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093b90": "___proc_attached",
+    "10093b94": "__aenvptr",
+    "10093b98": "__wenvptr",
+    "10093b9c": "___error_mode",
+    "10093ba0": "___app_type",
+    "1004c2b8": "__aexit_rtn"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/dosmap",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\dosmap.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004258e": "__dosmaperr",
+    "10042601": "__errno",
+    "1004260a": "___doserrno"
+   },
+   "sections": {
+    "1004258e": [
+     2,
+     115,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__dosmaperr",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042601": [
+     4,
+     9,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__errno",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004260a": [
+     6,
+     9,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___doserrno",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cc70": "_errtable"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/exsup",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\exsup.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003d0f4": "__global_unwind2",
+    "1003d10c": "_gu_return",
+    "1003d114": "__unwind_handler",
+    "1003d136": "__local_unwind2",
+    "1003d18e": "__NLG_Return2",
+    "1003d19e": "__abnormal_termination",
+    "1003d1c1": "__NLG_Notify1",
+    "1003d1ca": "__NLG_Notify",
+    "1003d1dd": "__NLG_Dispatch"
+   },
+   "sections": {
+    "1003d0f4": [
+     1,
+     238,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__global_unwind2",
+       2,
+       32
+      ],
+      [
+       24,
+       "_gu_return",
+       3,
+       32
+      ],
+      [
+       32,
+       "__unwind_handler",
+       3,
+       32
+      ],
+      [
+       66,
+       "__local_unwind2",
+       2,
+       32
+      ],
+      [
+       154,
+       "__NLG_Return2",
+       2,
+       32
+      ],
+      [
+       170,
+       "__abnormal_termination",
+       2,
+       32
+      ],
+      [
+       205,
+       "__NLG_Notify1",
+       2,
+       32
+      ],
+      [
+       214,
+       "__NLG_Notify",
+       2,
+       32
+      ],
+      [
+       233,
+       "__NLG_Dispatch",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c2bc": "__NLG_Destination"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/exsup3",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\exsup3.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10042b84": "__except_handler3",
+    "10042c41": "__seh_longjmp_unwind@4"
+   },
+   "sections": {
+    "10042b7c": [
+     1,
+     224,
+     "verified",
+     "constrained",
+     ".text",
+     [
+      [
+       8,
+       "__except_handler3",
+       2,
+       32
+      ],
+      [
+       197,
+       "__seh_longjmp_unwind@4",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fabs",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fabs.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003b85f": "_fabs"
+   },
+   "sections": {
+    "1003b85f": [
+     1,
+     181,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_fabs",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "100464e0": "__real@8@3fff8000000000000000"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fclose",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fclose.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c832": "_fclose",
+    "1003c863": "__fclose_lk"
+   },
+   "sections": {
+    "1003c832": [
+     1,
+     49,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_fclose",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003c863": [
+     3,
+     76,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fclose_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fflush",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fflush.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100400e5": "__fflush_lk",
+    "10040113": "__flush",
+    "1004016f": "__flushall",
+    "10040178": "_flsall"
+   },
+   "sections": {
+    "100400e5": [
+     3,
+     46,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fflush_lk",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10040113": [
+     5,
+     92,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__flush",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004016f": [
+     7,
+     9,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__flushall",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10040178": [
+     9,
+     164,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_flsall",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/floor",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\floor.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003babe": "_floor"
+   },
+   "sections": {
+    "1003babe": [
+     2,
+     207,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_floor",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c264": "_newcw",
+    "100464e0": "__real@8@3fff8000000000000000"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fopen",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fopen.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c9c6": "__fsopen",
+    "1003c9f7": "_fopen"
+   },
+   "sections": {
+    "1003c9c6": [
+     1,
+     49,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fsopen",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003c9f7": [
+     3,
+     19,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_fopen",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fp8",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fp8.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003d1e2": "__setdefaultprecision"
+   },
+   "sections": {
+    "1003d1e2": [
+     1,
+     18,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__setdefaultprecision",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fpctrl",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fpctrl.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003e118": "__statfp",
+    "1003e126": "__clrfp",
+    "1003e135": "__ctrlfp",
+    "1003e158": "__set_statfp"
+   },
+   "sections": {
+    "1003e118": [
+     2,
+     14,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__statfp",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e126": [
+     3,
+     15,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__clrfp",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e135": [
+     4,
+     35,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ctrlfp",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e158": [
+     5,
+     86,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__set_statfp",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c3e8": "_over",
+    "1004c3f4": "_under"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fpexcept",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fpexcept.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003d91c": "__handle_qnan1",
+    "1003d970": "__except1",
+    "1003da08": "__raise_exc",
+    "1003dcbb": "__handle_exc",
+    "1003ded2": "__umatherr",
+    "1003df5a": "__set_errno",
+    "1003df82": "__get_fname",
+    "1003dfa7": "__errcode"
+   },
+   "sections": {
+    "1003d91c": [
+     29,
+     84,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__handle_qnan1",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d970": [
+     31,
+     152,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__except1",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003da08": [
+     33,
+     691,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__raise_exc",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003dcbb": [
+     34,
+     535,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__handle_exc",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ded2": [
+     36,
+     136,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__umatherr",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003df5a": [
+     37,
+     40,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__set_errno",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003df82": [
+     39,
+     37,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__get_fname",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003dfa7": [
+     41,
+     45,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__errcode",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c2e8": "_?_names@?1??_get_fname@@9@9",
+    "100466a0": "??_C@_03GAFO@_yn?$AA@",
+    "100466a4": "??_C@_03GNLD@_y1?$AA@",
+    "100466a8": "??_C@_03MHCE@_y0?$AA@",
+    "100466ac": "??_C@_05PAK@frexp?$AA@",
+    "100466b4": "??_C@_04JKCH@fmod?$AA@",
+    "100466bc": "??_C@_06GGHF@_hypot?$AA@",
+    "100466c4": "??_C@_05JNMC@_cabs?$AA@",
+    "100466cc": "??_C@_05MEKH@ldexp?$AA@",
+    "100466d4": "??_C@_04KAOJ@modf?$AA@",
+    "100466dc": "??_C@_04EHAJ@fabs?$AA@",
+    "100466e4": "??_C@_05MFBN@floor?$AA@",
+    "100466ec": "??_C@_04JJMP@ceil?$AA@",
+    "100466f4": "??_C@_03JLPI@tan?$AA@",
+    "100466f8": "??_C@_03DLFL@cos?$AA@",
+    "100466fc": "??_C@_03JAMN@sin?$AA@",
+    "10046700": "??_C@_04LMBE@sqrt?$AA@",
+    "10046708": "??_C@_05BFPO@atan2?$AA@",
+    "10046710": "??_C@_04EAGN@atan?$AA@",
+    "10046718": "??_C@_04OAMO@acos?$AA@",
+    "10046720": "??_C@_04ELFI@asin?$AA@",
+    "10046728": "??_C@_04LFAD@tanh?$AA@",
+    "10046730": "??_C@_04PFKD@cosh?$AA@",
+    "10046738": "??_C@_04NPAI@sinh?$AA@",
+    "10046740": "??_C@_05IJHH@log10?$AA@",
+    "10046748": "??_C@_03BGKD@log?$AA@",
+    "1004674c": "??_C@_03EGFG@pow?$AA@",
+    "10046750": "??_C@_03CDGJ@exp?$AA@",
+    "10046690": "__real@8@00000000000000000000"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fpinit",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fpinit.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003b71b": "__fpmath",
+    "1003b732": "__cfltcvt_init"
+   },
+   "sections": {
+    "1003b71b": [
+     3,
+     23,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fpmath",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b732": [
+     7,
+     56,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__cfltcvt_init",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c238": "__fltused",
+    "1004c23c": "__ldused",
+    "1004c240": "__FPinit",
+    "1004c244": "__FPmtinit",
+    "1004c248": "__FPmtterm",
+    "10093b88": "___fastflag",
+    "10093b8c": "__adjust_fdiv"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fread",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fread.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c8af": "_fread",
+    "1003c8de": "__fread_lk"
+   },
+   "sections": {
+    "1003c8af": [
+     1,
+     47,
+     "verified",
+     "gapfill",
+     ".text",
+     [
+      [
+       0,
+       "_fread",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003c8de": [
+     2,
+     232,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fread_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/free",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\free.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c3f0": "_free"
+   },
+   "sections": {
+    "1003c3f0": [
+     1,
+     72,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_free",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/frnd",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\frnd.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003e56c": "__frnd"
+   },
+   "sections": {
+    "1003e56c": [
+     1,
+     18,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__frnd",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/ftol",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\ftol.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003b9dc": "__ftol"
+   },
+   "sections": {
+    "1003b9dc": [
+     1,
+     39,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ftol",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/fwrite",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\fwrite.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003ca13": "_fwrite",
+    "1003ca42": "__fwrite_lk"
+   },
+   "sections": {
+    "1003ca13": [
+     1,
+     47,
+     "verified",
+     "gapfill",
+     ".text",
+     [
+      [
+       0,
+       "_fwrite",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ca42": [
+     2,
+     266,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fwrite_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/genexcep",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\genexcep.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003e380": "__startTwoArgErrorHandling",
+    "1003e397": "__startOneArgErrorHandling"
+   },
+   "sections": {
+    "1003e380": [
+     1,
+     83,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__startTwoArgErrorHandling",
+       2,
+       32
+      ],
+      [
+       23,
+       "__startOneArgErrorHandling",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/handler",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\handler.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "11/8168",
+   "functions": {
+    "1003e5f3": "__callnewh"
+   },
+   "sections": {
+    "1003e5f3": [
+     6,
+     27,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__callnewh",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/heapinit",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\heapinit.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003e60e": "__heap_init",
+    "1003e64a": "__heap_term"
+   },
+   "sections": {
+    "1003e60e": [
+     2,
+     60,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__heap_init",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e64a": [
+     4,
+     117,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__heap_term",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/hooks",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\hooks.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "11/8168",
+   "functions": {
+    "100419cc": "?terminate@@YAXXZ"
+   },
+   "sections": {
+    "100419cc": [
+     2,
+     97,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?terminate@@YAXXZ",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10046b60": "$T16755"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/ieee87",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\ieee87.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10041a2d": "__control87",
+    "10041a62": "__controlfp",
+    "10041a78": "__abstract_cw",
+    "10041b0a": "__hw_cw"
+   },
+   "sections": {
+    "10041a2d": [
+     3,
+     53,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__control87",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041a62": [
+     4,
+     22,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__controlfp",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041a78": [
+     8,
+     146,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__abstract_cw",
+       3,
+       32
+      ]
+     ]
+    ],
+    "10041b0a": [
+     10,
+     137,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__hw_cw",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/ieeemisc",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\ieeemisc.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004413b": "__fpclass"
+   },
+   "sections": {
+    "1004413b": [
+     13,
+     146,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__fpclass",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10046690": "__real@8@00000000000000000000",
+    "100464e0": "__real@8@3fff8000000000000000"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/intrncvt",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\intrncvt.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10041ccd": "__ZeroTail",
+    "10041d16": "__IncMan",
+    "10041d6c": "__RoundMan",
+    "10041df8": "__CopyMan",
+    "10041e13": "__FillZeroMan",
+    "10041e1f": "__IsZeroMan",
+    "10041e3a": "__ShrMan",
+    "10041ec7": "__ld12cvt",
+    "10042033": "__ld12tod",
+    "10042049": "__ld12tof",
+    "1004205f": "__atodbl",
+    "1004208c": "__atoflt"
+   },
+   "sections": {
+    "10041ccd": [
+     2,
+     73,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ZeroTail",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041d16": [
+     4,
+     86,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__IncMan",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041d6c": [
+     6,
+     140,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__RoundMan",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041df8": [
+     7,
+     27,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CopyMan",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041e13": [
+     9,
+     12,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__FillZeroMan",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041e1f": [
+     11,
+     27,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__IsZeroMan",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041e3a": [
+     13,
+     141,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ShrMan",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041ec7": [
+     14,
+     364,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ld12cvt",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042033": [
+     15,
+     22,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ld12tod",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042049": [
+     17,
+     22,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ld12tof",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004205f": [
+     20,
+     45,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__atodbl",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004208c": [
+     22,
+     45,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__atoflt",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cc38": "_DoubleFormat",
+    "1004cc50": "_FloatFormat"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/ioinit",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\ioinit.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100411a6": "__ioinit",
+    "10041362": "__ioterm"
+   },
+   "sections": {
+    "100411a6": [
+     2,
+     444,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ioinit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041362": [
+     3,
+     84,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ioterm",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cb68": "___badioinfo"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/isatty",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\isatty.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042948": "__isatty"
+   },
+   "sections": {
+    "10042948": [
+     1,
+     41,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__isatty",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/isctype",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\isctype.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003e57e": "__isctype"
+   },
+   "sections": {
+    "1003e57e": [
+     1,
+     117,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__isctype",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/lldiv",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\lldiv.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c740": "__alldiv"
+   },
+   "sections": {
+    "1003c740": [
+     1,
+     170,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__alldiv",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/llmul",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\llmul.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c7f0": "__allmul"
+   },
+   "sections": {
+    "1003c7f0": [
+     1,
+     52,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__allmul",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/lowhelpr",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\lowhelpr.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10041980": "__CallSettingFrame@12",
+    "100419a7": "__NLG_Return"
+   },
+   "sections": {
+    "10041980": [
+     1,
+     76,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CallSettingFrame@12",
+       2,
+       32
+      ],
+      [
+       39,
+       "__NLG_Return",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/lseek",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\lseek.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004282c": "__lseek",
+    "10042891": "__lseek_lk"
+   },
+   "sections": {
+    "1004282c": [
+     1,
+     101,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__lseek",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042891": [
+     3,
+     115,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__lseek_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/malloc",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\malloc.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c364": "_malloc",
+    "1003c376": "__nh_malloc",
+    "1003c3a2": "__heap_alloc"
+   },
+   "sections": {
+    "1003c364": [
+     1,
+     18,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_malloc",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003c376": [
+     3,
+     44,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__nh_malloc",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003c3a2": [
+     5,
+     78,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__heap_alloc",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/mantold",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\mantold.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10044d6d": "___addl",
+    "10044d8e": "___add_12",
+    "10044dec": "___shl_12",
+    "10044e1a": "___shr_12",
+    "10044e47": "___mtold12"
+   },
+   "sections": {
+    "10044d6d": [
+     1,
+     33,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___addl",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10044d8e": [
+     3,
+     94,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___add_12",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10044dec": [
+     5,
+     46,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___shl_12",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10044e1a": [
+     7,
+     45,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___shr_12",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10044e47": [
+     9,
+     199,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___mtold12",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/mbctype",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\mbctype.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004469e": "__setmbcp",
+    "1004484b": "_getSystemCP",
+    "10044895": "_CPtoLCID",
+    "100448c8": "_setSBCS",
+    "100448f1": "_setSBUpLow",
+    "10044a76": "___initmbctable"
+   },
+   "sections": {
+    "1004469e": [
+     3,
+     429,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__setmbcp",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004484b": [
+     5,
+     74,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_getSystemCP",
+       3,
+       32
+      ]
+     ]
+    ],
+    "10044895": [
+     7,
+     51,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_CPtoLCID",
+       3,
+       32
+      ]
+     ]
+    ],
+    "100448c8": [
+     9,
+     41,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_setSBCS",
+       3,
+       32
+      ]
+     ]
+    ],
+    "100448f1": [
+     11,
+     389,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_setSBUpLow",
+       3,
+       32
+      ]
+     ]
+    ],
+    "10044a76": [
+     14,
+     28,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___initmbctable",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cfc8": "___rgctypeflag",
+    "1004cfd0": "___rgcode_page_info",
+    "10093dfc": "_fSystemSet"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/memcpy",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\memcpy.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003bc50": "_memcpy",
+    "1003bcb4": "LeadUpVec",
+    "1003bcc0": "LeadUp1",
+    "1003bcec": "LeadUp2",
+    "1003bd10": "LeadUp3",
+    "1003bd2c": "UnwindUpVec",
+    "1003bd4c": "UnwindUp7",
+    "1003bd54": "UnwindUp6",
+    "1003bd5c": "UnwindUp5",
+    "1003bd64": "UnwindUp4",
+    "1003bd6c": "UnwindUp3",
+    "1003bd74": "UnwindUp2",
+    "1003bd7c": "UnwindUp1",
+    "1003bd8f": "UnwindUp0",
+    "1003bd98": "TrailUpVec",
+    "1003bda8": "TrailUp0",
+    "1003bdb0": "TrailUp1",
+    "1003bdbc": "TrailUp2",
+    "1003bdd0": "TrailUp3",
+    "1003be3c": "LeadDownVec",
+    "1003be48": "LeadDown1",
+    "1003be68": "LeadDown2",
+    "1003be90": "LeadDown3",
+    "1003bec4": "UnwindDownVec",
+    "1003bee4": "UnwindDown7",
+    "1003beec": "UnwindDown6",
+    "1003bef4": "UnwindDown5",
+    "1003befc": "UnwindDown4",
+    "1003bf04": "UnwindDown3",
+    "1003bf0c": "UnwindDown2",
+    "1003bf14": "UnwindDown1",
+    "1003bf27": "UnwindDown0",
+    "1003bf30": "TrailDownVec",
+    "1003bf40": "TrailDown0",
+    "1003bf48": "TrailDown1",
+    "1003bf58": "TrailDown2",
+    "1003bf6c": "TrailDown3"
+   },
+   "sections": {
+    "1003bc50": [
+     1,
+     821,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_memcpy",
+       2,
+       32
+      ],
+      [
+       100,
+       "LeadUpVec",
+       3,
+       0
+      ],
+      [
+       112,
+       "LeadUp1",
+       3,
+       32
+      ],
+      [
+       156,
+       "LeadUp2",
+       3,
+       32
+      ],
+      [
+       192,
+       "LeadUp3",
+       3,
+       32
+      ],
+      [
+       220,
+       "UnwindUpVec",
+       3,
+       0
+      ],
+      [
+       252,
+       "UnwindUp7",
+       3,
+       32
+      ],
+      [
+       260,
+       "UnwindUp6",
+       3,
+       32
+      ],
+      [
+       268,
+       "UnwindUp5",
+       3,
+       32
+      ],
+      [
+       276,
+       "UnwindUp4",
+       3,
+       32
+      ],
+      [
+       284,
+       "UnwindUp3",
+       3,
+       32
+      ],
+      [
+       292,
+       "UnwindUp2",
+       3,
+       32
+      ],
+      [
+       300,
+       "UnwindUp1",
+       3,
+       32
+      ],
+      [
+       319,
+       "UnwindUp0",
+       3,
+       32
+      ],
+      [
+       328,
+       "TrailUpVec",
+       3,
+       0
+      ],
+      [
+       344,
+       "TrailUp0",
+       3,
+       32
+      ],
+      [
+       352,
+       "TrailUp1",
+       3,
+       32
+      ],
+      [
+       364,
+       "TrailUp2",
+       3,
+       32
+      ],
+      [
+       384,
+       "TrailUp3",
+       3,
+       32
+      ],
+      [
+       492,
+       "LeadDownVec",
+       3,
+       0
+      ],
+      [
+       504,
+       "LeadDown1",
+       3,
+       32
+      ],
+      [
+       536,
+       "LeadDown2",
+       3,
+       32
+      ],
+      [
+       576,
+       "LeadDown3",
+       3,
+       32
+      ],
+      [
+       628,
+       "UnwindDownVec",
+       3,
+       0
+      ],
+      [
+       660,
+       "UnwindDown7",
+       3,
+       32
+      ],
+      [
+       668,
+       "UnwindDown6",
+       3,
+       32
+      ],
+      [
+       676,
+       "UnwindDown5",
+       3,
+       32
+      ],
+      [
+       684,
+       "UnwindDown4",
+       3,
+       32
+      ],
+      [
+       692,
+       "UnwindDown3",
+       3,
+       32
+      ],
+      [
+       700,
+       "UnwindDown2",
+       3,
+       32
+      ],
+      [
+       708,
+       "UnwindDown1",
+       3,
+       32
+      ],
+      [
+       727,
+       "UnwindDown0",
+       3,
+       32
+      ],
+      [
+       736,
+       "TrailDownVec",
+       3,
+       0
+      ],
+      [
+       752,
+       "TrailDown0",
+       3,
+       32
+      ],
+      [
+       760,
+       "TrailDown1",
+       3,
+       32
+      ],
+      [
+       776,
+       "TrailDown2",
+       3,
+       32
+      ],
+      [
+       796,
+       "TrailDown3",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/memmove",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\memmove.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10042250": "_memmove",
+    "100422b4": "LeadUpVec",
+    "100422c0": "LeadUp1",
+    "100422ec": "LeadUp2",
+    "10042310": "LeadUp3",
+    "1004232c": "UnwindUpVec",
+    "1004234c": "UnwindUp7",
+    "10042354": "UnwindUp6",
+    "1004235c": "UnwindUp5",
+    "10042364": "UnwindUp4",
+    "1004236c": "UnwindUp3",
+    "10042374": "UnwindUp2",
+    "1004237c": "UnwindUp1",
+    "1004238f": "UnwindUp0",
+    "10042398": "TrailUpVec",
+    "100423a8": "TrailUp0",
+    "100423b0": "TrailUp1",
+    "100423bc": "TrailUp2",
+    "100423d0": "TrailUp3",
+    "1004243c": "LeadDownVec",
+    "10042448": "LeadDown1",
+    "10042468": "LeadDown2",
+    "10042490": "LeadDown3",
+    "100424c4": "UnwindDownVec",
+    "100424e4": "UnwindDown7",
+    "100424ec": "UnwindDown6",
+    "100424f4": "UnwindDown5",
+    "100424fc": "UnwindDown4",
+    "10042504": "UnwindDown3",
+    "1004250c": "UnwindDown2",
+    "10042514": "UnwindDown1",
+    "10042527": "UnwindDown0",
+    "10042530": "TrailDownVec",
+    "10042540": "TrailDown0",
+    "10042548": "TrailDown1",
+    "10042558": "TrailDown2",
+    "1004256c": "TrailDown3"
+   },
+   "sections": {
+    "10042250": [
+     1,
+     821,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_memmove",
+       2,
+       32
+      ],
+      [
+       100,
+       "LeadUpVec",
+       3,
+       0
+      ],
+      [
+       112,
+       "LeadUp1",
+       3,
+       32
+      ],
+      [
+       156,
+       "LeadUp2",
+       3,
+       32
+      ],
+      [
+       192,
+       "LeadUp3",
+       3,
+       32
+      ],
+      [
+       220,
+       "UnwindUpVec",
+       3,
+       0
+      ],
+      [
+       252,
+       "UnwindUp7",
+       3,
+       32
+      ],
+      [
+       260,
+       "UnwindUp6",
+       3,
+       32
+      ],
+      [
+       268,
+       "UnwindUp5",
+       3,
+       32
+      ],
+      [
+       276,
+       "UnwindUp4",
+       3,
+       32
+      ],
+      [
+       284,
+       "UnwindUp3",
+       3,
+       32
+      ],
+      [
+       292,
+       "UnwindUp2",
+       3,
+       32
+      ],
+      [
+       300,
+       "UnwindUp1",
+       3,
+       32
+      ],
+      [
+       319,
+       "UnwindUp0",
+       3,
+       32
+      ],
+      [
+       328,
+       "TrailUpVec",
+       3,
+       0
+      ],
+      [
+       344,
+       "TrailUp0",
+       3,
+       32
+      ],
+      [
+       352,
+       "TrailUp1",
+       3,
+       32
+      ],
+      [
+       364,
+       "TrailUp2",
+       3,
+       32
+      ],
+      [
+       384,
+       "TrailUp3",
+       3,
+       32
+      ],
+      [
+       492,
+       "LeadDownVec",
+       3,
+       0
+      ],
+      [
+       504,
+       "LeadDown1",
+       3,
+       32
+      ],
+      [
+       536,
+       "LeadDown2",
+       3,
+       32
+      ],
+      [
+       576,
+       "LeadDown3",
+       3,
+       32
+      ],
+      [
+       628,
+       "UnwindDownVec",
+       3,
+       0
+      ],
+      [
+       660,
+       "UnwindDown7",
+       3,
+       32
+      ],
+      [
+       668,
+       "UnwindDown6",
+       3,
+       32
+      ],
+      [
+       676,
+       "UnwindDown5",
+       3,
+       32
+      ],
+      [
+       684,
+       "UnwindDown4",
+       3,
+       32
+      ],
+      [
+       692,
+       "UnwindDown3",
+       3,
+       32
+      ],
+      [
+       700,
+       "UnwindDown2",
+       3,
+       32
+      ],
+      [
+       708,
+       "UnwindDown1",
+       3,
+       32
+      ],
+      [
+       727,
+       "UnwindDown0",
+       3,
+       32
+      ],
+      [
+       736,
+       "TrailDownVec",
+       3,
+       0
+      ],
+      [
+       752,
+       "TrailDown0",
+       3,
+       32
+      ],
+      [
+       760,
+       "TrailDown1",
+       3,
+       32
+      ],
+      [
+       776,
+       "TrailDown2",
+       3,
+       32
+      ],
+      [
+       796,
+       "TrailDown3",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/memset",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\memset.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c170": "_memset"
+   },
+   "sections": {
+    "1003c170": [
+     1,
+     88,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_memset",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/mlock",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\mlock.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003e6bf": "__mtinitlocks",
+    "1003e6e8": "__mtdeletelocks",
+    "1003e754": "__lock",
+    "1003e7b5": "__unlock"
+   },
+   "sections": {
+    "1003e6bf": [
+     3,
+     41,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__mtinitlocks",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e6e8": [
+     5,
+     108,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__mtdeletelocks",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e754": [
+     7,
+     97,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__lock",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e7b5": [
+     8,
+     21,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__unlock",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c64c": "__locktable",
+    "10093bf0": "_sigcritsect",
+    "10093c08": "_ltlcritsect",
+    "10093c20": "_hlcritsect",
+    "10093c38": "_xlcritsect"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/msize",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\msize.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003d8d7": "__msize"
+   },
+   "sections": {
+    "1003d8d7": [
+     1,
+     69,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__msize",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/new",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\new.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "11/8168",
+   "functions": {
+    "1003c824": "??2@YAPAXI@Z"
+   },
+   "sections": {
+    "1003c824": [
+     1,
+     14,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "??2@YAPAXI@Z",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/onexit",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\onexit.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003b76a": "__onexit",
+    "1003b7e8": "_atexit",
+    "1003b7fa": "___onexitinit"
+   },
+   "sections": {
+    "1003b76a": [
+     2,
+     126,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__onexit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b7e8": [
+     4,
+     18,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_atexit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003b7fa": [
+     6,
+     47,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___onexitinit",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/open",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\open.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100430de": "__sopen"
+   },
+   "sections": {
+    "100430de": [
+     3,
+     719,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__sopen",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/osfinfo",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\osfinfo.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042d6a": "__alloc_osfhnd",
+    "10042e8d": "__set_osfhnd",
+    "10042f09": "__free_osfhnd",
+    "10042f88": "__get_osfhandle",
+    "10042fca": "__lock_fhandle",
+    "10043029": "__unlock_fhandle"
+   },
+   "sections": {
+    "10042d6a": [
+     1,
+     291,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__alloc_osfhnd",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042e8d": [
+     3,
+     124,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__set_osfhnd",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042f09": [
+     5,
+     127,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__free_osfhnd",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042f88": [
+     7,
+     66,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__get_osfhandle",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10042fca": [
+     10,
+     95,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__lock_fhandle",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10043029": [
+     12,
+     34,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__unlock_fhandle",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/output",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\output.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003f421": "__output",
+    "1003fb62": "_write_char",
+    "1003fb97": "_write_multi_char",
+    "1003fbc8": "_write_string",
+    "1003fc00": "_get_int_arg",
+    "1003fc0d": "_get_int64_arg",
+    "1003fc1d": "_get_short_arg"
+   },
+   "sections": {
+    "1003f421": [
+     5,
+     1857,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__output",
+       2,
+       32
+      ],
+      [
+       415,
+       "$NORMAL_STATE$17598",
+       6,
+       0
+      ]
+     ]
+    ],
+    "1003fb62": [
+     6,
+     53,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_write_char",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003fb97": [
+     7,
+     49,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_write_multi_char",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003fbc8": [
+     9,
+     56,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_write_string",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003fc00": [
+     11,
+     13,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_get_int_arg",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003fc0d": [
+     13,
+     16,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_get_int64_arg",
+       3,
+       32
+      ]
+     ]
+    ],
+    "1003fc1d": [
+     15,
+     14,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_get_short_arg",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "100467a4": "___lookuptable",
+    "1004c710": "___nullstring",
+    "1004c714": "___wnullstring",
+    "10046800": "??_C@_1O@POHA@?$AA?$CI?$AAn?$AAu?$AAl?$AAl?$AA?$CJ?$AA?$AA@",
+    "10046810": "??_C@_06ONKE@?$CInull?$CJ?$AA@"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/pow",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\pow.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003cb50": "__CIpow",
+    "1003cb69": "_pow"
+   },
+   "sections": {
+    "1003cb50": [
+     1,
+     541,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CIpow",
+       2,
+       32
+      ],
+      [
+       25,
+       "_pow",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c2a0": "__half",
+    "1004c2a8": "POW_name"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/powhlp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\powhlp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10040b67": "__powhlp",
+    "10040c97": "__d_inttype"
+   },
+   "sections": {
+    "10040b67": [
+     1,
+     304,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__powhlp",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10040c97": [
+     4,
+     101,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__d_inttype",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "100464e0": "__real@8@3fff8000000000000000",
+    "10046690": "__real@8@00000000000000000000",
+    "10046838": "__real@8@40008000000000000000"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/purevirt",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\purevirt.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003ca0a": "__purecall"
+   },
+   "sections": {
+    "1003ca0a": [
+     1,
+     9,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__purecall",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/read",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\read.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100402f8": "__read",
+    "1004035d": "__read_lk"
+   },
+   "sections": {
+    "100402f8": [
+     1,
+     101,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__read",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004035d": [
+     3,
+     473,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__read_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/realloc",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\realloc.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003d79f": "_realloc"
+   },
+   "sections": {
+    "1003d79f": [
+     1,
+     312,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_realloc",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/sbheap",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\sbheap.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003e7ca": "___sbh_heap_init",
+    "1003e808": "___sbh_find_block",
+    "1003e833": "___sbh_free_block",
+    "1003eb5e": "___sbh_alloc_block",
+    "1003ee67": "___sbh_alloc_new_region",
+    "1003ef18": "___sbh_alloc_new_group",
+    "1003f013": "___sbh_resize_block"
+   },
+   "sections": {
+    "1003e7ca": [
+     6,
+     62,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___sbh_heap_init",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e808": [
+     8,
+     43,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___sbh_find_block",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e833": [
+     10,
+     811,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___sbh_free_block",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003eb5e": [
+     11,
+     777,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___sbh_alloc_block",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ee67": [
+     12,
+     177,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___sbh_alloc_new_region",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003ef18": [
+     14,
+     251,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___sbh_alloc_new_group",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003f013": [
+     15,
+     758,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___sbh_resize_block",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c70c": "___sbh_threshold"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/setmode",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\setmode.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10045742": "__setmode_lk"
+   },
+   "sections": {
+    "10045742": [
+     3,
+     97,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__setmode_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/sin",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\sin.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003ba10": "__CIsin",
+    "1003ba24": "_sin"
+   },
+   "sections": {
+    "1003ba10": [
+     1,
+     174,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CIsin",
+       2,
+       32
+      ],
+      [
+       20,
+       "_sin",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c260": "_NAME_"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/sprintf",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\sprintf.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c488": "_sprintf"
+   },
+   "sections": {
+    "1003c488": [
+     1,
+     82,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_sprintf",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/sqrt",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\sqrt.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003b920": "__CIsqrt",
+    "1003b934": "_sqrt"
+   },
+   "sections": {
+    "1003b920": [
+     1,
+     186,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CIsqrt",
+       2,
+       32
+      ],
+      [
+       20,
+       "_sqrt",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c250": "_NAME_"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/stdargv",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\stdargv.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004146f": "__setargv",
+    "10041508": "_parse_cmdline"
+   },
+   "sections": {
+    "1004146f": [
+     1,
+     153,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__setargv",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041508": [
+     3,
+     436,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_parse_cmdline",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093c84": "_?_pgmname@?1??_setargv@@9@9"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/stdenvp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\stdenvp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100413b6": "__setenvp"
+   },
+   "sections": {
+    "100413b6": [
+     1,
+     185,
+     "unverified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__setenvp",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strcat",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strcat.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003cd90": "_strcpy",
+    "1003cda0": "_strcat"
+   },
+   "sections": {
+    "1003cd90": [
+     1,
+     240,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strcpy",
+       2,
+       32
+      ],
+      [
+       16,
+       "_strcat",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strchr",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strchr.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "100457c0": "_strchr",
+    "100457c6": "___from_strstr_to_strchr"
+   },
+   "sections": {
+    "100457b0": [
+     1,
+     204,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       16,
+       "_strchr",
+       2,
+       32
+      ],
+      [
+       22,
+       "___from_strstr_to_strchr",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strcmp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strcmp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c0e0": "_strcmp"
+   },
+   "sections": {
+    "1003c0e0": [
+     1,
+     132,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strcmp",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strcspn",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strcspn.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10042ac0": "_strcspn"
+   },
+   "sections": {
+    "10042ac0": [
+     1,
+     62,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strcspn",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/stream",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\stream.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100406a6": "__getstream"
+   },
+   "sections": {
+    "100406a6": [
+     1,
+     200,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__getstream",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strgtold",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strgtold.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100441cd": "___strgtold12"
+   },
+   "sections": {
+    "100441cd": [
+     1,
+     1233,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___strgtold12",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/stricmp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\stricmp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "100451b0": "__strcmpi"
+   },
+   "sections": {
+    "100451b0": [
+     1,
+     208,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__strcmpi",
+       2,
+       32
+      ],
+      [
+       0,
+       "__stricmp",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strlen",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strlen.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c620": "_strlen"
+   },
+   "sections": {
+    "1003c620": [
+     1,
+     123,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strlen",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strncmp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strncmp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10042b00": "_strncmp"
+   },
+   "sections": {
+    "10042b00": [
+     1,
+     56,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strncmp",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strncpy",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strncpy.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c1d0": "_strncpy"
+   },
+   "sections": {
+    "1003c1d0": [
+     1,
+     254,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strncpy",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strnicmp",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strnicmp.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10045280": "__strnicmp"
+   },
+   "sections": {
+    "10045280": [
+     1,
+     257,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__strnicmp",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/strpbrk",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\strpbrk.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10042b40": "_strpbrk"
+   },
+   "sections": {
+    "10042b40": [
+     1,
+     58,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_strpbrk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/tan",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\tan.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003bb90": "__CItan",
+    "1003bba4": "_tan"
+   },
+   "sections": {
+    "1003bb90": [
+     1,
+     178,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__CItan",
+       2,
+       32
+      ],
+      [
+       20,
+       "_tan",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c270": "_NAME_"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/tenpow",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\tenpow.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "100454a6": "___ld12mul",
+    "100456c6": "___multtenpow12"
+   },
+   "sections": {
+    "100454a6": [
+     1,
+     544,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___ld12mul",
+       2,
+       32
+      ]
+     ]
+    ],
+    "100456c6": [
+     2,
+     124,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "___multtenpow12",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/testfdiv",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\testfdiv.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003d1f4": "__ms_p5_test_fdiv",
+    "1003d232": "__ms_p5_mp_test_fdiv"
+   },
+   "sections": {
+    "1003d1f4": [
+     1,
+     62,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ms_p5_test_fdiv",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003d232": [
+     5,
+     41,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__ms_p5_mp_test_fdiv",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "100464e0": "__real@8@3fff8000000000000000",
+    "10046658": "__real@8@4015800bf60000000000",
+    "10046660": "__real@8@4014bffffc0000000000",
+    "10046668": "??_C@_0BK@JEGK@IsProcessorFeaturePresent?$AA@",
+    "10046684": "??_C@_08OBID@KERNEL32?$AA@"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/tidtable",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\tidtable.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004101a": "__mtinit",
+    "1004106e": "__mtterm",
+    "1004108c": "__initptd",
+    "1004109f": "__getptd",
+    "10041106": "__freeptd"
+   },
+   "sections": {
+    "1004101a": [
+     2,
+     84,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__mtinit",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004106e": [
+     4,
+     30,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__mtterm",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004108c": [
+     6,
+     19,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__initptd",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1004109f": [
+     8,
+     103,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__getptd",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041106": [
+     10,
+     160,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__freeptd",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004cb60": "___tlsindex"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/tolower",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\tolower.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10041b93": "_tolower",
+    "10041c02": "__tolower_lk"
+   },
+   "sections": {
+    "10041b93": [
+     3,
+     111,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_tolower",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10041c02": [
+     5,
+     203,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__tolower_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/toupper",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\toupper.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c4da": "_toupper",
+    "1003c549": "__toupper_lk"
+   },
+   "sections": {
+    "1003c4da": [
+     3,
+     111,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_toupper",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003c549": [
+     5,
+     204,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__toupper_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/ulldiv",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\ulldiv.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "1003c6d0": "__aulldiv"
+   },
+   "sections": {
+    "1003c6d0": [
+     1,
+     104,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__aulldiv",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/ullrem",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\ullrem.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "14/7299",
+   "functions": {
+    "10042a40": "__aullrem"
+   },
+   "sections": {
+    "10042a40": [
+     1,
+     117,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__aullrem",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/unhandld",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\unhandld.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "11/8168",
+   "functions": {
+    "10044b1b": "?__CxxUnhandledExceptionFilter@@YGJPAU_EXCEPTION_POINTERS@@@Z",
+    "10044b61": "?__CxxSetUnhandledExceptionFilter@@YAXXZ",
+    "10044b72": "?__CxxRestoreUnhandledExceptionFilter@@YAXXZ"
+   },
+   "sections": {
+    "10044b1b": [
+     3,
+     70,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?__CxxUnhandledExceptionFilter@@YGJPAU_EXCEPTION_POINTERS@@@Z",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10044b61": [
+     6,
+     17,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?__CxxSetUnhandledExceptionFilter@@YAXXZ",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10044b72": [
+     8,
+     13,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?__CxxRestoreUnhandledExceptionFilter@@YAXXZ",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093e0c": "_pOldExceptFilter"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/util",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\util.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003dfd4": "__set_exp",
+    "1003dffd": "__sptype",
+    "1003e057": "__decomp"
+   },
+   "sections": {
+    "1003dfd4": [
+     2,
+     41,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__set_exp",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003dffd": [
+     8,
+     90,
+     "exact",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__sptype",
+       2,
+       32
+      ]
+     ]
+    ],
+    "1003e057": [
+     9,
+     193,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__decomp",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "1004c3c0": "__d_inf",
+    "1004c3c8": "__d_ind",
+    "1004c3d0": "__d_max",
+    "1004c3d8": "__d_min",
+    "1004c3e0": "__d_mzero",
+    "10046690": "__real@8@00000000000000000000"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/validate",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\validate.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "11/8168",
+   "functions": {
+    "10044b7f": "?_ValidateExecute@@YAHP6GHXZ@Z"
+   },
+   "sections": {
+    "10044b7f": [
+     5,
+     24,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "?_ValidateExecute@@YAHP6GHXZ@Z",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/vsnprint",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\vsnprint.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1003c438": "__vsnprintf"
+   },
+   "sections": {
+    "1003c438": [
+     1,
+     80,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__vsnprintf",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/wctomb",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\wctomb.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10042971": "_wctomb",
+    "100429ca": "__wctomb_lk"
+   },
+   "sections": {
+    "10042971": [
+     1,
+     89,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_wctomb",
+       2,
+       32
+      ]
+     ]
+    ],
+    "100429ca": [
+     2,
+     105,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__wctomb_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/winsig",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\winsig.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10044bae": "_raise",
+    "10044d30": "_siglookup"
+   },
+   "sections": {
+    "10044bae": [
+     5,
+     386,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_raise",
+       2,
+       32
+      ]
+     ]
+    ],
+    "10044d30": [
+     6,
+     61,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_siglookup",
+       3,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10093e10": "_ctrlc_action",
+    "10093e14": "_ctrlbreak_action",
+    "10093e18": "_abort_action",
+    "10093e1c": "_term_action",
+    "10093e20": "_ConsoleCtrlHandler_Installed"
+   }
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/write",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\write.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "1004076e": "__write",
+    "100407d3": "__write_lk"
+   },
+   "sections": {
+    "1004076e": [
+     1,
+     101,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__write",
+       2,
+       32
+      ]
+     ]
+    ],
+    "100407d3": [
+     3,
+     395,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "__write_lk",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "lib/VC6_LIBCMT_1998/x10fout",
+   "obj": "E:\\AVP2Source\\libs_objs\\VC6_LIBCMT_1998\\x10fout.obj",
+   "lib": "VC6_LIBCMT_1998",
+   "comp_id": "10/8168",
+   "functions": {
+    "10044f0e": "_$I10_OUTPUT"
+   },
+   "sections": {
+    "10044f0e": [
+     1,
+     659,
+     "verified",
+     "unique",
+     ".text",
+     [
+      [
+       0,
+       "_$I10_OUTPUT",
+       2,
+       32
+      ]
+     ]
+    ]
+   },
+   "data": {
+    "10046bc0": "??_C@_06PAPI@1?$CDQNAN?$AA@",
+    "10046bc8": "??_C@_05BGNL@1?$CDINF?$AA@",
+    "10046bd0": "??_C@_05EDPF@1?$CDIND?$AA@",
+    "10046bd8": "??_C@_06LKFM@1?$CDSNAN?$AA@"
+   }
+  }
+ ],
+ "names": {
+  "00000000": "__except_list",
+  "10012ce5": "?DefStdlithAlloc@@YAPAXK@Z",
+  "10012d44": "?DefStdlithFree@@YAXPAX@Z",
+  "10029d5a": "_DllMain@12",
+  "1002d07c": "__matherr",
+  "1003b520": "?sb_Init@@YAXPAUStructBank_t@@KK@Z",
+  "1003b570": "?sb_Init2@@YAHPAUStructBank_t@@KKK@Z",
+  "1003b5a0": "?sb_Term2@@YAXPAUStructBank_t@@H@Z",
+  "1003b5e0": "?sb_Term@@YAXPAUStructBank_t@@@Z",
+  "1003b5f0": "?sb_AllocateNewStructPage@@YAHPAUStructBank_t@@K@Z",
+  "1003b690": "?Alloc@LAlloc@@UAEPAXK@Z",
+  "1003b6a0": "?Free@LAlloc@@UAEXPAX@Z",
+  "1003b6b0": "??_GLAlloc@@UAEPAXI@Z",
+  "1003b6d0": "?MoArray_FindElementMemcmp@@YAKPBX0KK@Z",
+  "1003b710": "??3@YAXPAX@Z",
+  "1003b71b": "__fpmath",
+  "1003b732": "__cfltcvt_init",
+  "1003b76a": "__onexit",
+  "1003b7e8": "_atexit",
+  "1003b7fa": "___onexitinit",
+  "1003b830": "__alloca_probe",
+  "1003b85f": "_fabs",
+  "1003b920": "__CIsqrt",
+  "1003b934": "_sqrt",
+  "1003b9dc": "__ftol",
+  "1003ba10": "__CIsin",
+  "1003ba24": "_sin",
+  "1003babe": "_floor",
+  "1003bb90": "__CItan",
+  "1003bba4": "_tan",
+  "1003bc50": "_memcpy",
+  "1003bf90": "__CIcos",
+  "1003bfa4": "_cos",
+  "1003c040": "__CIatan",
+  "1003c054": "_atan",
+  "1003c0e0": "_strcmp",
+  "1003c170": "_memset",
+  "1003c1d0": "_strncpy",
+  "1003c2ce": "_atol",
+  "1003c359": "_atoi",
+  "1003c364": "_malloc",
+  "1003c376": "__nh_malloc",
+  "1003c3a2": "__heap_alloc",
+  "1003c3f0": "_free",
+  "1003c438": "__vsnprintf",
+  "1003c488": "_sprintf",
+  "1003c4da": "_toupper",
+  "1003c549": "__toupper_lk",
+  "1003c620": "_strlen",
+  "1003c69b": "_iscntrl",
+  "1003c6d0": "__aulldiv",
+  "1003c740": "__alldiv",
+  "1003c7f0": "__allmul",
+  "1003c824": "??2@YAPAXI@Z",
+  "1003c832": "_fclose",
+  "1003c863": "__fclose_lk",
+  "1003c8af": "_fread",
+  "1003c8de": "__fread_lk",
+  "1003c9c6": "__fsopen",
+  "1003c9f7": "_fopen",
+  "1003ca0a": "__purecall",
+  "1003ca13": "_fwrite",
+  "1003ca42": "__fwrite_lk",
+  "1003cb50": "__CIpow",
+  "1003cb69": "_pow",
+  "1003cd70": "_atan2",
+  "1003cd7a": "__CIatan2",
+  "1003cd90": "_strcpy",
+  "1003cda0": "_strcat",
+  "1003ce80": "__CIacos",
+  "1003ce94": "_acos",
+  "1003cf4b": "__CRT_INIT@12",
+  "1003d024": "__DllMainCRTStartup@12",
+  "1003d0c1": "__amsg_exit",
+  "1003d0f4": "__global_unwind2",
+  "1003d136": "__local_unwind2",
+  "1003d18e": "__NLG_Return2",
+  "1003d19e": "__abnormal_termination",
+  "1003d1c1": "__NLG_Notify1",
+  "1003d1ca": "__NLG_Notify",
+  "1003d1dd": "__NLG_Dispatch",
+  "1003d1e2": "__setdefaultprecision",
+  "1003d1f4": "__ms_p5_test_fdiv",
+  "1003d232": "__ms_p5_mp_test_fdiv",
+  "1003d25b": "__forcdecpt",
+  "1003d2b5": "__cropzeros",
+  "1003d303": "__positive",
+  "1003d31b": "__fassign",
+  "1003d359": "__cftoe",
+  "1003d47c": "__cftof",
+  "1003d578": "__cftog",
+  "1003d60b": "__cfltcvt",
+  "1003d681": "__cinit",
+  "1003d6ae": "__exit",
+  "1003d6bf": "__cexit",
+  "1003d773": "__lockexit",
+  "1003d77c": "__unlockexit",
+  "1003d79f": "_realloc",
+  "1003d8d7": "__msize",
+  "1003d91c": "__handle_qnan1",
+  "1003d970": "__except1",
+  "1003da08": "__raise_exc",
+  "1003dcbb": "__handle_exc",
+  "1003ded2": "__umatherr",
+  "1003df5a": "__set_errno",
+  "1003dfa7": "__errcode",
+  "1003dfd4": "__set_exp",
+  "1003dffd": "__sptype",
+  "1003e057": "__decomp",
+  "1003e118": "__statfp",
+  "1003e126": "__clrfp",
+  "1003e135": "__ctrlfp",
+  "1003e158": "__set_statfp",
+  "1003e1b0": "__trandisp1",
+  "1003e217": "__trandisp2",
+  "1003e2a3": "__rttospopde",
+  "1003e2a8": "__rttospop",
+  "1003e2aa": "__rtnospop",
+  "1003e2ac": "__rttosnpop",
+  "1003e2ad": "__rtnospopde",
+  "1003e2b4": "__rtzeropop",
+  "1003e2b6": "__rtzeronpop",
+  "1003e2bb": "__rtonepop",
+  "1003e2bd": "__rtonenpop",
+  "1003e2c2": "__tosnan1",
+  "1003e2ed": "__nosnan2",
+  "1003e2ef": "__tosnan2",
+  "1003e317": "__nan2",
+  "1003e356": "__rtindfpop",
+  "1003e358": "__rtindfnpop",
+  "1003e369": "__rttosnpopde",
+  "1003e373": "__rtchsifneg",
+  "1003e380": "__startTwoArgErrorHandling",
+  "1003e397": "__startOneArgErrorHandling",
+  "1003e3e0": "__twoToTOS",
+  "1003e3f5": "__load_CW",
+  "1003e40c": "__convertTOStoQNaN",
+  "1003e425": "__fload_withFB",
+  "1003e468": "__checkTOS_withFB",
+  "1003e47e": "__fast_exit",
+  "1003e48b": "__math_exit",
+  "1003e4b5": "__check_overflow_exit",
+  "1003e4c9": "__check_range_exit",
+  "1003e56c": "__frnd",
+  "1003e57e": "__isctype",
+  "1003e5f3": "__callnewh",
+  "1003e60e": "__heap_init",
+  "1003e64a": "__heap_term",
+  "1003e6bf": "__mtinitlocks",
+  "1003e6e8": "__mtdeletelocks",
+  "1003e754": "__lock",
+  "1003e7b5": "__unlock",
+  "1003e7ca": "___sbh_heap_init",
+  "1003e808": "___sbh_find_block",
+  "1003e833": "___sbh_free_block",
+  "1003eb5e": "___sbh_alloc_block",
+  "1003ee67": "___sbh_alloc_new_region",
+  "1003ef18": "___sbh_alloc_new_group",
+  "1003f013": "___sbh_resize_block",
+  "1003f309": "__flsbuf",
+  "1003f421": "__output",
+  "1003fc2b": "___crtLCMapStringA",
+  "1003fe7a": "___initstdio",
+  "1003ff22": "___endstdio",
+  "1003ff36": "__lock_file",
+  "1003ff65": "__lock_file2",
+  "1003ff88": "__unlock_file",
+  "1003ffb7": "__unlock_file2",
+  "1003ffda": "__close",
+  "10040037": "__close_lk",
+  "100400ba": "__freebuf",
+  "100400e5": "__fflush_lk",
+  "10040113": "__flush",
+  "1004016f": "__flushall",
+  "1004021c": "__filbuf",
+  "100402f8": "__read",
+  "1004035d": "__read_lk",
+  "10040536": "__openfile",
+  "100406a6": "__getstream",
+  "1004076e": "__write",
+  "100407d3": "__write_lk",
+  "10040971": "__fFEXP",
+  "100409d8": "__rtinfpopse",
+  "100409da": "__rtinfnpopse",
+  "100409ea": "__fFLN",
+  "10040a9f": "__rtinfpop",
+  "10040aa1": "__rtinfnpop",
+  "10040abe": "__ffexpm1",
+  "10040b67": "__powhlp",
+  "10040c97": "__d_inttype",
+  "10040d1c": "__fFATN2",
+  "10040d6c": "__rtpiby2",
+  "10040db0": "__cintrindisp2",
+  "10040dee": "__cintrindisp1",
+  "10040e2b": "__ctrandisp2",
+  "10040fab": "__ctrandisp1",
+  "10040fde": "__fload",
+  "1004101a": "__mtinit",
+  "1004106e": "__mtterm",
+  "1004108c": "__initptd",
+  "1004109f": "__getptd",
+  "10041106": "__freeptd",
+  "100411a6": "__ioinit",
+  "10041362": "__ioterm",
+  "100413b6": "__setenvp",
+  "1004146f": "__setargv",
+  "100416bc": "___crtGetEnvironmentStringsA",
+  "100417ee": "__FF_MSGBANNER",
+  "10041827": "__NMSG_WRITE",
+  "10041980": "__CallSettingFrame@12",
+  "100419a7": "__NLG_Return",
+  "100419cc": "?terminate@@YAXXZ",
+  "10041a2d": "__control87",
+  "10041a62": "__controlfp",
+  "10041b93": "_tolower",
+  "10041c02": "__tolower_lk",
+  "10041ccd": "__ZeroTail",
+  "10041d16": "__IncMan",
+  "10041d6c": "__RoundMan",
+  "10041df8": "__CopyMan",
+  "10041e13": "__FillZeroMan",
+  "10041e1f": "__IsZeroMan",
+  "10041e3a": "__ShrMan",
+  "10041ec7": "__ld12cvt",
+  "10042033": "__ld12tod",
+  "10042049": "__ld12tof",
+  "1004205f": "__atodbl",
+  "1004208c": "__atoflt",
+  "100420b9": "__fptostr",
+  "10042130": "__fltout2",
+  "1004218c": "___dtold",
+  "10042250": "_memmove",
+  "10042585": "__fptrap",
+  "1004258e": "__dosmaperr",
+  "10042601": "__errno",
+  "1004260a": "___doserrno",
+  "10042613": "__87except",
+  "100426e3": "___crtGetStringTypeA",
+  "1004282c": "__lseek",
+  "10042891": "__lseek_lk",
+  "10042904": "__getbuf",
+  "10042948": "__isatty",
+  "10042971": "_wctomb",
+  "100429ca": "__wctomb_lk",
+  "10042a40": "__aullrem",
+  "10042ac0": "_strcspn",
+  "10042b00": "_strncmp",
+  "10042b40": "_strpbrk",
+  "10042b84": "__except_handler3",
+  "10042c41": "__seh_longjmp_unwind@4",
+  "10042c5c": "_calloc",
+  "10042ce9": "__fcloseall",
+  "10042d6a": "__alloc_osfhnd",
+  "10042e8d": "__set_osfhnd",
+  "10042f09": "__free_osfhnd",
+  "10042f88": "__get_osfhandle",
+  "10042fca": "__lock_fhandle",
+  "10043029": "__unlock_fhandle",
+  "1004304b": "__commit",
+  "100430de": "__sopen",
+  "100433b0": "_fdiv_main_routine",
+  "100434c7": "__adj_fdiv_r",
+  "10043966": "__fdivp_sti_st",
+  "10043979": "__fdivrp_sti_st",
+  "1004398c": "__adj_fdiv_m32",
+  "100439d8": "__adj_fdiv_m64",
+  "10043a24": "__adj_fdiv_m16i",
+  "10043a58": "__adj_fdiv_m32i",
+  "10043a8c": "__adj_fdivr_m32",
+  "10043ad8": "__adj_fdivr_m64",
+  "10043b24": "__adj_fdivr_m16i",
+  "10043b58": "__adj_fdivr_m32i",
+  "10043b8c": "__safe_fdiv",
+  "10043ba1": "__safe_fdivr",
+  "10043bb6": "__fprem_common",
+  "10043dbc": "__adj_fprem",
+  "10043e6e": "__fprem1_common",
+  "10044074": "__adj_fprem1",
+  "10044129": "__safe_fprem",
+  "1004412f": "__safe_fprem1",
+  "10044135": "__adj_fpatan",
+  "10044138": "__adj_fptan",
+  "1004413b": "__fpclass",
+  "100441cd": "___strgtold12",
+  "1004469e": "__setmbcp",
+  "10044a76": "___initmbctable",
+  "10044a92": "___crtMessageBoxA",
+  "10044b1b": "?__CxxUnhandledExceptionFilter@@YGJPAU_EXCEPTION_POINTERS@@@Z",
+  "10044b61": "?__CxxSetUnhandledExceptionFilter@@YAXXZ",
+  "10044b72": "?__CxxRestoreUnhandledExceptionFilter@@YAXXZ",
+  "10044b7f": "?_ValidateExecute@@YAHP6GHXZ@Z",
+  "10044b97": "_abort",
+  "10044bae": "_raise",
+  "10044d6d": "___addl",
+  "10044d8e": "___add_12",
+  "10044dec": "___shl_12",
+  "10044e1a": "___shr_12",
+  "10044e47": "___mtold12",
+  "10044f0e": "_$I10_OUTPUT",
+  "100451b0": "__strcmpi",
+  "10045280": "__strnicmp",
+  "10045381": "__chsize_lk",
+  "100454a6": "___ld12mul",
+  "100456c6": "___multtenpow12",
+  "10045742": "__setmode_lk",
+  "100457c0": "_strchr",
+  "100457c6": "___from_strstr_to_strchr",
+  "10045880": "_RtlUnwind@16",
+  "10046010": "__imp__LCMapStringW@24",
+  "10046014": "__imp__ReadFile@20",
+  "10046028": "__imp__GetProcAddress@8",
+  "1004602c": "__imp__GetModuleHandleA@4",
+  "10046030": "__imp__TlsAlloc@0",
+  "10046034": "__imp__TlsSetValue@8",
+  "10046038": "__imp__SetEndOfFile@4",
+  "1004603c": "__imp__IsBadCodePtr@4",
+  "10046040": "__imp__HeapAlloc@12",
+  "10046044": "__imp__HeapFree@12",
+  "10046048": "__imp__InterlockedDecrement@4",
+  "1004604c": "__imp__InterlockedIncrement@4",
+  "10046050": "__imp__GetCommandLineA@0",
+  "10046054": "__imp__GetVersion@0",
+  "1004605c": "__imp__ExitProcess@4",
+  "10046060": "__imp__TerminateProcess@8",
+  "10046064": "__imp__GetCurrentProcess@0",
+  "10046068": "__imp__HeapReAlloc@16",
+  "1004606c": "__imp__HeapSize@12",
+  "10046070": "__imp__RaiseException@16",
+  "10046074": "__imp__HeapDestroy@4",
+  "10046078": "__imp__HeapCreate@12",
+  "1004607c": "__imp__VirtualFree@12",
+  "10046080": "__imp__InitializeCriticalSection@4",
+  "10046084": "__imp__DeleteCriticalSection@4",
+  "10046088": "__imp__EnterCriticalSection@4",
+  "1004608c": "__imp__LeaveCriticalSection@4",
+  "10046090": "__imp__VirtualAlloc@16",
+  "10046094": "__imp__WideCharToMultiByte@32",
+  "10046098": "__imp__MultiByteToWideChar@24",
+  "1004609c": "__imp__LCMapStringA@24",
+  "100460a0": "__imp__GetLastError@0",
+  "100460a4": "__imp__CloseHandle@4",
+  "100460a8": "__imp__WriteFile@20",
+  "100460ac": "__imp__GetCurrentThreadId@0",
+  "100460b0": "__imp__SetFilePointer@16",
+  "100460b4": "__imp__TlsFree@4",
+  "100460b8": "__imp__SetLastError@4",
+  "100460bc": "__imp__TlsGetValue@4",
+  "100460c0": "__imp__SetHandleCount@4",
+  "100460c4": "__imp__GetStdHandle@4",
+  "100460c8": "__imp__GetFileType@4",
+  "100460cc": "__imp__GetStartupInfoA@4",
+  "100460d0": "__imp__GetModuleFileNameA@12",
+  "100460d4": "__imp__FreeEnvironmentStringsA@4",
+  "100460d8": "__imp__FreeEnvironmentStringsW@4",
+  "100460dc": "__imp__GetEnvironmentStrings@0",
+  "100460e0": "__imp__GetEnvironmentStringsW@0",
+  "100460e4": "__imp__GetStringTypeA@20",
+  "100460e8": "__imp__GetStringTypeW@16",
+  "100460ec": "__imp__SetStdHandle@8",
+  "100460f0": "__imp__GetCPInfo@8",
+  "100460f4": "__imp__FlushFileBuffers@4",
+  "100460f8": "__imp__CreateFileA@28",
+  "100460fc": "__imp__GetACP@0",
+  "10046100": "__imp__GetOEMCP@0",
+  "10046104": "__imp__LoadLibraryA@4",
+  "10046108": "__imp__SetUnhandledExceptionFilter@4",
+  "100464e0": "__real@8@3fff8000000000000000",
+  "1004664c": "??_7LAlloc@@6B@",
+  "10046658": "__real@8@4015800bf60000000000",
+  "10046660": "__real@8@4014bffffc0000000000",
+  "10046668": "??_C@_0BK@JEGK@IsProcessorFeaturePresent?$AA@",
+  "10046684": "??_C@_08OBID@KERNEL32?$AA@",
+  "10046690": "__real@8@00000000000000000000",
+  "10046698": "??_C@_05OFLO@e?$CL000?$AA@",
+  "100466a0": "??_C@_03GAFO@_yn?$AA@",
+  "100466a4": "??_C@_03GNLD@_y1?$AA@",
+  "100466a8": "??_C@_03MHCE@_y0?$AA@",
+  "100466ac": "??_C@_05PAK@frexp?$AA@",
+  "100466b4": "??_C@_04JKCH@fmod?$AA@",
+  "100466bc": "??_C@_06GGHF@_hypot?$AA@",
+  "100466c4": "??_C@_05JNMC@_cabs?$AA@",
+  "100466cc": "??_C@_05MEKH@ldexp?$AA@",
+  "100466d4": "??_C@_04KAOJ@modf?$AA@",
+  "100466dc": "??_C@_04EHAJ@fabs?$AA@",
+  "100466e4": "??_C@_05MFBN@floor?$AA@",
+  "100466ec": "??_C@_04JJMP@ceil?$AA@",
+  "100466f4": "??_C@_03JLPI@tan?$AA@",
+  "100466f8": "??_C@_03DLFL@cos?$AA@",
+  "100466fc": "??_C@_03JAMN@sin?$AA@",
+  "10046700": "??_C@_04LMBE@sqrt?$AA@",
+  "10046708": "??_C@_05BFPO@atan2?$AA@",
+  "10046710": "??_C@_04EAGN@atan?$AA@",
+  "10046718": "??_C@_04OAMO@acos?$AA@",
+  "10046720": "??_C@_04ELFI@asin?$AA@",
+  "10046728": "??_C@_04LFAD@tanh?$AA@",
+  "10046730": "??_C@_04PFKD@cosh?$AA@",
+  "10046738": "??_C@_04NPAI@sinh?$AA@",
+  "10046740": "??_C@_05IJHH@log10?$AA@",
+  "10046748": "??_C@_03BGKD@log?$AA@",
+  "1004674c": "??_C@_03EGFG@pow?$AA@",
+  "10046750": "??_C@_03CDGJ@exp?$AA@",
+  "10046768": "__DEFAULT_CW_in_mem",
+  "1004676a": "__pi_by_2_to_61",
+  "100467a4": "___lookuptable",
+  "10046800": "??_C@_1O@POHA@?$AA?$CI?$AAn?$AAu?$AAl?$AAl?$AA?$CJ?$AA?$AA@",
+  "10046810": "??_C@_06ONKE@?$CInull?$CJ?$AA@",
+  "10046818": "??_C@_01A@?$AA?$AA@",
+  "1004681c": "??_C@_13A@?$AA?$AA?$AA?$AA@",
+  "10046838": "__real@8@40008000000000000000",
+  "10046870": "??_C@_0P@GGKG@runtime?5error?5?$AA@",
+  "10046880": "??_C@_02PIMC@?$AN?6?$AA@",
+  "10046884": "??_C@_0O@DELO@TLOSS?5error?$AN?6?$AA@",
+  "10046894": "??_C@_0N@OMLL@SING?5error?$AN?6?$AA@",
+  "100468a4": "??_C@_0P@OJAK@DOMAIN?5error?$AN?6?$AA@",
+  "100468b4": "??_C@_0CF@EANP@R6028?$AN?6?9?5unable?5to?5initialize?5he@",
+  "100468dc": "??_C@_0DF@ECGN@R6027?$AN?6?9?5not?5enough?5space?5for?5lo@",
+  "10046914": "??_C@_0DF@FKAC@R6026?$AN?6?9?5not?5enough?5space?5for?5st@",
+  "1004694c": "??_C@_0CG@DPMN@R6025?$AN?6?9?5pure?5virtual?5function?5c@",
+  "10046974": "??_C@_0DF@CKIP@R6024?$AN?6?9?5not?5enough?5space?5for?5_o@",
+  "100469ac": "??_C@_0CJ@GGOE@R6019?$AN?6?9?5unable?5to?5open?5console?5@",
+  "100469d8": "??_C@_0CB@LBOB@R6018?$AN?6?9?5unexpected?5heap?5error?$AN?6@",
+  "100469fc": "??_C@_0CN@FPEG@R6017?$AN?6?9?5unexpected?5multithread?5@",
+  "10046a2c": "??_C@_0CM@OBIC@R6016?$AN?6?9?5not?5enough?5space?5for?5th@",
+  "10046a58": "??_C@_0CB@HPAL@?$AN?6abnormal?5program?5termination?$AN?6@",
+  "10046a7c": "??_C@_0CM@JOOB@R6009?$AN?6?9?5not?5enough?5space?5for?5en@",
+  "10046aa8": "??_C@_0CK@OIBL@R6008?$AN?6?9?5not?5enough?5space?5for?5ar@",
+  "10046ad4": "??_C@_0CF@LKPB@R6002?$AN?6?9?5floating?5point?5not?5load@",
+  "10046afc": "??_C@_0CF@JPDF@Microsoft?5Visual?5C?$CL?$CL?5Runtime?5Lib@",
+  "10046b24": "??_C@_02JJJH@?6?6?$AA@",
+  "10046b28": "??_C@_0BK@DEOK@Runtime?5Error?$CB?6?6Program?3?5?$AA@",
+  "10046b44": "??_C@_03NAME@?4?4?4?$AA@",
+  "10046b48": "??_C@_0BH@NNCD@?$DMprogram?5name?5unknown?$DO?$AA@",
+  "10046b84": "??_C@_0BD@NJFP@GetLastActivePopup?$AA@",
+  "10046b98": "??_C@_0BA@GILI@GetActiveWindow?$AA@",
+  "10046ba8": "??_C@_0M@PKCK@MessageBoxA?$AA@",
+  "10046bb4": "??_C@_0L@HKL@user32?4dll?$AA@",
+  "10046bc0": "??_C@_06PAPI@1?$CDQNAN?$AA@",
+  "10046bc8": "??_C@_05BGNL@1?$CDINF?$AA@",
+  "10046bd0": "??_C@_05EDPF@1?$CDIND?$AA@",
+  "10046bd8": "??_C@_06LKFM@1?$CDSNAN?$AA@",
+  "10048000": "___xc_a",
+  "1004836c": "___xc_z",
+  "10048370": "___xi_a",
+  "10048384": "___xi_z",
+  "10048388": "___xp_a",
+  "10048390": "___xp_z",
+  "10048394": "___xt_a",
+  "1004839c": "___xt_z",
+  "1004c238": "__fltused",
+  "1004c23c": "__ldused",
+  "1004c240": "__FPinit",
+  "1004c244": "__FPmtinit",
+  "1004c248": "__FPmtterm",
+  "1004c2a0": "__half",
+  "1004c2b8": "__aexit_rtn",
+  "1004c2bc": "__NLG_Destination",
+  "1004c2cc": "__cfltcvt_tab",
+  "1004c3c0": "__d_inf",
+  "1004c3c8": "__d_ind",
+  "1004c3d0": "__d_max",
+  "1004c3d8": "__d_min",
+  "1004c3e0": "__d_mzero",
+  "1004c400": "__indefinite",
+  "1004c40a": "__piby2",
+  "1004c430": "__pctype",
+  "1004c63c": "___mb_cur_max",
+  "1004c640": "___decimal_point",
+  "1004c64c": "__locktable",
+  "1004c70c": "___sbh_threshold",
+  "1004c710": "___nullstring",
+  "1004c714": "___wnullstring",
+  "1004c828": "__iob",
+  "1004cab0": "__infinity",
+  "1004caba": "__minfinity",
+  "1004cac4": "__logemax",
+  "1004caea": "__OP_EXPjmptab",
+  "1004cb10": "__OP_ATAN2jmptab",
+  "1004cb60": "___tlsindex",
+  "1004cb68": "___badioinfo",
+  "1004cdd8": "__matherr_flag",
+  "1004cf40": "__XcptActTab",
+  "1004cfb8": "__First_FPE_Indx",
+  "1004cfbc": "__Num_FPE",
+  "1004cfc4": "__XcptActTabCount",
+  "1004d278": "__pow10pos",
+  "1004d3d8": "__pow10neg",
+  "10093b84": "?g_DefAlloc@@3VLAlloc@@A",
+  "10093b88": "___fastflag",
+  "10093b8c": "__adjust_fdiv",
+  "10093b94": "__aenvptr",
+  "10093b98": "__wenvptr",
+  "10093b9c": "___error_mode",
+  "10093ba0": "___app_type",
+  "10093ba4": "__umaskval",
+  "10093ba8": "__osver",
+  "10093bac": "__winver",
+  "10093bb0": "__winmajor",
+  "10093bb4": "__winminor",
+  "10093bb8": "___argc",
+  "10093bbc": "___argv",
+  "10093bc0": "___wargv",
+  "10093bc4": "__environ",
+  "10093bc8": "___initenv",
+  "10093bcc": "__wenviron",
+  "10093bd0": "___winitenv",
+  "10093bd4": "__pgmptr",
+  "10093bd8": "__wpgmptr",
+  "10093bdc": "__exitflag",
+  "10093be0": "__C_Termination_Done",
+  "10093be4": "__C_Exit_Done",
+  "10093be8": "__newmode",
+  "10093bec": "?_pnhHeap@@3P6AHI@ZA",
+  "10093c5c": "___lc_handle",
+  "10093c74": "___lc_codepage",
+  "10093c80": "__cflush",
+  "10093d8c": "__adbgmsg",
+  "10093df8": "__commode",
+  "10093e34": "__fmode",
+  "10094f88": "___mbcodepage",
+  "10094f90": "___mbulinfo",
+  "10094f9c": "___ismbcodepage",
+  "10094fa0": "__mbcasemap",
+  "100950a0": "__mbctype",
+  "100951a4": "___mblcid",
+  "100951c0": "___pioinfo",
+  "100952c0": "__nhandle",
+  "100952c4": "___piob",
+  "100962e0": "__nstream",
+  "100962e4": "___setlc_active",
+  "100962e8": "___unguarded_readlc_active",
+  "100962ec": "___sbh_sizeHeaderList",
+  "100962f0": "___sbh_indGroupDefer",
+  "100962f4": "___sbh_pHeaderScan",
+  "100962f8": "___sbh_pHeaderDefer",
+  "100962fc": "___sbh_cntHeaderList",
+  "10096300": "___sbh_pHeaderList",
+  "10096304": "__crtheap",
+  "10096308": "___env_initialized",
+  "1009630c": "___mbctype_initialized",
+  "10096310": "___onexitend",
+  "10096314": "___onexitbegin",
+  "10096318": "__acmdln",
+  "1009631c": "__pRawDllMain"
+ },
+ "source_built_matches": {}
+}

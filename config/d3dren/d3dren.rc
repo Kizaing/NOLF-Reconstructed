@@ -1,0 +1,6 @@
+LANGUAGE 9, 1
+
+STRINGTABLE DISCARDABLE
+BEGIN
+    5 "LithTech Direct3D Renderer"
+END

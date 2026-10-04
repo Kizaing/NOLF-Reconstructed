@@ -69,6 +69,14 @@ class Image:
         text = [s for s in self.sections if s[2] == '.text'][0]
         self.text_lo, self.text_hi = text[0], text[1]
         self.pe = pe
+        # A DLL carries its base relocation table: the exact VAs of every 32-bit absolute address in the image.
+        # recover() then knows which displacement/immediate fields really are addresses (an EXE has no table: None).
+        self.reloc_vas = None
+        d = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BASERELOC']]
+        if d.VirtualAddress and d.Size:
+            pe.parse_data_directories([pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BASERELOC']])
+            self.reloc_vas = {self.base + r.rva for blk in getattr(pe, 'DIRECTORY_ENTRY_BASERELOC', [])
+                              for r in blk.entries if r.type == 3}
 
     def in_image(self, va):
         for lo, hi, _, _ in self.sections:
@@ -433,6 +441,9 @@ def recover(fva, fend, img, st, res, md, stats):
             v = struct.unpack_from('<I', code, off + fo)[0]
             if not img.in_image(v) or v < img.text_lo:
                 continue
+            if img.reloc_vas is not None and fva + off + fo not in img.reloc_vas:
+                stats['dir32_not_reloc'] += 1      # looks like an address but the base relocation table says it is a constant
+                continue
             if fva <= v < fend:
                 cls = CLS_STATIC if v in tables else CLS_LABEL
                 sym, sva = local_label(v, cls)
@@ -595,7 +606,7 @@ def _image(exe_path):
 def new_stats():
     return dict.fromkeys(['funcs', 'bytes', 'rel32', 'rel32_nonentry', 'dir32_disp', 'dir32_imm',
                           'dir32_imm_unsym', 'dir32_code_nonentry', 'dir32_local', 'dir32_table', 'ptr_tables',
-                          'byte_tables', 'short_out', 'bad_rel32', 'funcs_with_issues'], 0)
+                          'byte_tables', 'short_out', 'bad_rel32', 'funcs_with_issues', 'dir32_not_reloc'], 0)
 
 
 def validate_body_end(start, original_end, body_end, img):

@@ -1,0 +1,1143 @@
+// d3d.ren unk/100098d0 (0x100098d0-0x1000b349): P (packed COMDATs) object of config/d3dren/objects_v2.csv.
+// world poly drawing (detail/lightmap batches), D3D7 state wrappers, StageStateSet COMDATs, polygon clip/project dispatchers
+// 0x1000af16..0x1000b20c. 0x1000a2a7 matches only with the StageStateSet ctor/dtor calls kept out of line (Ob1-only in the
+// scan; inline-budget effect, not a flag difference).
+//
+// Notes carried over from the merged unit this object was split from (statements about the whole merged file, its `_$E` numbers and its flags are
+// historical; the object's own flags are the FLAGS line below):
+// d3d.ren unit unk/100098d0 (0x100098d0-0x1000f160, one packed /O1 region): world polygon drawing (lightmap / detail
+// texture batches, the polygon clip and project dispatchers), Direct3D 7 texture binding and render-state wrappers, and
+// Talon's setupmodel.cpp (ModelDraw: model lighting, LOD choice, vertex transform, the CMoArray instances it needs) with the
+// SDK matrix / vector inlines that ended up out of line.
+// FLAGS NOTE: the object map says /O1 /Ob2 (P object).  FUN_1000a2a7 matches only with /Ob1 (the exe keeps the StageStateSet ctor/dtor calls out of
+// line, /Ob2 inlines them: an in-object inline-budget effect, not a flag difference); every other function matches under both, so the object is /O1.
+// FLAGS: /O1
+#define D3DREN_SETTEXTURE_EXTERN	// d3d_texture.h: the plain inline changes FUN_1000b0cd / FUN_1000b20c; keep calling the out-of-line copy
+#include "d3dren/d3dstate.h"
+#include "d3dren/polydraw.h"
+#include "d3dren/setupmodel.h"
+#include "d3dren/staticlight.h"
+#include "d3dren/viewparams.h"
+#include "d3dren/scenedesc.h"
+#include "d3dren/rendererconsolevars.h"
+#include "d3dren/common_stuff.h"
+#include "animtracker.h"
+#include <math.h>
+
+// The light members of RenderStruct (g_pStruct): include/renderstruct.h has m_GlobalLightDir at 0x138 and pads the colour at 0x144.
+struct UnkType_RenderStructLightView
+{
+	uint8		m_Pad000[0x138];
+	LTVector	m_GlobalLightDir;		// 0x138
+	LTVector	m_GlobalLightColor;		// 0x144 NAME: Jupiter RenderStruct::m_GlobalLightColor (NAMING.md)
+};
+#define RENDERSTRUCT_LIGHTS		((UnkType_RenderStructLightView *)g_pStruct)
+
+
+// ---- console variables of the world polygon code ----------------------------------------------------------------
+// FUNCTION: D3DREN 0x100098d0 _$E2
+// FUNCTION: D3DREN 0x100098d5 _$E1
+// GLOBAL: D3DREN 0x10051448
+ConVar g_CV_DetailTextures("DetailTextures", 1.0f);
+// FUNCTION: D3DREN 0x100098ef _$E5
+// FUNCTION: D3DREN 0x100098f4 _$E4
+// GLOBAL: D3DREN 0x100513e8
+ConVar g_CV_DetailTextureAdd("DetailTextureAdd", 1.0f);
+// FUNCTION: D3DREN 0x1000990e _$E8
+// FUNCTION: D3DREN 0x10009913 _$E7
+// GLOBAL: D3DREN 0x100518b0
+ConVar g_CV_DetailTextureAngle("DetailTextureAngle", 0.0f);
+// FUNCTION: D3DREN 0x1000992d _$E11
+// FUNCTION: D3DREN 0x10009932 _$E10
+// GLOBAL: D3DREN 0x10051428
+ConVar g_CV_FixSparkleys("FixSparkleys", 0.0f);
+// FUNCTION: D3DREN 0x1000994c _$E14
+// FUNCTION: D3DREN 0x10009951 _$E13
+// GLOBAL: D3DREN 0x10051488
+ConVar g_CV_LMFullBright("LMFullBright", 0.0f);
+// FUNCTION: D3DREN 0x1000996b _$E17
+// FUNCTION: D3DREN 0x10009970 _$E16
+// GLOBAL: D3DREN 0x10051408
+ConVar g_CV_EnvMapWorld("EnvMapWorld", 1.0f);
+// FUNCTION: D3DREN 0x1000998a _$E20
+// FUNCTION: D3DREN 0x1000998f _$E19
+// GLOBAL: D3DREN 0x10051468
+ConVar g_CV_LMAnim("LMAnim", 1.0f);
+
+// guess: setter/getter pair for a global the draw code reads (name unknown).
+// FUNCTION: D3DREN 0x100099a9
+void FUN_100099a9(int nValue)
+{
+	DAT_100528d8 = nValue;
+}
+
+// FUNCTION: D3DREN 0x100099b3
+int FUN_100099b3(void)
+{
+	return DAT_100528d8;
+}
+
+// ---- world polygon drawing ------------------------------------------------------------------------------------------
+
+// guess: draws one lightmapped world polygon: the 0x28-byte vertices carry the base coordinates and the lightmap coordinates;
+// clipped and projected as the clip mask DAT_10056274 asks, then drawn as a triangle fan with the lightmap page (single pass
+// when the device allows) and queued for the second pass / detail texture batches (DAT_1005a308).
+// Not matching: 1221 of 1223 bytes, the same 424 instructions in the same order with the same frame layout (locals at
+// [ebp-4]..[ebp-0x38], 0x28-byte vertex array at [ebp-0x1438]), same calls and branches; only the register allocation differs.
+// The exe keeps the surface flag bits (nSurfFlags) in edi from the start until FUN_10009f6c, the constant 0 in esi (before the
+// fog StateSet), then in ebx (after FUN_10009f0b), the poly in esi; ours gives esi to nSurfFlags, edi to the zero and ebx to the
+// poly (so the exe has `push edi`/`cmp [..],ebx` where ours has `push esi`/`cmp [..],edi`).  Tried: nSurfFlags before/after the
+// environment map test (before: frame matches, after: spilled to the stack), pTexture/pSurface locals or none, copy loops as
+// pointer do-while loops (needed: dword copies of tu/tv instead of fld/fstp), flag if/else polarity, statement permuter
+// (build/permute/100099b9; a second run of 3000 candidates did not get below 107 aligned mismatches, the start was 120).  Source-shape
+// problem (the original probably has two more/other named locals of the zero flag, which decide the register webs).
+// STUB: D3DREN 0x100099b9
+void FUN_100099b9(WorldPoly *pPoly)
+{
+	UnkType_TLVertex40 aVerts[128];
+	UnkType_TLVertex40 *pVerts;
+	int nVerts;
+	int bNeedProject = 1;
+	int bClipped = 0;
+	int bLightmapTexture = 1;
+	int bEnvMap;
+	int nTotalVerts;
+	UnkType_PolyVertex *pSrcVerts;
+	TLVertex *pDest;
+	DWORD dwOldAlphaBlend, dwOldAlphaFunc, dwOldZFunc;
+	LPDIRECTDRAWSURFACE7 pOldTexture;
+	int i;
+	TLVertex *pD;
+	UnkType_TLVertex40 *pS;
+
+	SharedTexture *pTexture = ((Surface *)pPoly->m_pSurface)->m_pTexture;
+	uint32 nSurfFlags = ((Surface *)pPoly->m_pSurface)->m_Flags & 0x100000;
+	bEnvMap = pTexture->m_eTexType != 0 && g_CV_EnvMapWorld.m_Unk00 != 0 && DAT_1005de2c != 0;
+	if (DAT_1005811c != 0)
+	{
+		pSrcVerts = (UnkType_PolyVertex *)pPoly->m_pVertices;
+		nTotalVerts = pPoly->m_nExtraVertices;
+	}
+	else
+	{
+		pSrcVerts = (UnkType_PolyVertex *)(pPoly + 1);
+		nTotalVerts = pPoly->m_nVertices;
+	}
+	nVerts = nTotalVerts;
+	if (nVerts > 0x80)
+	{
+		dsi_ConsolePrint("Error: vertex buffer overflow");
+		return;
+	}
+	StateSet tssFogColor(D3DRENDERSTATE_FOGCOLOR, FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042));
+	pVerts = aVerts;
+	FUN_10009f0b(nSurfFlags, aVerts, pSrcVerts, nVerts);
+	if (DAT_10056274 != 0 && !bEnvMap)
+	{
+		if (!FUN_100085f2(&pVerts, &nVerts, &g_ViewParams, 0))
+			return;
+		bClipped = pVerts != aVerts;
+		bNeedProject = 0;
+	}
+	if (g_CV_LMAnim.m_Unk00 != 0)
+		FUN_10009e80(DAT_10056770, pPoly);
+	int bFirst = WORLDPOLY_UNK48(pPoly)->m_Unk20 == 0;
+	if (bFirst)
+		WORLDPOLY_UNK48(pPoly)->m_Unk20 = 1;
+	if (WORLDPOLY_UNK30(pPoly) != 0)
+		bFirst = FUN_10020ff0(pPoly, bFirst);
+	else
+		WORLDPOLY_UNK48(pPoly)->m_Unk20 = 1;
+	if (bFirst != 0)
+	{
+		bLightmapTexture = 0;
+		if (bClipped)
+		{
+			pVerts = aVerts;
+			nVerts = nTotalVerts;
+			FUN_10009f6c(nSurfFlags, pPoly, aVerts, pSrcVerts, nTotalVerts);
+			bNeedProject = 1;
+		}
+		else
+			FUN_1000a066(pPoly, pVerts, pSrcVerts, nVerts);
+	}
+	if (bNeedProject && !bEnvMap)
+	{
+		if (!FUN_100085f2(&pVerts, &nVerts, &g_ViewParams, 0))
+			return;
+	}
+	pDest = FUN_1000a134(nVerts);
+	if (!pDest)
+		return;
+	if (DAT_100528d8 != 0)
+	{
+		if (nVerts != 0)
+		{
+			pD = pDest;
+			pS = pVerts;
+			i = nVerts;
+			do
+			{
+				*pD = *(TLVertex *)pS;
+				pD->tu = pS->tu;
+				pD->tv = pS->tv;
+				pD++;
+				pS++;
+				i--;
+			} while (i != 0);
+		}
+		UnkType_PoolNode *pNode = FUN_10007ddb(pPoly, &DAT_1005a308, 0);
+		pNode->m_Unk04 = DAT_100587e4;
+		pNode->m_Unk08 = nVerts;
+		pNode->m_Unk0c = bLightmapTexture ? DAT_10056274 : 0;
+		pNode->m_Unk14 = 3;
+		if (bLightmapTexture)
+		{
+			if (FUN_10009ea5((UnkType_Tex *)pPoly, DAT_1005c838))
+				bLightmapTexture = 0;
+		}
+		if (!bLightmapTexture)
+			DAT_1005de30->GetTexture(DAT_1005c838, &pOldTexture);
+		FUN_1000a2a7();
+		if (!bLightmapTexture)
+			DAT_1005de30->SetTexture(DAT_1005c838, pOldTexture);
+		if (nVerts != 0)
+		{
+			pD = pDest;
+			pS = pVerts;
+			i = nVerts;
+			do
+			{
+				pD->tu = pS->tu2;
+				pD->tv = pS->tv2;
+				pD++;
+				pS++;
+				i--;
+			} while (i != 0);
+		}
+		DAT_1005de30->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &dwOldAlphaBlend);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
+		DAT_1005de30->GetRenderState(D3DRENDERSTATE_ALPHAFUNC, &dwOldAlphaFunc);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, D3DCMP_ALWAYS);
+		if (DAT_100578ec != 0)
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
+		else
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_SRCCOLOR);
+		DAT_1005de30->GetRenderState(D3DRENDERSTATE_ZFUNC, &dwOldZFunc);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZFUNC, D3DCMP_EQUAL);
+	}
+	else
+	{
+		if (nVerts != 0)
+		{
+			pD = pDest;
+			pS = pVerts;
+			i = nVerts;
+			do
+			{
+				*pD = *(TLVertex *)pS;
+				pD->tu = pS->tu2;
+				pD->tv = pS->tv2;
+				pD++;
+				pS++;
+				i--;
+			} while (i != 0);
+		}
+	}
+	if (g_CV_LMFullBright.m_Unk00 == 0)
+	{
+		if (bLightmapTexture)
+		{
+			if (!FUN_10009ea5((UnkType_Tex *)pPoly, DAT_1005c838))
+			{
+				FUN_10013ef0(pPoly);
+				return;
+			}
+		}
+		if (bEnvMap)
+			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pDest, nVerts, 0);
+		else
+			FUN_1000ad48(pDest, nVerts, &g_ViewParams, 0x1c4);
+	}
+	if (DAT_100528d8 != 0)
+	{
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, dwOldAlphaBlend);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, dwOldAlphaFunc);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZFUNC, dwOldZFunc);
+	}
+	else
+	{
+		if (nVerts != 0)
+		{
+			pD = pDest;
+			pS = pVerts;
+			i = nVerts;
+			do
+			{
+				pD->tu = pS->tu;
+				pD->tv = pS->tv;
+				pD++;
+				pS++;
+				i--;
+			} while (i != 0);
+		}
+		UnkType_PoolNode *pNode = FUN_10007ddb(pPoly, &DAT_1005a308, 0);
+		pNode->m_Unk04 = DAT_100587e4;
+		pNode->m_Unk08 = nVerts;
+		pNode->m_Unk0c = DAT_10056274;
+		pNode->m_Unk14 = 3;
+		if (g_CV_FixSparkleys.m_Unk00 != 0)
+			FUN_1000a2a7();
+	}
+	DAT_100587e4 += nVerts;
+	DAT_100566ac++;
+}
+
+// guess: if the poly's light-animation flag (bit 0x8000 of WorldPoly::m_Flags, part of WPF_RELIGHT) is set, clears it and
+// relights its lightmap.
+// FUNCTION: D3DREN 0x10009e80
+void FUN_10009e80(MainWorld *pWorld, WorldPoly *pPoly)
+{
+	if (pPoly->m_Flags & 0x8000)
+	{
+		pPoly->m_Flags &= 0x7fff;
+		FUN_10033210(pWorld, pPoly, 0);
+	}
+}
+
+// ---- texture binding -----------------------------------------------------------------------------------------------
+
+// guess: binds the texture data of pTex on device stage nStage unless it is already there; counts the bytes touched this frame.
+// (The `return 1` inside the inner block and at the end is what keeps both callee-saved registers pushed at entry and the
+// single epilogue of the exe: a plain `else` block or a bool-like return gives the shrink-wrapped or the setne form.)
+// FUNCTION: D3DREN 0x10009ea5
+int FUN_10009ea5(UnkType_Tex *pTex, int nStage)
+{
+	UnkType_TexData *pData = pTex->m_Unk48;
+	if (pData == 0)
+		return 0;
+	if (pData != DAT_100617d8[nStage] && pData->m_Unk20)
+	{
+		if (pData->m_Unk18 != g_CurFrameCode)
+		{
+			// RenderStruct bytes 0x48-0x6f are unnamed in include/renderstruct.h: +0x4c is a per-frame texture byte counter.
+			*(int *)((uint8 *)g_pStruct + 0x4c) += pData->m_Unk14;
+			pData->m_Unk18 = g_CurFrameCode;
+		}
+		DAT_1005de30->SetTexture(nStage, pData->m_Unk1c);
+		DAT_100617d8[nStage] = pData;
+		return 1;
+	}
+	return 1;
+}
+
+// guess: sets the first texture coordinates of a vertex (the arguments stay on the x87 stack: `fld v; fld u; fstp tu; fstp tv`).
+static inline void SetUV(UnkType_TLVertex40 *pVertex, float u, float v)
+{
+	pVertex->tu = u;
+	pVertex->tv = v;
+}
+
+static inline void SetUV(TLVertex *pVertex, float u, float v)
+{
+	pVertex->tu = u;
+	pVertex->tv = v;
+}
+
+// guess: fills nVerts 0x28-byte vertices from the polygon's vertices: position, the current colour, the fog alpha callback,
+// the texture coordinates and the second (lightmap) coordinates.
+// FUNCTION: D3DREN 0x10009f0b
+void FUN_10009f0b(uint32 nFlags, UnkType_TLVertex40 *pDest, UnkType_PolyVertex *pSrc, int nVerts)
+{
+	for (int i = 0; i < nVerts; i++)
+	{
+		pDest->m_Vec.x = pSrc->m_Vec->x;
+		pDest->m_Vec.y = pSrc->m_Vec->y;
+		pDest->m_Vec.z = pSrc->m_Vec->z;
+		pDest->color = DAT_100566bc.color;
+		(*DAT_1005872c)(&pDest->m_Vec, &pDest->specular);
+		SetUV(pDest, pSrc->m_U, pSrc->m_V);
+		pDest->tu2 = pSrc->m_Unk0c;
+		pDest->tv2 = pSrc->m_Unk10;
+		pDest++;
+		pSrc++;
+	}
+}
+
+// guess: like FUN_10009f0b, but the second texture coordinates are derived from the lightmap plane vectors and the poly's
+// lightmap origin (WorldPoly +0x38): ((P . (v - origin)) / grid + 0.5) * lightmap scale.
+// Source shape: the first dot product only comes out in the exe's order when it is written right-associated, `z + (y + x)`
+// (left-associated terms give the load of DAT_10056770 and the y/z product in the wrong places); the second one is plain.
+// FUNCTION: D3DREN 0x10009f6c
+void FUN_10009f6c(uint32 nFlags, WorldPoly *pPoly, UnkType_TLVertex40 *pDest, UnkType_PolyVertex *pSrc, int nVerts)
+{
+	LTVector P, Q;
+	SetupLMPlaneVectors((pPoly->m_Flags & 0x3800) >> 11, pPoly->m_pPlane->m_Normal, P, Q);
+	for (int i = 0; i < nVerts; i++)
+	{
+		pDest->m_Vec.x = pSrc->m_Vec->x;
+		pDest->m_Vec.y = pSrc->m_Vec->y;
+		pDest->m_Vec.z = pSrc->m_Vec->z;
+		pDest->color = DAT_100566bc.color;
+		(*DAT_1005872c)(&pDest->m_Vec, &pDest->specular);
+		LTVector *pVec = pSrc->m_Vec;
+		float dx = pVec->x - pPoly->m_Unknown38.x;
+		float dy = pVec->y - pPoly->m_Unknown38.y;
+		float dz = pVec->z - pPoly->m_Unknown38.z;
+		SetUV(pDest, pSrc->m_U, pSrc->m_V);
+		pDest->tu2 = ((P.z * dz + (P.y * dy + P.x * dx)) / DAT_10056770->m_LMGridSize + 0.5f) * DAT_10061810[0].m_Unk00;
+		pDest->tv2 = ((Q.x * dx + Q.y * dy + Q.z * dz) / DAT_10056770->m_LMGridSize + 0.5f) * DAT_10061810[0].m_Unk04;
+		pSrc++;
+		pDest++;
+	}
+}
+
+// guess: rewrites only the second texture coordinates of nVerts existing 0x28-byte vertices.
+// Source shape: the first sum needs a per-vertex local copy of P.z (`float fPz = P.z; ... fPz * dz`); with P.z read in place the
+// exe's order of the load of DAT_10056770 inside the sum is not produced (found with the permuter, minimised by hand).
+// FUNCTION: D3DREN 0x1000a066
+void FUN_1000a066(WorldPoly *pPoly, UnkType_TLVertex40 *pDest, UnkType_PolyVertex *pSrc, int nVerts)
+{
+	LTVector P, Q;
+	SetupLMPlaneVectors((pPoly->m_Flags & 0x3800) >> 11, pPoly->m_pPlane->m_Normal, P, Q);
+	float fHalf = 0.5f;
+	for (int i = 0; i < nVerts; i++)
+	{
+		LTVector vOrigin = pPoly->m_Unknown38;
+		float dx = pSrc->m_Vec->x - vOrigin.x;
+		float dy = pSrc->m_Vec->y - vOrigin.y;
+		float dz = pSrc->m_Vec->z - vOrigin.z;
+		float fPz = P.z;
+		pDest->tu2 = ((P.x * dx + P.y * dy + fPz * dz) / DAT_10056770->m_LMGridSize + fHalf) * DAT_10061810[0].m_Unk00;
+		pDest->tv2 = ((Q.x * dx + Q.y * dy + Q.z * dz) / DAT_10056770->m_LMGridSize + fHalf) * DAT_10061810[0].m_Unk04;
+		pSrc++;
+		pDest++;
+	}
+}
+
+// guess: returns room for nVerts more vertices of the scratch array (growing it when needed), 0 when that fails.
+// FUNCTION: D3DREN 0x1000a134
+TLVertex *FUN_1000a134(int nVerts)
+{
+	if (DAT_100587e4 + nVerts > DAT_1005a368)
+	{
+		if (!FUN_10013e80(DAT_1005a368 + 0x5dc + nVerts))
+			return 0;
+	}
+	return DAT_100587fc + DAT_100587e4;
+}
+
+// guess: draws the poly now when it has a lightmap, else queues it under its lightmap record (to be drawn by the flush).
+// FUNCTION: D3DREN 0x1000a16b
+void FUN_1000a16b(WorldPoly *pPoly)
+{
+	if (WORLDPOLY_UNK30(pPoly))
+		FUN_100099b9(pPoly);
+	else
+	{
+		UnkType_LMPage *pPage = WORLDPOLY_UNK48(pPoly);
+		if (pPage)
+		{
+			UnkType_PoolNode *pNode = (UnkType_PoolNode *)sb_Allocate(&DAT_10058758);
+			if (pNode)
+			{
+				if (!LMPAGE_QUEUE(pPage))
+				{
+					LMPAGE_NEXT(pPage) = DAT_100528d4;
+					DAT_100528d4 = pPage;
+				}
+				uint32 nState = DAT_10056274;
+				pNode->m_Unk00 = pPoly;
+				pNode->m_Unk0c = nState;
+				pNode->m_Unk10 = LMPAGE_QUEUE(pPage);
+				LMPAGE_QUEUE(pPage) = pNode;
+			}
+		}
+	}
+}
+
+// ---- second texture stage setup ------------------------------------------------------------------------------------
+
+// guess: stage 1 is the detail texture stage: mode 1 = modulate (or add-signed when "DetailTextureAdd" is set) the
+// colour and select the alpha of the first stage; mode 2 = modulate alpha + add colour.
+// FUNCTION: D3DREN 0x1000a1c2
+void FUN_1000a1c2(int nMode)
+{
+	switch (nMode)
+	{
+	case 1:
+		DAT_1005de30->SetTextureStageState(1, D3DTSS_COLOROP, g_CV_DetailTextureAdd.m_Unk00 ? D3DTOP_ADDSIGNED : D3DTOP_MODULATE);
+		DAT_1005de30->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		break;
+	case 2:
+		DAT_1005de30->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_MODULATEALPHA_ADDCOLOR);
+		break;
+	}
+}
+
+// FUNCTION: D3DREN 0x1000a211
+void FUN_1000a211(void)
+{
+	DAT_1005de30->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+	DAT_1005de30->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+}
+
+// FUNCTION: D3DREN 0x1000a23a
+void FUN_1000a23a(void)
+{
+	DAT_1005de30->SetTextureStageState(1, D3DTSS_COLOROP, g_CV_DetailTextureAdd.m_Unk00 ? D3DTOP_ADDSIGNED : D3DTOP_MODULATE);
+}
+
+// FUNCTION: D3DREN 0x1000a25e
+void FUN_1000a25e(void)
+{
+	DAT_1005de30->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+	FUN_1000a27b(1);
+}
+
+// The exe's out-of-line copy of the inline d3d_DisableTexture (d3d_texture.h), called by d3d_FullDrawScene (0x10014a40); every other caller expands
+// or calls the inline.  Same body as the inline (a wrapper around the inline does not match: SIZE), kept as its own definition because the call in
+// d3d_FullDrawScene must stay out of line.
+// FUNCTION: D3DREN 0x1000a27b
+void FUN_1000a27b(int nStage)
+{
+	if (DAT_100617d8[nStage])
+	{
+		DAT_1005de30->SetTexture(nStage, 0);
+		DAT_100617d8[nStage] = 0;
+	}
+}
+
+// guess: draws every texture bucket of the queue DAT_1005a308 (the polys that were queued per texture): buckets whose texture
+// has a lightmap are drawn with the multiply blend, then the others / the second pass with the alpha blend; the queue and the
+// vertex scratch array are emptied.
+// FUNCTION: D3DREN 0x1000a2a7
+void FUN_1000a2a7(void)
+{
+	StageStateSet tssColorArg1(1, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	StageStateSet tssColorArg2(1, D3DTSS_COLORARG2, D3DTA_CURRENT);
+	DWORD dwOldAlphaBlend;
+	if (DAT_100528d8 == 0 && g_CV_LMFullBright.m_Unk00 == 0)
+	{
+		DAT_1005de30->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &dwOldAlphaBlend);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
+		if (DAT_100578ec != 0)
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
+		else
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_SRCCOLOR);
+	}
+	StateSet tssFogColor(D3DRENDERSTATE_FOGCOLOR, FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042));
+	UnkType_PoolBucket *pSecondPass = 0;
+	UnkType_PoolBucket *pBucket = DAT_1005a308;
+	while (pBucket)
+	{
+		UnkType_PoolBucket *pNextBucket = pBucket->m_Unk08;
+		if (DAT_100584e0 != 0)
+			FUN_100142b0(pBucket->m_Unk04);
+		else if (pBucket->m_Unk04 != 0)
+		{
+			SharedTexture *pTexture = ((Surface *)((WorldPoly *)pBucket->m_Unk04->m_Unk00)->m_pSurface)->m_pTexture;
+			if (FUN_100211d0(pTexture, 0) != 0 && DAT_100528d8 == 0 && g_CV_LMFullBright.m_Unk00 == 0)
+			{
+				if (DAT_100578ec != 0)
+					FUN_1000a538(pBucket, pTexture, 0, 0);
+				pBucket->m_Unk08 = pSecondPass;
+				pSecondPass = pBucket;
+				pBucket = pNextBucket;
+				continue;
+			}
+			FUN_1000a538(pBucket, pTexture, 1, 0);
+		}
+		((UnkType_BucketOwner *)pBucket->m_Unk00)->m_Unk1c[0] = 0;
+		sb_Free(&DAT_10058c98, pBucket);
+		pBucket = pNextBucket;
+	}
+	if (DAT_100528d8 == 0 && g_CV_LMFullBright.m_Unk00 == 0)
+	{
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_SRCALPHA);
+		if (DAT_100578ec != 0)
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_INVSRCALPHA);
+		pBucket = pSecondPass;
+		while (pBucket)
+		{
+			UnkType_PoolBucket *pNextBucket = pBucket->m_Unk08;
+			FUN_1000a538(pBucket, ((Surface *)((WorldPoly *)pBucket->m_Unk04->m_Unk00)->m_pSurface)->m_pTexture, 1, DAT_100578ec);
+			((UnkType_BucketOwner *)pBucket->m_Unk00)->m_Unk1c[0] = 0;
+			sb_Free(&DAT_10058c98, pBucket);
+			pBucket = pNextBucket;
+		}
+		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, dwOldAlphaBlend);
+	}
+	DAT_1005a308 = 0;
+	DAT_100587e4 = 0;
+}
+
+// NAME: StageStateSet: Jupiter render_a/src/sys/d3d/d3d_draw.h class StageStateSet (m_Stage, m_State, m_OldVal;
+// constructor Get+Set, destructor restores).  The d3d.ren constructor (FUN_1000a4dc) sets the state unconditionally,
+// Jupiter's skips the Set when the old value equals the new one.
+// FUNCTION: D3DREN 0x1000a4dc ??0StageStateSet@@QAE@KW4_D3DTEXTURESTAGESTATETYPE@@K@Z
+StageStateSet::StageStateSet(uint32 stage, D3DTEXTURESTAGESTATETYPE state, uint32 val)
+{
+	m_Stage = stage;
+	m_State = state;
+	DAT_1005de30->GetTextureStageState(m_Stage, m_State, (unsigned long *)&m_OldVal);
+	DAT_1005de30->SetTextureStageState(m_Stage, m_State, val);
+}
+
+// FUNCTION: D3DREN 0x1000a521 ??1StageStateSet@@QAE@XZ
+StageStateSet::~StageStateSet()
+{
+	DAT_1005de30->SetTextureStageState(m_Stage, m_State, m_OldVal);
+}
+
+// guess: draws the polys of one texture bucket: with the second (detail / environment map) texture stage when the device can
+// blend two textures and the texture has one, else with a single texture.  a3 / a4: flags for the batch drawers.
+// FUNCTION: D3DREN 0x1000a538
+void FUN_1000a538(UnkType_PoolBucket *pBucket, SharedTexture *pTexture, int a3, int a4)
+{
+	StateSet tssFogColor(D3DRENDERSTATE_FOGCOLOR, FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042));
+	if (DAT_1005de2c != 0 && pTexture->m_eTexType != 0 && g_CV_EnvMapWorld.m_Unk00 != 0
+		&& d3d_SetTexture(pTexture->m_pLinkedTexture, 0, 0))
+	{
+		d3d_SetTexture(pTexture, 1, 0);
+		DAT_10063c90.FUN_10021da6();
+		if (pTexture->m_pStateChange)
+			DAT_10063c90.FUN_10021db7(pTexture->m_pStateChange, 1);
+		DAT_100514a8 = g_CV_DetailTextureScale.m_Unk04;
+		FUN_1000a1c2(pTexture->m_eTexType);
+		FUN_1000a8c0(pBucket, a3, a4);
+		FUN_1000a211();
+	}
+	else
+	{
+		d3d_SetTexture(pTexture, 0, 0);
+		if (pTexture->m_pStateChange)
+			DAT_10063c90.FUN_10021db7(pTexture->m_pStateChange, 0);
+		if (DAT_1005de2c != 0 && g_CV_DetailTextures.m_Unk00 != 0 && DAT_100617d8[0] != 0
+			&& pTexture->m_pLinkedTexture != 0 && pTexture->m_eTexType == 0
+			&& d3d_SetTexture(pTexture->m_pLinkedTexture, 1, 0))
+		{
+			DAT_100514a8 = g_CV_DetailTextureScale.m_Unk04;
+			if (((UnkType_RTextureBase *)DAT_100617d8[0])->FUN_vslot1() == 1)
+			{
+				DAT_100514a8 = DAT_100514a8 * ((UnkType_RTextureData *)DAT_100617d8[0])->m_pOwner->m_DetailTextureScale;
+				DAT_100518d0 = ((UnkType_RTextureData *)DAT_100617d8[0])->m_pOwner->m_DetailTextureAngleC;
+				DAT_100513e0 = ((UnkType_RTextureData *)DAT_100617d8[0])->m_pOwner->m_DetailTextureAngleS;
+			}
+			else
+			{
+				DAT_100518d0 = 1.0f;
+				DAT_100513e0 = 0.0f;
+			}
+			FUN_1000a23a();
+			FUN_1000a8c0(pBucket, a3, a4);
+			FUN_1000a25e();
+		}
+		else
+			FUN_1000a70d(pBucket, a3, a4);
+	}
+	DAT_10063c90.FUN_10021da6();
+}
+
+// guess: draws the polys of one texture bucket with a single texture (the base texture bound by the caller): one triangle fan
+// per queued poly from the scratch array, switching alpha blending, the fog colour and the blend factor as the poly's flags
+// (+0x14: bit 0 blended, bit 1 saturate, bit 2 keeps its vertex colour) ask; the lightmap coordinates are scaled by the stage
+// scale unless a3.  a2 gives the nodes back to the pool.
+// FUNCTION: D3DREN 0x1000a70d
+void FUN_1000a70d(UnkType_PoolBucket *pBucket, int a2, int a3)
+{
+	int bAlphaBlend = 1;
+	int bSaturate = 1;
+	UnkType_PoolNode *pNode = pBucket->m_Unk04;
+	if (pNode)
+	{
+		do
+		{
+			UnkType_PoolNode *pNext = pNode->m_Unk10;
+			if (bAlphaBlend != (pNode->m_Unk14 & 1))
+			{
+				bAlphaBlend = pNode->m_Unk14 & 1;
+				DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, bAlphaBlend);
+				if (bAlphaBlend == 0)
+				{
+					uint32 dwFogColor = FUN_100139d0(DAT_10058040, DAT_10058041, DAT_10058042);
+					DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGCOLOR, dwFogColor);
+				}
+				else
+				{
+					uint32 dwFogColor = FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042);
+					DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGCOLOR, dwFogColor);
+				}
+			}
+			if (bAlphaBlend != 0)
+			{
+				if (bSaturate != ((pNode->m_Unk14 >> 1) & 1))
+				{
+					bSaturate = (pNode->m_Unk14 >> 1) & 1;
+					if (DAT_100578ec != 0 && bSaturate != 0)
+						DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
+					else
+						DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
+				}
+			}
+			int bKeepColor = (pNode->m_Unk14 >> 2) & 1;
+			TLVertex *pVerts = DAT_100587fc + pNode->m_Unk04;
+			if (a3 == 0)
+			{
+				TLVertex *pVert = pVerts;
+				int i = pNode->m_Unk08;
+				while (i--)
+				{
+					if (bKeepColor == 0)
+						pVert->color = 0xffffffff;
+					SetUV(pVert, DAT_10061810[0].m_Unk00 * pVert->tu, DAT_10061810[0].m_Unk04 * pVert->tv);
+					pVert++;
+				}
+			}
+			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, pNode->m_Unk08, 0);
+			if (a2 != 0)
+				sb_Free(&DAT_10058758, pNode);
+			pNode = pNext;
+		} while (pNode);
+		if (bAlphaBlend == 0 || bSaturate == 0)
+		{
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
+			uint32 dwFogColor = FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042);
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGCOLOR, dwFogColor);
+			if (DAT_100578ec != 0)
+				DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
+			else
+				DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
+		}
+	}
+}
+
+// guess: draws the polys of one texture bucket with the detail / environment map texture on stage 1: the second texture
+// coordinates are the (rotated and scaled) detail coordinates of the poly, or, for an environment map texture, the sphere map
+// coordinates computed from the viewer position; each poly is clipped and drawn as a 0x28-byte vertex fan.  a2 gives the nodes
+// back to the pool; the third argument is not used.
+// Not matching: 958 of 955 bytes, 307 vs 307 instructions, the body after the prologue (alpha/saturate/fog state switching, both
+// vertex branches, the sphere map branch, the epilogue block) has the same instructions as the exe; the difference is the frame
+// layout of the prologue.  The exe has 7 scalar slots ([ebp-4]..[ebp-0x1c], aTexMat at [ebp-0x2c]..[ebp-0x1d], the 0x28-byte
+// vertex array below) and keeps the x87 temporaries of the matrix setup as `fld S; fld st(0); fmul K0; fld K1; fmul st(2);
+// fstp [ebp-0x18]` (S is loaded once, K1*S is spilled to a slot that the loop later reuses for pNext); we load K0 and multiply by
+// the stack copy of S, the K1*S spill gets its own slot and the frame is 4 bytes smaller (sub esp,0xcac vs 0xcb0), which shifts every
+// local after it.  Tried: S in a local, no local, fU/fV as locals / scoped / inlined into the four stores, 6 orders of the stores,
+// the statement permuter (3000 candidates, best 80 aligned mismatches).  Source-shape problem of the 2x2 matrix setup (the original
+// probably builds the matrix through a helper or a differently typed expression).
+// STUB: D3DREN 0x1000a8c0
+void FUN_1000a8c0(UnkType_PoolBucket *pBucket, int a2, int a3)
+{
+	UnkType_TLVertex40 aVerts[80];
+	float aTexMat[2][2];
+	float fU = DAT_100514a8 * DAT_10061810[1].m_Unk00;
+	float fV = DAT_10061810[1].m_Unk04 * DAT_100514a8;
+	aTexMat[0][0] = DAT_100518d0 * fU;
+	aTexMat[0][1] = -(DAT_100513e0 * fV);
+	aTexMat[1][0] = DAT_100513e0 * fU;
+	aTexMat[1][1] = DAT_100518d0 * fV;
+	int bAlphaBlend = 1;
+	int bSaturate = 1;
+	UnkType_PoolNode *pNode = pBucket->m_Unk04;
+	if (pNode)
+	{
+		do
+		{
+			UnkType_PoolNode *pNext = pNode->m_Unk10;
+			WorldPoly *pPoly = (WorldPoly *)pNode->m_Unk00;
+			if (bAlphaBlend != (pNode->m_Unk14 & 1))
+			{
+				bAlphaBlend = pNode->m_Unk14 & 1;
+				DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, bAlphaBlend);
+				if (bAlphaBlend == 0)
+				{
+					uint32 dwFogColor = FUN_100139d0(DAT_10058040, DAT_10058041, DAT_10058042);
+					DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGCOLOR, dwFogColor);
+				}
+				else
+				{
+					uint32 dwFogColor = FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042);
+					DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGCOLOR, dwFogColor);
+				}
+			}
+			if (bAlphaBlend != 0)
+			{
+				if (bSaturate != ((pNode->m_Unk14 >> 1) & 1))
+				{
+					bSaturate = (pNode->m_Unk14 >> 1) & 1;
+					if (DAT_100578ec != 0 && bSaturate != 0)
+						DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
+					else
+						DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
+				}
+			}
+			int bKeepColor = (pNode->m_Unk14 >> 2) & 1;
+			if (((Surface *)pPoly->m_pSurface)->m_pTexture->m_eTexType == 0 || g_CV_EnvMapWorld.m_Unk00 == 0)
+			{
+				TLVertex *pSrc = DAT_100587fc + pNode->m_Unk04;
+				UnkType_TLVertex40 *pDest = aVerts;
+				int nVerts = pNode->m_Unk08;
+				int i = nVerts;
+				while (i--)
+				{
+					*(TLVertex *)pDest = *pSrc;
+					if (bKeepColor == 0)
+						pDest->color = 0xffffffff;
+					SetUV(pDest, DAT_10061810[0].m_Unk00 * pSrc->tu, DAT_10061810[0].m_Unk04 * pSrc->tv);
+					pDest->tu2 = aTexMat[0][0] * pSrc->tu + aTexMat[0][1] * pSrc->tv;
+					pDest->tv2 = aTexMat[1][0] * pSrc->tu + aTexMat[1][1] * pSrc->tv;
+					pSrc++;
+					pDest++;
+				}
+				DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x2c4, aVerts, nVerts, 0);
+			}
+			else
+			{
+				UnkType_PolyVertex *pSrc;
+				int nVerts;
+				if (DAT_1005811c != 0)
+				{
+					pSrc = (UnkType_PolyVertex *)pPoly->m_pVertices;
+					nVerts = pPoly->m_nExtraVertices;
+				}
+				else
+				{
+					nVerts = pPoly->m_nVertices;
+					pSrc = (UnkType_PolyVertex *)(pPoly + 1);
+				}
+				UnkType_TLVertex40 *pDest = aVerts;
+				for (int i = nVerts; i != 0; i--)
+				{
+					pDest->m_Vec.x = pSrc->m_Vec->x;
+					pDest->m_Vec.y = pSrc->m_Vec->y;
+					pDest->m_Vec.z = pSrc->m_Vec->z;
+					if (bKeepColor == 0)
+						pDest->color = DAT_100566bc.color;
+					else
+					{
+						pDest->rgb.r = DAT_10082168.m_Unk00[DAT_100566bc.rgb.r + pSrc->m_Color[2] * 256];
+						pDest->rgb.g = DAT_10082168.m_Unk00[DAT_100566bc.rgb.g + pSrc->m_Color[1] * 256];
+						pDest->rgb.b = DAT_10082168.m_Unk00[DAT_100566bc.rgb.b + pSrc->m_Color[0] * 256];
+						pDest->rgb.a = DAT_10082168.m_Unk00[DAT_100566bc.rgb.a + pSrc->m_Color[3] * 256];
+					}
+					pDest->tu2 = DAT_10061810[1].m_Unk00 * pSrc->m_U;
+					pDest->tv2 = DAT_10061810[1].m_Unk04 * pSrc->m_V;
+					(*DAT_1005872c)(&pDest->m_Vec, &pDest->specular);
+					FUN_1001085e((LTVector *)&g_ViewParams.m_Pos, pSrc->m_Vec, &pPoly->m_pPlane->m_Normal, &pDest->tu, &pDest->tv);
+					pDest->tu = DAT_100514a8 * pDest->tu;
+					pDest->tv = DAT_100514a8 * pDest->tv;
+					pDest++;
+					pSrc++;
+				}
+				DAT_10056274 = pNode->m_Unk0c;
+				FUN_1000ae2f(aVerts, nVerts, &g_ViewParams, 0x2c4);
+			}
+			if (a2 != 0)
+				sb_Free(&DAT_10058758, pNode);
+			pNode = pNext;
+		} while (pNode);
+		if (bAlphaBlend == 0 || bSaturate == 0)
+		{
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
+			uint32 dwFogColor = FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042);
+			DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGCOLOR, dwFogColor);
+			if (DAT_100578ec != 0)
+				DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
+			else
+				DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
+		}
+	}
+}
+
+// guess: draws the queued lightmap polys if there are any.
+// FUNCTION: D3DREN 0x1000ac7b
+void FUN_1000ac7b(void)
+{
+	if (DAT_1005a308)
+		FUN_1000a2a7();
+}
+
+// guess: draws the polys that were queued per lightmap page (DAT_100528d4) with FUN_100099b9, frees their nodes and empties
+// the queue; the fog colour is set around the loop.
+// FUNCTION: D3DREN 0x1000ac8a
+void FUN_1000ac8a(void)
+{
+	StateSet tssFogColor(D3DRENDERSTATE_FOGCOLOR, FUN_10013990(DAT_10058040, DAT_10058041, DAT_10058042));
+	UnkType_LMPage *pPage = DAT_100528d4;
+	while (pPage)
+	{
+		UnkType_LMPage *pNextPage = LMPAGE_NEXT(pPage);
+		UnkType_PoolNode *pNode = LMPAGE_QUEUE(pPage);
+		while (pNode)
+		{
+			UnkType_PoolNode *pNext = pNode->m_Unk10;
+			DAT_10056274 = pNode->m_Unk0c;
+			FUN_100099b9((WorldPoly *)pNode->m_Unk00);
+			sb_Free(&DAT_10058758, pNode);
+			pNode = pNext;
+		}
+		LMPAGE_NEXT(pPage) = 0;
+		LMPAGE_QUEUE(pPage) = 0;
+		pPage = pNextPage;
+	}
+	DAT_100528d4 = 0;
+}
+
+// guess: draws the polygon pVerts (nVerts 0x20-byte vertices, vertex format nFVF) as a triangle fan: projected at once when it
+// needs no clipping (DAT_10056274 == 0, or with "UseD3DClip" set and the near plane not involved), else as one projected and
+// clipped triangle per fan triangle.
+// FUNCTION: D3DREN 0x1000ad48
+void FUN_1000ad48(TLVertex *pVerts, int nVerts, ViewParams *pParams, uint32 nFVF)
+{
+	TLVertex aTri[32];
+	TLVertex *pTri;
+	TLVertex *pTriVerts;
+	int nTriVerts;
+
+	if (DAT_10056274 == 0 || (g_CV_UseD3DClip.m_Unk00 && (DAT_10056274 & 1) == 0))
+	{
+		if (FUN_1000af16(&pVerts, &nVerts, pParams, 0))
+			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, nFVF, pVerts, nVerts, 0);
+	}
+	else if (nVerts > 2)
+	{
+		pTri = pVerts;
+		do
+		{
+			aTri[0] = pVerts[0];
+			aTri[1] = pTri[1];
+			aTri[2] = pTri[2];
+			nTriVerts = 3;
+			pTriVerts = aTri;
+			if (FUN_1000af16(&pTriVerts, &nTriVerts, pParams, 0))
+				DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, nFVF, pTriVerts, nTriVerts, 0);
+			pTri++;
+			nVerts--;
+		} while (nVerts > 2);
+	}
+}
+
+// guess: the 0x28-byte twin of FUN_1000ad48 (the vertices carry the second texture coordinates).
+// FUNCTION: D3DREN 0x1000ae2f
+void FUN_1000ae2f(UnkType_TLVertex40 *pVerts, int nVerts, ViewParams *pParams, uint32 nFVF)
+{
+	UnkType_TLVertex40 aTri[32];
+	UnkType_TLVertex40 *pTri;
+	UnkType_TLVertex40 *pTriVerts;
+	int nTriVerts;
+
+	if (DAT_10056274 == 0 || (g_CV_UseD3DClip.m_Unk00 && (DAT_10056274 & 1) == 0))
+	{
+		if (FUN_100085f2(&pVerts, &nVerts, pParams, 0))
+			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, nFVF, pVerts, nVerts, 0);
+	}
+	else if (nVerts > 2)
+	{
+		pTri = pVerts;
+		do
+		{
+			aTri[0] = pVerts[0];
+			aTri[1] = pTri[1];
+			aTri[2] = pTri[2];
+			nTriVerts = 3;
+			pTriVerts = aTri;
+			if (FUN_100085f2(&pTriVerts, &nTriVerts, pParams, 0))
+				DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, nFVF, pTriVerts, nTriVerts, 0);
+			pTri++;
+			nVerts--;
+		} while (nVerts > 2);
+	}
+}
+
+// guess: projects the 0x20-byte vertices *ppVerts (*pnVerts of them) to the screen: without clip planes (DAT_10056274 == 0)
+// through the view * projection matrix (rhw = 1 / w); else to camera space, clipped (FUN_1000afb1) and then projected
+// (FUN_10008895).  Returns 0 when the clipping leaves nothing.  0x28-byte twin: FUN_100085f2.  The fourth argument is not used
+// (every caller passes 0, as for FUN_100085f2).
+// FUNCTION: D3DREN 0x1000af16
+int FUN_1000af16(TLVertex **ppVerts, int *pnVerts, ViewParams *pParams, int param_4)
+{
+	TLVertex *pVert;
+	int i;
+
+	if (DAT_10056274 == 0)
+	{
+		pVert = *ppVerts;
+		for (i = *pnVerts; i != 0; i--)
+		{
+			pVert->rhw = MatVMul_InPlace_H(&pParams->m_FullTransform, &pVert->m_Vec);
+			pVert++;
+		}
+	}
+	else
+	{
+		pVert = *ppVerts;
+		for (i = *pnVerts; i != 0; i--)
+		{
+			FUN_10008719(&pVert->m_Vec.x, &pParams->m_Unk15c.m[0][0]);
+			pVert++;
+		}
+		if (!FUN_1000afb1(DAT_10056274, ppVerts, pnVerts))
+			return 0;
+		pVert = *ppVerts;
+		for (i = *pnVerts; i != 0; i--)
+		{
+			FUN_10008895(&pVert->m_Vec.x, pParams);
+			pVert++;
+		}
+	}
+	return 1;
+}
+
+// guess: clips the polygon *ppVerts (*pnVerts vertices) against the planes of the mask nFlags (1 near, 4 left, 8, 0x10, 0x20,
+// 2 = the 0x20-byte vertex clippers); the result replaces *ppVerts / *pnVerts.  Returns 0 when nothing is left.  With the
+// "UseD3DClip" console variable set only the near plane is clipped here.  The six `char` locals are the unused first
+// arguments of the plane clippers (all six exist separately in the original: their addresses are passed).
+// FUNCTION: D3DREN 0x1000afb1
+int FUN_1000afb1(uint32 nFlags, TLVertex **ppVerts, int *pnVerts)
+{
+	TLVertex *pOut;
+	TLVertex *pVerts;
+	int nVerts;
+	char c0, c1, c2, c3, c4, c5;
+	int bResult;
+
+	if (g_CV_UseD3DClip.m_Unk00)
+	{
+		nFlags &= 1;
+		if (!nFlags)
+		{
+			bResult = 1;
+			goto Exit;	// (a plain `return 1;` makes the compiler push esi/edi after this test; the exe pushes them first)
+		}
+	}
+	pOut = DAT_1005627c;
+	pVerts = *ppVerts;
+	nVerts = *pnVerts;
+	if (((nFlags & 1) == 0 || FUN_1000b0cd(&c0, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 4) == 0 || FUN_1000b20c(&c1, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 8) == 0 || FUN_100063e0(&c2, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 0x10) == 0 || FUN_10006670(&c3, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 0x20) == 0 || FUN_10006900(&c4, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 2) == 0 || FUN_10006ba0(&c5, &pVerts, &nVerts, &pOut)))
+	{
+		*ppVerts = pVerts;
+		*pnVerts = nVerts;
+		bResult = 1;
+	}
+	else
+		bResult = 0;
+Exit:
+	return bResult;
+}
+
+// guess: Jupiter polyclip.h expanded for the near plane (z >= g_ViewParams.m_NearZ) on 0x20-byte vertices: *ppVerts / *pnVerts are the
+// polygon (replaced by the clipped copy built at *ppOut, which advances); returns 0 when nothing is inside.  The first
+// argument is unused.  Its inside[] array is a function-local static of the original (0x10094de0), shared with the copy
+// inlined in FUN_10001530.
+// FUNCTION: D3DREN 0x1000b0cd
+int FUN_1000b0cd(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut)
+{
+	TLVertex *&pVerts = *ppVerts;
+	int &nVerts = *pnVerts;
+	TLVertex *&pOut = *ppOut;
+	int nInside = 0;
+	int *pInside;
+	TLVertex *pPrev, *pCur, *pEnd, *pOldOut;
+	int iPrev, iCur;
+	float t;
+
+	DAT_1005668c++;
+	pInside = DAT_10094de0;
+	pCur = pVerts;
+	pEnd = pCur + nVerts;
+	while (pCur != pEnd)
+	{
+		*pInside = pCur->m_Vec.z >= g_ViewParams.m_NearZ;
+		nInside += *pInside;
+		++pInside;
+		++pCur;
+	}
+	if (nInside == 0)
+		return 0;
+	else if (nInside != nVerts)
+	{
+		pOldOut = pOut;
+		iPrev = nVerts - 1;
+		pPrev = pVerts + iPrev;
+		for (iCur = 0; iCur < nVerts; iCur++)
+		{
+			pCur = pVerts + iCur;
+			if (DAT_10094de0[iPrev])
+				*pOut++ = *pPrev;
+			if (DAT_10094de0[iPrev] != DAT_10094de0[iCur])
+			{
+				t = FUN_10001a50(&pPrev->m_Vec.x, &pCur->m_Vec.x, &pOut->m_Vec.x);
+				FUN_10001940(pPrev, pCur, pOut, t);
+				++pOut;
+			}
+			iPrev = iCur;
+			pPrev = pCur;
+		}
+		nVerts = pOut - pOldOut;
+		pVerts = pOldOut;
+		pOut += nVerts;
+	}
+	return 1;
+}
+
+// guess: the same for the left plane (-z < x), inside[] at 0x10094ec0.
+// FUNCTION: D3DREN 0x1000b20c
+int FUN_1000b20c(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut)
+{
+	TLVertex *&pVerts = *ppVerts;
+	int &nVerts = *pnVerts;
+	TLVertex *&pOut = *ppOut;
+	int nInside = 0;
+	int *pInside;
+	TLVertex *pPrev, *pCur, *pEnd, *pOldOut;
+	int iPrev, iCur;
+	float t;
+
+	DAT_1005668c++;
+	pInside = DAT_10094ec0;
+	pCur = pVerts;
+	pEnd = pCur + nVerts;
+	while (pCur != pEnd)
+	{
+		*pInside = -pCur->m_Vec.z < pCur->m_Vec.x;
+		nInside += *pInside;
+		++pInside;
+		++pCur;
+	}
+	if (nInside == 0)
+		return 0;
+	else if (nInside != nVerts)
+	{
+		pOldOut = pOut;
+		iPrev = nVerts - 1;
+		pPrev = pVerts + iPrev;
+		for (iCur = 0; iCur < nVerts; iCur++)
+		{
+			pCur = pVerts + iCur;
+			if (DAT_10094ec0[iPrev])
+				*pOut++ = *pPrev;
+			if (DAT_10094ec0[iPrev] != DAT_10094ec0[iCur])
+			{
+				t = FUN_10001ac0(&pPrev->m_Vec.x, &pCur->m_Vec.x, &pOut->m_Vec.x);
+				FUN_10001940(pPrev, pCur, pOut, t);
+				++pOut;
+			}
+			iPrev = iCur;
+			pPrev = pCur;
+		}
+		nVerts = pOut - pOldOut;
+		pVerts = pOldOut;
+		pOut += nVerts;
+	}
+	return 1;
+}
+
+// vbcache.h declares a static class-type data member (it takes a `_$E` number): include it after this unit's own static initialisers.
+#include "d3dren/vbcache.h"

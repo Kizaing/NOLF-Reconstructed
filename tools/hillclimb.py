@@ -11,13 +11,19 @@ Candidates:
 Score: MATCH first, then `build.py diff`'s ALIGNED line (instruction mismatches, ignoring stack offsets, then
 exact), then differing bytes. Each candidate is compiled with `build.py check <unit filter>`.
 
-The source file is always restored. The best version is written to <address>.best.cpp in the current directory
-(or kept in place with --apply). If the file is edited by someone else during the search, it stops and leaves the file alone. Re-read the result before using it: the dependency test is textual (it doesn't
-know about aliasing through two different pointers, or macros with side effects).
+Every candidate is compiled and checked on a PRIVATE copy (build/<module>/scratch/check/): the source file and the unit's
+object are never touched while it runs, so other people may edit the unit meanwhile.  The best version is written to
+<address>.best.cpp in the current directory; --apply copies it over the source at the end, but only when the file is unchanged
+since the search began (otherwise it stays in <address>.best.cpp).  Works with --module d3dren / DECOMP_MODULE=d3dren.  Re-read
+the result before using it: the dependency test is textual (it doesn't know about aliasing through two different pointers, or
+macros with side effects).  <unit filter> is accepted for compatibility and ignored.
 """
-import os, re, subprocess, sys
+import os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import toolenv  # noqa: E402  (module selection, MSYS argument repair, private compiles)
+import modcfg  # noqa: E402  (module tag LITHTECH or D3DREN; --module is consumed here)
 KW = set('''int float double char short long unsigned signed bool void const static struct class enum union
     uint32 uint16 uint8 int32 int16 int8 LTBOOL DBOOL LTRESULT DRESULT LTFLOAT DFLOAT LTVector DVector LTRotation
     DRotation LTMatrix DMatrix if else for while do return break continue goto sizeof NULL LTNULL TRUE FALSE
@@ -29,7 +35,7 @@ STORE_THROUGH_PTR = re.compile(r'(->|\]|^\s*\*)[^=;]*[^=!<>]=[^=]')
 
 
 def body_range(text, addr):
-    m = re.search(r'// (STUB|FUNCTION): LITHTECH 0x0*%s\b' % addr, text)
+    m = re.search(r'// (STUB|FUNCTION): ' + modcfg.TAG + r' 0x0*%s\b' % addr, text)
     if not m:
         sys.exit('no annotation for %s' % addr)
     a = text.index('\n{', m.end()) + 2
@@ -178,37 +184,29 @@ def commute_candidates(lines):
     return out
 
 
-def run(args):
-    return subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'build.py')] + args, cwd=ROOT,
-                          capture_output=True, text=True).stdout
-
-
-def score(unit, addr):
-    for _ in range(3):      # a concurrent compile can still make a check print nothing: retry
-        out = run(['check', unit])
-        if 'COMPILE FAILED' in out:
-            return (10 ** 9,), 'COMPILE FAILED'
-        st = [l for l in out.splitlines() if re.match(r'^(MATCH|DIFF|SIZE|RELOC|ERROR)\s+0*%s\b' % addr, l)]
-        if st:
-            break
-    else:
+def score(path, text, addr):
+    """(score tuple, status line) of the function at `addr` in a private compile of `text` as the unit at `path`."""
+    va = int(addr, 16)
+    ev = toolenv.evaluate(path, text, tool='hillclimb')
+    if ev.error:
+        return (10 ** 9,), 'COMPILE FAILED'
+    r = ev.rows.get(va)
+    if r is None:
         return (10 ** 9,), 'no status line'
-    line = st[-1]
-    if line.startswith(('MATCH', 'RELOC')):
+    line = ev.line(va)
+    if r.status in ('MATCH', 'RELOC'):
         return (0, 0, 0), line
-    d = run(['diff', '%08x' % int(addr, 16)])
-    m = re.search(r'ALIGNED .*?: (\d+) instruction mismatches, (\d+) ignoring stack', d)
-    b = re.search(r'(\d+)(/\d+)? bytes differ', line)
-    if not m:
+    if r.a.symbol is None:
         return (10 ** 8,), line
-    return (int(m.group(2)), int(m.group(1)), int(b.group(1)) if b else 10 ** 6), line
+    n, ns, nl, nr = ev.aligned(va)
+    return (ns, n, r.diffs), line
 
 
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
         return 1
-    src, unit, addr = argv[0], argv[1], argv[2].lower().replace('0x', '').lstrip('0')
+    src, unit, addr = os.path.abspath(argv[0]), argv[1], argv[2].lower().replace('0x', '').lstrip('0')
     rounds = int(argv[argv.index('--rounds') + 1]) if '--rounds' in argv else 3
     ops = argv[argv.index('--ops') + 1].split(',') if '--ops' in argv else ['move', 'commute']
     apply = '--apply' in argv
@@ -218,55 +216,44 @@ def main(argv):
     lines = orig[a:b].split('\n')[:-1]
     cur = lines
 
-    last = [orig]
-
-    def write(ls):
-        if open(src, newline='').read() != last[0]:
-            raise ExternalEdit()
-        last[0] = head + '\n'.join(ls) + '\n' + tail
-        open(src, 'w', newline='').write(last[0])
+    def text_of(ls):
+        return head + '\n'.join(ls) + '\n' + tail
 
     tried = set()
-    try:
-        best, bl = score(unit, addr)
-        print('start', best, bl.strip()[:110], flush=True)
-        for rnd in range(rounds):
-            if best[0] == 0:
-                break
-            cands = (move_candidates(cur) if 'move' in ops else []) + \
-                    (commute_candidates(cur) if 'commute' in ops else [])
-            print('round %d: %d candidates' % (rnd + 1, len(cands)), flush=True)
-            improved = False
-            for desc, nl in cands:
-                key = '\n'.join(nl)
-                if key in tried:
-                    continue
-                tried.add(key)
-                write(nl)
-                sc, l = score(unit, addr)
-                if sc < best:
-                    best, bl, cur, improved = sc, l, nl, True
-                    print('  improved', best, desc, flush=True)
-                    if best[0] == 0:
-                        break
-            if not improved:
-                break
-    except ExternalEdit:
-        print('ABORTED: %s was changed by someone else during the search; left as it is now (not restored)' % src)
-        out = '%s.best.cpp' % addr
-        open(out, 'w', newline='').write(head + '\n'.join(cur) + '\n' + tail)
-        print('best version so far written to', os.path.abspath(out))
-        return 2
-    finally:
-        if open(src, newline='').read() == last[0]:
-            if apply:
-                write(cur)
-            else:
-                open(src, 'w', newline='').write(orig)
-                out = '%s.best.cpp' % addr
-                open(out, 'w', newline='').write(head + '\n'.join(cur) + '\n' + tail)
-                print('best version written to', os.path.abspath(out))
-            run(['check', unit])    # leave the object consistent with the file
+    best, bl = score(src, orig, addr)
+    print('start', best, bl.strip()[:110], flush=True)
+    if best == (10 ** 9,):
+        print('the unmodified unit does not compile')
+        return 1
+    for rnd in range(rounds):
+        if best[0] == 0:
+            break
+        cands = (move_candidates(cur) if 'move' in ops else []) + \
+                (commute_candidates(cur) if 'commute' in ops else [])
+        print('round %d: %d candidates' % (rnd + 1, len(cands)), flush=True)
+        improved = False
+        for desc, nl in cands:
+            key = '\n'.join(nl)
+            if key in tried:
+                continue
+            tried.add(key)
+            sc, l = score(src, text_of(nl), addr)
+            if sc < best:
+                best, bl, cur, improved = sc, l, nl, True
+                print('  improved', best, desc, flush=True)
+                if best[0] == 0:
+                    break
+        if not improved:
+            break
+    out = '%s.best.cpp' % addr
+    open(out, 'w', newline='').write(text_of(cur))
+    print('best version written to', os.path.abspath(out))
+    if apply:
+        if open(src, newline='').read() == orig:
+            open(src, 'w', newline='').write(text_of(cur))
+            print('applied to', src)
+        else:
+            print('NOT applied: %s was changed by someone else during the search (the best version is in %s)' % (src, out))
     print('final', best, bl.strip()[:110])
     return 0
 

@@ -1,0 +1,5 @@
+LIBRARY "d3d.ren"
+EXPORTS
+    FreeModeList @1
+    GetSupportedModes @2
+    RenderDLLSetup @3

@@ -1,0 +1,157 @@
+// d3d.ren world polygon drawing (unit unk/100098d0, work package W4): lightmapped / detail-texture polygon batches, the queue of
+// polygons waiting for their texture, the vertex scratch array and the clip/project dispatchers for 0x20- and 0x28-byte
+// pre-transformed vertices.  Everything here is the renderer's own; the engine types come from de_objects.h / de_world.h.
+//
+// NAME: sb_Free: LT_StdLith struct_bank.h `inline void sb_Free(StructBank *pBank, void *pObj)` (pool.h includes it; the pools at
+// 0x10058758 / 0x10058c98 are StructBanks); the exe inlines it with both of its null checks.  The exe's out-of-line copy of
+// sb_Allocate is 0x10007e36 (emitted in the unk/10007930 object).
+// NAME: StateSet, StageStateSet: Jupiter d3d_draw.h (d3dstate.h).
+// Everything else keeps its Ghidra name; roles are in the comments (guess: ...).
+#ifndef __D3DREN_POLYDRAW_H__
+#define __D3DREN_POLYDRAW_H__
+
+#include "ltbasedefs.h"
+#include "de_objects.h"
+#include "de_world.h"
+#include "de_mainworld.h"
+#include "d3dren/d3dstate.h"
+#include "d3dren/tlvertex.h"
+#include "d3dren/pool.h"
+#include "d3dren/viewparams.h"
+#include "d3dren/common_stuff.h"
+#include "d3dren/rendererconsolevars.h"
+#include "d3dren/lightmap.h"
+#include "d3dren/d3dtexture.h"
+
+// ---- globals read by the world polygon code ------------------------------------------------------------------------------
+// GLOBAL: D3DREN 0x10056770
+extern MainWorld *DAT_10056770;			// guess: g_pMainWorld (m_LMGridSize at +0xf8 is the lightmap grid spacing)
+
+// GLOBAL: D3DREN 0x1005872c
+extern void (__fastcall *DAT_1005872c)(LTVector *pPos, uint32 *pSpecular);	// guess: per-vertex fog alpha hook (the vertex position and its specular colour)
+// GLOBAL: D3DREN 0x10058c40
+extern void (__fastcall *DAT_10058c40)(LTVector *pPos, uint32 *pSpecular);	// guess: the sky's per-vertex fog hook (same signature; added by W6: d3d_drawsky and drawpolymgr use it)
+// GLOBAL: D3DREN 0x100566bc
+extern RGBColor DAT_100566bc;			// guess: the diffuse colour the poly vertices are drawn with
+// guess: sphere map (environment) texture coordinates of a point seen from pViewPos on a surface with normal pNormal: *pU, *pV.
+void FUN_1001085e(LTVector *pViewPos, LTVector *pPos, LTVector *pNormal, float *pU, float *pV);
+// GLOBAL: D3DREN 0x100566ac
+extern int DAT_100566ac;				// guess: number of polys drawn (statistics)
+// GLOBAL: D3DREN 0x10058040
+extern uint8 DAT_10058040;				// guess: fog colour byte 0 (FUN_10013990 / FUN_100139d0 pack three of them)
+// GLOBAL: D3DREN 0x10058041
+extern uint8 DAT_10058041;				// guess: fog colour byte 1
+// GLOBAL: D3DREN 0x10058042
+extern uint8 DAT_10058042;				// guess: fog colour byte 2
+
+// Per-stage texture coordinate scale pair (u, v), indexed by the device stage: [0] = 0x10061810/14 scales the lightmap
+// coordinates, [1] = 0x10061818/1c the detail texture coordinates.  Same type and GLOBAL as unit unk/10007930 (W2) declares
+// it in its .cpp; the GLOBAL annotation stays there.
+struct UnkType_StageUV
+{
+	float	m_Unk00;
+	float	m_Unk04;
+};
+extern UnkType_StageUV DAT_10061810[8];
+
+// Detail texture state shared by FUN_1000a538 / FUN_1000a8c0: the scale and the cos / sin of the angle of the current detail texture.
+// GLOBAL: D3DREN 0x100514a8
+extern float DAT_100514a8;				// guess: detail texture scale (DetailTextureScale * the texture's own scale)
+// GLOBAL: D3DREN 0x100518d0
+extern float DAT_100518d0;				// guess: cos of the detail texture angle
+// GLOBAL: D3DREN 0x100513e0
+extern float DAT_100513e0;				// guess: sin of the detail texture angle
+
+// The vertex scratch array: DAT_100587e4 vertices (0x20 bytes each) are in use, room for DAT_1005a368.
+// GLOBAL: D3DREN 0x100587e4
+extern uint32 DAT_100587e4;
+// GLOBAL: D3DREN 0x100587fc
+extern TLVertex *DAT_100587fc;
+// GLOBAL: D3DREN 0x1005a368
+extern uint32 DAT_1005a368;
+
+// guess: grows the scratch array to nVertices elements (keeps the old ones); returns 0 when the allocation failed.
+int FUN_10013e80(int nVertices);
+// guess: packs three colour bytes (each through the gamma table at 0x10082068) into an RGB value; FUN_100139d0 packs them as given.
+uint32 FUN_10013990(uint8 r, uint8 g, uint8 b);
+uint32 FUN_100139d0(uint8 r, uint8 g, uint8 b);
+
+// guess: returns the "fullbrite" flag of the SharedTexture's renderer texture (loading it when missing); the second argument is 0 here.
+int FUN_100211d0(SharedTexture *pTexture, uint32 nStageFlags);
+// guess: gives every node of the list (linked through m_Unk10) back to the node pool.
+void FUN_100142b0(UnkType_PoolNode *pList);
+
+// guess: draws the poly as a flat polygon later (DrawFlat console variable path): queues it on the deferred list.
+void FUN_10013ef0(WorldPoly *pPoly);
+// guess: uploads / refreshes the lightmap of the poly into its page (bFirst: the page record was just set up); returns 0 when the poly has none.
+int FUN_10020ff0(WorldPoly *pPoly, int bFirst);
+
+// ---- the lightmap page of a world polygon (WorldPoly +0x48, UnkType_LMPage of d3dren/lightmap.h) and the queued polys ------------
+// Members of the lightmap page that lightmap.h (W9) leaves untyped (m_Unk04 / m_Unk08 / m_Unk20), seen by the world poly queue:
+//   +0x04 the next page in the list of pages that have polys waiting (DAT_100528d4)
+//   +0x08 the polys waiting for this page (nodes of the pool at 0x10058758, linked through m_Unk10)
+//   +0x20 non-zero once the page has been set up by the first draw
+#define LMPAGE_NEXT(p)		(*(UnkType_LMPage **)&(p)->m_Unk04)
+#define LMPAGE_QUEUE(p)		(*(UnkType_PoolNode **)&(p)->m_Unk08)
+// WorldPoly +0x30: non-zero when the poly has a lightmap to draw with (engine pad m_Pad30).
+#define WORLDPOLY_UNK30(p)	(*(void **)((uint8 *)(p) + 0x30))
+
+// The pools the queued polys and their buckets come from (StructBanks; +0x18 of the first is the free list at 0x10058770).
+// GLOBAL: D3DREN 0x10058758
+extern UnkType_Pool DAT_10058758;
+// GLOBAL: D3DREN 0x10058c98
+extern UnkType_Pool DAT_10058c98;
+// GLOBAL: D3DREN 0x1005a308
+extern UnkType_PoolBucket *DAT_1005a308;	// guess: list of buckets (polys queued per texture, linked through m_Unk08)
+// GLOBAL: D3DREN 0x100528d4
+extern UnkType_LMPage *DAT_100528d4;	// guess: lightmap pages with polys waiting to be drawn (linked through LMPAGE_NEXT)
+
+// A vertex of a world polygon (SPolyVertex of de_objects.h, same layout) with the members the engine header leaves in padding
+// named at their offsets: 0x0c/0x10 are the lightmap texture coordinates.  (lightmap.h's SPOLYVERTEX_UNK0C macros compile to
+// x87 copies, a member of a struct to the integer copies the exe has.)
+struct UnkType_PolyVertex
+{
+	LTVector	*m_Vec;				// 0x00
+	float		m_U, m_V;			// 0x04
+	float		m_Unk0c, m_Unk10;	// 0x0c guess: second (lightmap) texture coordinates
+	uint8		m_Color[4];			// 0x14 r, g, b, a
+};
+
+// ---- the 0x20-byte vertex clip helpers (unit unk/10001000 and this one) --------------------------------------------------------
+// The inside[] arrays of the polyclip.h expansions are function-local statics of the original that the near/left plane code
+// here shares with FUN_10001530.
+// GLOBAL: D3DREN 0x10094de0
+extern int DAT_10094de0[56];	// guess: inside flags of the near plane clip
+// GLOBAL: D3DREN 0x10094ec0
+extern int DAT_10094ec0[56];	// guess: inside flags of the left plane clip
+float FUN_10001a50(float *p1, float *p2, float *pOut);
+float FUN_10001ac0(float *p1, float *p2, float *pOut);
+void FUN_10001940(TLVertex *pPrev, TLVertex *pCur, TLVertex *pOut, float t);
+// Plane clippers for the flag bits 8, 0x10, 0x20, 2 (unit unk/10001000); the first argument is unused.
+int FUN_100063e0(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut);
+int FUN_10006670(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut);
+int FUN_10006900(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut);
+int FUN_10006ba0(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut);
+
+// ---- the functions of this unit (0x100099b9-0x1000b20c) --------------------------------------------------------------------------
+void FUN_100099b9(WorldPoly *pPoly);
+void FUN_10009e80(MainWorld *pWorld, WorldPoly *pPoly);
+void FUN_10009f0b(uint32 nFlags, UnkType_TLVertex40 *pDest, UnkType_PolyVertex *pSrc, int nVerts);
+void FUN_10009f6c(uint32 nFlags, WorldPoly *pPoly, UnkType_TLVertex40 *pDest, UnkType_PolyVertex *pSrc, int nVerts);
+void FUN_1000a066(WorldPoly *pPoly, UnkType_TLVertex40 *pDest, UnkType_PolyVertex *pSrc, int nVerts);
+TLVertex *FUN_1000a134(int nVerts);
+void FUN_1000a16b(WorldPoly *pPoly);
+void FUN_1000a2a7(void);
+void FUN_1000a538(UnkType_PoolBucket *pBucket, SharedTexture *pTexture, int a3, int a4);
+void FUN_1000a70d(UnkType_PoolBucket *pBucket, int a2, int a3);
+void FUN_1000a8c0(UnkType_PoolBucket *pBucket, int a2, int a3);
+void FUN_1000ac7b(void);
+void FUN_1000ac8a(void);
+void FUN_1000ad48(TLVertex *pVerts, int nVerts, ViewParams *pParams, uint32 nFVF);
+void FUN_1000ae2f(UnkType_TLVertex40 *pVerts, int nVerts, ViewParams *pParams, uint32 nFVF);
+int FUN_1000af16(TLVertex **ppVerts, int *pnVerts, ViewParams *pParams, int param_4);
+int FUN_1000afb1(uint32 nFlags, TLVertex **ppVerts, int *pnVerts);
+int FUN_1000b0cd(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut);
+int FUN_1000b20c(char *pUnused, TLVertex **ppVerts, int *pnVerts, TLVertex **ppOut);
+
+#endif

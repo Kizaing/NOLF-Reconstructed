@@ -1,0 +1,17 @@
+functions in .text before: 956
+C-SEH scope table heads (push -1; push offset): 3
+VC20XC00 signature at 10042b7c
+functions in .text after: 1638 (delta 682)
+changes: {add_to_body=32, clip_body=1, data=1, new_function=546}
+
+remaining candidates (undisassembled non-pad / code outside functions):
+
+bodies leaving [entry, next entry):
+  10040960 FUN_10040960 end=10040971 outside=100409b6-100409ce 100409d3-100409d8
+  10040a14 FUN_10040a14 end=10040a19 outside=10040a6b-10040a70
+
+pre-existing functions whose body changed without an explicit logged action:
+
+indirect jumps (switch) in new functions -- check their tables are defined:
+  10022832 FUN_10022832 10022857 JMP dword ptr [EDI*0x4 + 0x10022970] flows=8
+  100434c7 FUN_100434c7 100434cd JMP dword ptr [EAX*0x4 + 0x1004ce3e] flows=0

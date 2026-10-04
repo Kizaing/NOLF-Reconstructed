@@ -11,6 +11,7 @@ r"""VC6 inline-budget model and oracle (wave 7; wave 8: hashed cost cache, ICF, 
       --no-icf    don't resolve ICF-folded exe calls by comparing code
       -j N        parallel compiles (default 6)
       --alias VA=MANGLED   name an exe address by hand (rarely needed since wave 8: ICF is resolved by code)
+      --flags "/O1 /Ob2"   what-if: compile every probe with these flags instead of the unit's // FLAGS: line
       --cost NAME=U        what-if: use cost U for a callee (mangled or undecorated name; repeatable)
   python tools/inline_budget.py --validate [names...]
       run the model on matched functions (default: NOTES.md's inline cases) and score its predictions
@@ -103,7 +104,9 @@ import concurrent.futures, csv, json, os, re, struct, subprocess, sys, tempfile,
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TOOLS)
 sys.path.insert(0, TOOLS)
+import toolenv  # noqa: E402  (module selection --module d3dren / DECOMP_MODULE, MSYS argument repair, compiler environment)
 import build  # noqa: E402
+import modcfg  # noqa: E402
 import coffobj  # noqa: E402
 import ctypes, hashlib  # noqa: E402
 import threading as _threading  # noqa: E402
@@ -120,9 +123,12 @@ def undecorate(name, flags=0x1000):
         n = ctypes.windll.dbghelp.UnDecorateSymbolName(name.encode('latin1'), _und_buf, len(_und_buf), flags)
         return _und_buf.value.decode('latin1') if n else name
 
-VC6CL = os.environ.get('VC6CL') or r'E:\AVP2Source\scripts\vc6cl.bat'
-COST_CACHE = os.path.join(ROOT, 'build', 'inline_costs.json')
-NAMEMAPS = [os.path.join(ROOT, 'build', 'namemap.json'), r'E:\AVP2Source\decomp\build\namemap.json']
+VC6CL = modcfg.CL                       # the module's compiler wrapper (d3dren: tools\vc6cl_d3dren.bat); VC6CL in the environment overrides
+COST_CACHE = os.path.join(build.BUILD, 'inline_costs.json')       # per module: build/inline_costs.json, build/d3dren/inline_costs.json
+NAMEMAPS = [os.path.join(build.BUILD, 'namemap.json')] + (
+    [r'E:\AVP2Source\decomp\build\namemap.json'] if modcfg.NAME == 'lithtech' else [])
+PROBE_TIMEOUT = 180                     # seconds per probe compile (a hung CL.EXE is killed)
+FLAGS_OVERRIDE = []                     # --flags "/O1 /Ob2": replaces the unit's optimisation flags for every probe (what-if)
 FLOOR, FREE, MAXDEPTH = 1000, 40, 8
 ERR = float(os.environ.get('IB_ERR', 2))          # u: decisions within +-ERR of their limit are "undecided"
 BCORR = int(os.environ.get('IB_BCORR', 0))     # experiment: subtract the probe call's 2 x 4u from a measured B
@@ -140,38 +146,50 @@ def _tmpname(unit_dir):
     with _ctr_lock:
         _ctr[0] += 1
         n = _ctr[0]
-    return os.path.join(unit_dir, '__ib_%d_%d.ibtmp' % (os.getpid(), n))
+    return '__ib_%d_%d' % (os.getpid(), n)
+
+
+def effective_flags(unit, flags=None):
+    """The flags a probe is compiled with: `flags` (the /Od tree), else --flags, else the unit's own // FLAGS: line."""
+    if flags is not None:
+        return list(flags)
+    return list(FLAGS_OVERRIDE) if FLAGS_OVERRIDE else list(unit.flags)
+
+
+def cost_flags(unit):
+    """Flags of the callee-cost probes.  A callee's cost is its front-end size, the same under every optimisation switch, but
+    the probe harness (ballast of ~6000u) needs the speed-optimised budget B = max(1000u, 2 x size): with /O1 (/Os, /Ob1) the
+    budget of every function is ~53u (measured: any function of a /O1 unit), every callee then 'costs' ~9000u.  So units that
+    are not /O2 or /Ox are probed with /O2 /Ob2 instead (the unit's other flags, /D and /I, are kept); B(F) itself is always
+    measured with the real flags."""
+    fl = effective_flags(unit)
+    if any(re.match(r'^/O[2x]$', f) for f in fl) and any(re.match(r'^/O[2x]$|^/Ob2$', f) for f in fl):
+        return fl
+    return [f for f in fl if not OPT_FLAGS.match(f)] + ['/O2', '/Ob2']
 
 
 def compile_asm(unit, text, flags=None, want_obj=False):
-    """Compile `text` as if it were the unit's source; return the /FAs listing (or raise with the errors); with
-    want_obj, (listing, CoffObj)."""
-    cpp = _tmpname(os.path.dirname(unit.path))
-    tmpd = tempfile.mkdtemp(prefix='ib_')
-    asm, obj = os.path.join(tmpd, 'a.asm'), os.path.join(tmpd, 'a.obj')
-    open(cpp, 'w', newline='', encoding='latin1').write(text)
-    # cl's intermediate files go to a private TMP: parallel compiles otherwise collide ("Broken pipe", truncated
-    # listings that look like inlined calls)
-    env = dict(os.environ, TMP=tmpd, TEMP=tmpd)
+    """Compile `text` as if it were the unit's source, with the module's wrapper, environment and the unit's flags; return
+    the /FAs listing (with want_obj, (listing, CoffObj)).  Raises CompileError (never returns a partial listing) when the compile fails or hangs.  The temporary
+    copy lives in build/<module>/scratch/ib/ (its relative #include "..." lines point at the original files)."""
+    tmpd = tempfile.mkdtemp(prefix='ib_', dir=toolenv.scratch_dir('ib'))
+    asm = os.path.join(tmpd, 'a.asm')
+    errs, out = [], ''
     try:
-        fl = unit.flags if flags is None else flags
-        args = [VC6CL] + build.COMMON_FLAGS + fl + ['/FAs', '/Fa' + asm, '/Fo' + obj, '/Tp' + cpp]
+        fl = effective_flags(unit, flags)
         for attempt in range(3):
-            r = subprocess.run(['cmd', '/c'] + args, capture_output=True, text=True, cwd=os.path.dirname(cpp),
-                               env=env)
+            if os.path.exists(asm):
+                os.remove(asm)
+            obj, out = toolenv.compile_tu(unit.path, text, tmpd, fl, timeout=PROBE_TIMEOUT, asm=asm,
+                                          name=_tmpname('') + '.cpp')
             text_asm = open(asm, encoding='latin1', errors='replace').read() if os.path.exists(asm) else ''
-            if r.returncode == 0 and text_asm.rstrip().endswith('END'):
+            if obj and text_asm.rstrip().endswith('END'):
                 return (text_asm, coffobj.CoffObj(obj)) if want_obj else text_asm
-            errs = [l for l in r.stdout.splitlines() if ' error ' in l or 'fatal error' in l]
-            if errs and not any('C1083' in e or 'C1001' in e or 'Broken pipe' in e for e in errs):
+            errs = toolenv.compile_errors(out, 8) or [l for l in out.splitlines() if l.strip()][-5:]
+            if errs and not any('C1001' in e or 'Broken pipe' in e or 'TIMEOUT' in e for e in errs):
                 raise CompileError(errs)
-        raise CompileError(errs or r.stdout.splitlines()[-5:])
+        raise CompileError(errs or ['compile produced no usable listing (%s)' % ' '.join(effective_flags(unit, flags))])
     finally:
-        for p in (cpp, asm, obj):
-            try:
-                os.remove(p)
-            except OSError:
-                pass
         import shutil
         shutil.rmtree(tmpd, ignore_errors=True)
 
@@ -520,7 +538,7 @@ def measure_costs(unit, text, callees, hashes=None, log=print, jobs=6):
     # private/protected callees: open the classes up (only in this measurement copy)
     head = ['#define private public\n#define protected public\n']
     try:
-        compile_asm(unit, head[0] + text)
+        compile_asm(unit, head[0] + text, cost_flags(unit))
     except CompileError:
         head[0] = ''
 
@@ -536,7 +554,7 @@ def measure_costs(unit, text, callees, hashes=None, log=print, jobs=6):
         return t
     for _ in range(200):
         try:
-            compile_asm(unit, text_for({c: 0 for c in exprs}, {c: 0 for c in exprs}))
+            compile_asm(unit, text_for({c: 0 for c in exprs}, {c: 0 for c in exprs}), cost_flags(unit))
             break
         except CompileError as e:
             lines = text_for({c: 0 for c in exprs}, {c: 0 for c in exprs}).split('\n')
@@ -551,11 +569,8 @@ def measure_costs(unit, text, callees, hashes=None, log=print, jobs=6):
                             bad.add(list(exprs)[int(mm.group(1))])
                             break
             if not bad:
-                log('cost probes: compile failed: %s' % e.args[0][:3])
-                for c in exprs:
-                    cache[c] = {'cost': None, 'why': 'compile failed'}
-                exprs = {}
-                break
+                raise CompileError(['the cost probes do not compile (not one callee call expression: nothing was measured)'] +
+                                   list(e.args[0][:6]))
             for c in bad:
                 if alts.get(c):              # try the next form (keeps the order of exprs for the indices)
                     exprs[c] = alts[c].pop(0)
@@ -566,7 +581,7 @@ def measure_costs(unit, text, callees, hashes=None, log=print, jobs=6):
         idx = {c: i for i, c in enumerate(exprs)}
 
         def rnd_cost(ws):
-            lst = parse_listing(compile_asm(unit, text_for(ws, {})))
+            lst = parse_listing(compile_asm(unit, text_for(ws, {}), cost_flags(unit)))
             out = {}
             for c in ws:
                 w = lst.get('?__ib_W%d@@YAXXZ' % idx[c])
@@ -577,7 +592,7 @@ def measure_costs(unit, text, callees, hashes=None, log=print, jobs=6):
             return out
 
         def rnd_expr(ws):
-            lst = parse_listing(compile_asm(unit, text_for({}, ws)))
+            lst = parse_listing(compile_asm(unit, text_for({}, ws), cost_flags(unit)))
             out = {}
             for c in ws:
                 s = lst.get('?__ib_S%d@@YAXXZ' % idx[c])
@@ -933,7 +948,7 @@ def count(lst):
 # ----------------------------------------------------------------------------- driver
 
 def tree_flags(unit):
-    return [f for f in unit.flags if not OPT_FLAGS.match(f)] + ['/Od', '/Ob0']
+    return [f for f in effective_flags(unit) if not OPT_FLAGS.match(f)] + ['/Od', '/Ob0']
 
 
 def short(m):
@@ -990,8 +1005,15 @@ def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6
         import copy
         ann = copy.copy(ann)
         ann.name = undecorate(ann.mangled)
-    log('%s  (%s:%d, %s)%s' % (ann.name, unit.rel, ann.line, ' '.join(unit.flags),
-                               '  [body in a header: B from its own cost]' if hdr else ''))
+    log('%s  (%s:%d, flags: %s%s)%s' % (ann.name, unit.rel, ann.line, ' '.join(effective_flags(unit)),
+                                        ' [--flags override]' if FLAGS_OVERRIDE else '',
+                                        '  [body in a header: B from its own cost]' if hdr else ''))
+    log('compiler: %s%s' % (VC6CL, '' if modcfg.NAME == 'lithtech' else '  (module %s, DX8INC=%s)' % (modcfg.NAME, modcfg.CL_ENV.get('DX8INC'))))
+    if not any(re.match(r'^/O[2x]$|^/Ob2$', f) for f in effective_flags(unit)):
+        log('NOTE: these flags give inline expansion /Ob1 (only functions declared inline and class-body functions; /O1 implies /Ob1, '
+            '/O2 and /Ox imply /Ob2).  B(F) is measured with the real flags of the unit (a /O1 unit has a budget of ~53u for every function); callee costs '
+            '(front-end sizes) are measured with /O2 /Ob2, the only setting the probe harness is calibrated for; the 1000u floor and B = 2 x size '
+            'of the model were measured for /O2 only.')
     # our /O2 build and the /Od /Ob0 tree, in parallel with B
     with concurrent.futures.ThreadPoolExecutor(3) as ex:
         f_o2 = ex.submit(compile_asm, unit, text)
@@ -1415,6 +1437,10 @@ def main(argv):
         i = argv.index('-j')
         jobs = int(argv[i + 1])
         del argv[i:i + 2]
+    while '--flags' in argv:           # --flags "/O1 /Ob2": replace the unit's optimisation flags for every probe (what-if)
+        i = argv.index('--flags')
+        FLAGS_OVERRIDE[:] = argv[i + 1].split()
+        del argv[i:i + 2]
     if argv and argv[0] == '--validate':
         validate(argv[1:] or VALIDATE, jobs)
         return
@@ -1430,10 +1456,16 @@ def main(argv):
         print(__doc__)
         return
     for k in keys:
-        analyse(k, verbose='-v' in flags, sweep='--sweep' in flags, costs_on='--no-cost' not in flags, jobs=jobs,
-                solve='--solve' in flags, icf='--no-icf' not in flags, summary='--summary' in flags,
-                quiet='--summary' in flags and '-v' not in flags)
+        try:
+            analyse(k, verbose='-v' in flags, sweep='--sweep' in flags, costs_on='--no-cost' not in flags, jobs=jobs,
+                    solve='--solve' in flags, icf='--no-icf' not in flags, summary='--summary' in flags,
+                    quiet='--summary' in flags and '-v' not in flags)
+        except CompileError as e:      # loud: a probe that does not compile means the numbers would be meaningless
+            print('FATAL: a probe compile failed (compiler %s, flags %s):' % (VC6CL, ' '.join(FLAGS_OVERRIDE) or 'the unit\'s own'))
+            for l in e.args[0][:8]:
+                print('   ' + str(l)[:220])
+            return 1
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))

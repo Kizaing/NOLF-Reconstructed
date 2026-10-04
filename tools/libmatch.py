@@ -1,6 +1,8 @@
-r"""Find prebuilt library code (CRT, STL, WONAPI, StdLith, ...) in lithtech.exe and verify it.
+r"""Find prebuilt library code (CRT, STL, WONAPI, StdLith, DX SDK libs ...) in lithtech.exe (or d3d.ren with
+`--module d3dren`) and verify it.
 
-  python tools/libmatch.py [-v] [--libs DIR] [--report FILE]
+  python tools/libmatch.py [--module d3dren] [-v] [--libs DIR [DIR ...]] [--only LIB ...] [--report FILE]
+    [--region-lo HEX] [--textx-lo HEX]
 
 Every code section of every library object under E:\AVP2Source\libs_objs\<lib>\*.obj is matched
 against the exe's .text:
@@ -45,11 +47,12 @@ ROOT = os.path.dirname(TOOLS)
 sys.path.insert(0, TOOLS)
 from coffobj import CoffObj, undecorate, REL_DIR32, REL_REL32, REL_SIZES  # noqa: E402
 import mktarget  # noqa: E402
+import modcfg  # noqa: E402
 
-EXE = r'E:\AVP2Source\bin\lithtech.exe'
-LIBS = r'E:\AVP2Source\libs_objs'
-SYMBOLS_CSV = os.path.join(ROOT, 'config', 'symbols.csv')
-OUT_JSON = os.path.join(ROOT, 'config', 'libraries.json')
+EXE = modcfg.IMAGE
+LIBS = [r'E:\AVP2Source\libs_objs']
+SYMBOLS_CSV = modcfg.SYMBOLS_CSV
+OUT_JSON = modcfg.LIBRARIES_JSON
 SCN_CNT_CODE = 0x20
 SCN_LNK_COMDAT = 0x1000
 MIN_ANCHOR = 6          # shortest relocation-free run used for a byte search
@@ -74,6 +77,23 @@ FAMILY = {'VC6SP5_LIBCMT': 'LIBCMT', 'VC6SP6_LIBCMT': 'LIBCMT', 'VC6_LIBCMT_1998
 # last function is 004a04d0).
 REGION_LO = 0x4a0500
 TEXTX_LO = 0x4c3680         # .text$x (EH unwind funclets) of the library objects starts here
+
+if modcfg.NAME == 'd3dren':
+    # d3d.ren links the static CRT (LIBCMT, no msvcrt import), a few StdLith objects (struct_bank, l_allocator, dynarray:
+    # byte-identical to libs_objs\LT_StdLith) and the DX 8.0 dxguid.obj (data only); no engine/STL libs.
+    # Library code is linked last: StdLith 0x1003b520-0x1003b710, the CRT 0x1003b710-0x10045890 (41,344 bytes); matches below
+    # 0x1003b520 are coincidental byte copies inside renderer code (_srand / _localeconv were such cases).
+    REGION_LO = 0x1003b520
+    TEXTX_LO = 0x7fffffff
+    LIBS = [r'E:\AVP2Source\libs_objs', r'E:\AVP2Source\libs_objs_d3dren']
+    LIB_PRIORITY = ['VC6_LIBCMT_1998', 'VC6_LIBCMT_1999', 'VC6SP5_LIBCMT', 'VC6SP6_LIBCMT', 'VC6_LIBC',
+                    'LT_StdLith', 'LT_StdLith_alloc', 'DX80_dxguid', 'DX80_dxerr8', 'DX80_d3dx8']
+    PREBUILT = {'VC6SP5_LIBCMT', 'VC6SP6_LIBCMT', 'VC6_LIBCMT_1998', 'VC6_LIBCMT_1999', 'VC6_LIBC',
+                'LT_StdLith', 'LT_StdLith_alloc', 'DX80_dxguid', 'DX80_dxerr8', 'DX80_d3dx8'}
+    FAMILY = {'VC6SP5_LIBCMT': 'LIBCMT', 'VC6SP6_LIBCMT': 'LIBCMT', 'VC6_LIBCMT_1998': 'LIBCMT',
+              'VC6_LIBCMT_1999': 'LIBCMT', 'VC6_LIBC': 'LIBCMT', 'LT_StdLith_alloc': 'LT_StdLith'}
+    D3DREN_ONLY = ['VC6_LIBCMT_1998', 'VC6_LIBCMT_1999', 'VC6SP5_LIBCMT', 'VC6SP6_LIBCMT', 'VC6_LIBC', 'LT_StdLith',
+                   'LT_StdLith_alloc', 'DX80_dxguid', 'DX80_dxerr8', 'DX80_d3dx8']
 
 
 def lib_rank(lib):
@@ -212,6 +232,7 @@ class DSec(Sec):
     def __init__(self, ob, s):
         Sec.__init__(self, ob, s)
         self.name_ = s.name
+        self.bss = bool(s.flags & 0x80) and not bool(s.flags & 0x40)
         self.syms = [x for x in s.syms if x.cls in (2, 3)]
         self.done = False
 
@@ -248,7 +269,7 @@ class Obj:
         self.comp_id = '%d/%d' % (cid[0] >> 16, cid[0] & 0xffff) if cid else None
         self.secs = [Sec(self, s) for s in self.obj.sections if s.flags & SCN_CNT_CODE and s.data]
         self.dsecs = [DSec(self, s) for s in self.obj.sections
-                      if not s.flags & SCN_CNT_CODE and s.data and s.flags & 0x40
+                      if not s.flags & SCN_CNT_CODE and s.data and s.flags & (0x40 | 0x80)
                       and not s.name.startswith(('.debug', '.drectve'))]
 
     def key_of(self, sym):
@@ -259,10 +280,13 @@ class Obj:
         return ('S', self.id, sym.secno), (0 if sym.is_section_symbol else sym.value)
 
 
-def load_objs(libs_dir, only=None):
+def load_objs(libs_dirs, only=None):
     objs = []
-    for lib in sorted(os.listdir(libs_dir), key=lambda l: (lib_rank(l), l)):
-        d = os.path.join(libs_dir, lib)
+    if isinstance(libs_dirs, str):
+        libs_dirs = [libs_dirs]
+    libs = sorted({(lib, os.path.join(ld, lib)) for ld in libs_dirs if os.path.isdir(ld) for lib in os.listdir(ld)},
+                  key=lambda x: (lib_rank(x[0]), x[0]))
+    for lib, d in libs:
         if not os.path.isdir(d) or (only and lib not in only):
             continue
         seen = set()
@@ -397,7 +421,9 @@ def resolve(objs, exe, gh, log):
         while True:
             new = 0
             for d in dsecs:
-                if d.done:
+                # Zero-filled BSS carries no unique byte evidence. Its independent anchors
+                # are checked by classify(), after code placement has finished.
+                if d.done or d.bss:
                     continue
                 base = d.base_from(known)
                 if base is None:
@@ -598,7 +624,7 @@ def attribute(objs, accepted, exe, known):
             continue
         top = max(g for _, g in cands)
         cands = [a for a, g in cands if g == top]
-        if s.va in uniq or len({a.ob.id for a in cands}) == 1:
+        if s.va in uniq:
             out.append(s)
             note(s)
             continue
@@ -609,7 +635,12 @@ def attribute(objs, accepted, exe, known):
         def score(a):
             return (prev is not None and a.ob.id == prev.id, nxt is not None and a.ob.id == nxt.id,
                     evid[a.ob.id] > 0, prev is not None and a.ob.lib == prev.lib, -lib_rank(a.ob.lib), -len(a.ob.id))
-        best = max(cands, key=score)
+        # Filtering can leave one owner different from the initial placement. In that case
+        # retain the proven candidate, not the original section that lost the comparison.
+        if len({a.ob.id for a in cands}) == 1:
+            best = s if s in cands else cands[0]
+        else:
+            best = max(cands, key=score)
         if best is not s:
             best.va, best.status = s.va, s.status
             s.va, s.status = None, 'dup'
@@ -636,6 +667,89 @@ def obj_proximity_check(accepted, log):
 
 # ---------------------------------------------------------------- verification classes
 
+def _independent_bss_placements(dsecs, accepted, exe):
+    """Place BSS sections only when accepted code independently fixes their base.
+
+    An external symbol's address can anchor a section directly when another accepted code
+    section defines that symbol. Relocation observations can also anchor it, but those must
+    come from at least two distinct accepted code sections. Repeated relocations in one code
+    section are one source. Every available base must agree, and the complete section extent
+    must match bytes in one mapped image section.
+    """
+    code_defs = collections.defaultdict(list)
+    reloc_obs = collections.defaultdict(lambda: collections.defaultdict(set))
+    selected_objects = {s.ob.id for s in accepted}
+    selected_libraries = {s.ob.lib for s in accepted}
+    for s in accepted:
+        # Folded or repeated object descriptions at one image address are one observation.
+        source = s.va
+        for x in s.syms:
+            if x.cls == 2:
+                code_defs[('E', x.name)].append((s.va + x.value, source))
+        imp = s.implied(exe, s.va)
+        # Sec.implied emits the section and external definitions before relocation targets.
+        first_reloc = 1 + sum(1 for x in s.syms if x.cls == 2)
+        for k, a in imp[first_reloc:]:
+            if k[0] == 'E':
+                reloc_obs[k][a].add(source)
+
+    proposals = {}
+    for d in dsecs:
+        if not d.bss:
+            continue
+        # Several CRT versions share some fields but have different surrounding layouts.
+        # A compatible field offset alone cannot select an otherwise unused object variant.
+        if d.ob.id not in selected_objects and (d.ob.secs or d.ob.lib not in selected_libraries):
+            continue
+        bases = collections.defaultdict(set)
+        direct_bases = set()
+        for x in d.syms:
+            if x.cls != 2:
+                continue
+            key = ('E', x.name)
+            for address, source in code_defs.get(key, ()):
+                base = address - x.value
+                bases[base].add(source)
+                direct_bases.add(base)
+            for address, sources in reloc_obs.get(key, {}).items():
+                base = address - x.value
+                bases[base].update(sources)
+
+        if len(bases) > 1:
+            d.done, d.status = True, 'conflict'
+            continue
+        if not bases:
+            continue
+        base, sources = next(iter(bases.items()))
+        if base not in direct_bases and len(sources) < 2:
+            continue
+        if not d.data or base < 0 or not exe.img.in_image(base) or not exe.img.in_image(base + len(d.data) - 1):
+            d.done, d.status = True, 'mismatch'
+            continue
+        raw = d.raw_at(exe, base)
+        if raw is None or not d.matches_at(exe, base):
+            d.done, d.status = True, 'mismatch'
+            continue
+        proposals[d] = (base, raw)
+
+    # Different object variants can define the same external. Do not let iteration order choose
+    # a winner when independently anchored copies disagree about that symbol's address.
+    defs = collections.defaultdict(set)
+    for d, (base, _) in proposals.items():
+        for x in d.syms:
+            if x.cls == 2:
+                defs[('E', x.name)].add(base + x.value)
+    conflicting = {k for k, addresses in defs.items() if len(addresses) > 1}
+    placed = {}
+    for d, (base, raw) in proposals.items():
+        if any(x.cls == 2 and ('E', x.name) in conflicting for x in d.syms):
+            d.done, d.status = True, 'conflict'
+            continue
+        d.va, d.status, d.done = base, 'anchored', True
+        placed[d] = (base, raw)
+    return placed
+
+
 def classify(objs, accepted, exe):
     """Re-derive every relocation target from the final placement alone (code + the data
     sections it reaches) and grade each section: exact (no relocations), verified (every target
@@ -653,13 +767,27 @@ def classify(objs, accepted, exe):
                 defined[('E', x.name)] = s.va + x.value
     for ob in objs:
         for d in ob.dsecs:
-            d.done, d.va = False, None
+            d.done, d.va, d.status = False, None, None
     dsecs = [d for ob in objs for d in ob.dsecs]
+    anchored_bss = _independent_bss_placements(dsecs, accepted, exe)
+    for d in anchored_bss:
+        base, raw = anchored_bss[d]
+        defined[('S', d.ob.id, d.secno)] = base
+        for x in d.syms:
+            if x.cls == 2:
+                defined[('E', x.name)] = base + x.value
+        # Keep definitions out of vals: the accepted code observations were the evidence for
+        # this placement, and counting these definitions again would let a weak key vote twice.
+        vals[('S', d.ob.id, d.secno)][base] += 1
+        imp = d.implied(exe, base, raw)
+        first_reloc = 1 + sum(1 for x in d.syms if x.cls == 2)
+        for k, a in imp[first_reloc:]:
+            vals[k][a] += 1
     while True:     # data sections (vtables, EH tables, strings) placed by the final code
         new = 0
         known = {k: next(iter(c)) for k, c in vals.items() if len(c) == 1}
         for d in dsecs:
-            if d.done:
+            if d.done or d.bss:
                 continue
             base = d.base_from(known)
             if base is None:
@@ -839,11 +967,18 @@ def resolve_stable(objs, exe, gh, fam_secs, log):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-v', action='store_true')
-    ap.add_argument('--libs', default=LIBS)
-    ap.add_argument('--only', nargs='*')
-    ap.add_argument('--report', default=os.path.join(ROOT, 'build', 'libmatch_report.txt'))
+    ap.add_argument('--libs', nargs='+', default=LIBS)
+    ap.add_argument('--only', nargs='*', default=globals().get('D3DREN_ONLY'))
+    ap.add_argument('--report', default=os.path.join(modcfg.BUILD, 'libmatch_report.txt'))
     ap.add_argument('--out', default=OUT_JSON)
+    ap.add_argument('--region-lo', default=None, help='lowest address library code can occupy (hex)')
+    ap.add_argument('--textx-lo', default=None, help='address where .text$x funclets start (hex)')
     a = ap.parse_args()
+    global REGION_LO, TEXTX_LO
+    if a.region_lo:
+        REGION_LO = int(a.region_lo, 16)
+    if a.textx_lo:
+        TEXTX_LO = int(a.textx_lo, 16)
     exe, gh = Exe(), Ghidra()
     objs = load_objs(a.libs, a.only)
     print('%d library objects, %d code sections' % (len(objs), sum(len(o.secs) for o in objs)))

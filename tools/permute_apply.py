@@ -1,10 +1,11 @@
 r"""Transplant the function body of build/permute/<address>/min.cpp (or match.cpp) into the current source.
 
-  python tools/permute_apply.py <src file> <hex address> [--from DIR] [--file best.cpp] [old=new ...]
+  python tools/permute_apply.py [--module d3dren] <src file> <hex address> [--from DIR] [--file best.cpp] [old=new ...]
 
 old=new renames an identifier in the body (the permuter's names: pServerMgrLocal, vTmp0, ...). --from takes the
 candidate from another output directory (permute.py --outdir); --file picks another candidate (best.cpp is NOT
 verified: read it first). Writes the source in place with LF line ends; run `build.py check <unit>` after.
+(permute.py keeps its results in build/permute/<address>/, build/d3dren/permute/<address>/ for --module d3dren)
 """
 import os, re, sys
 TOOLS = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +26,7 @@ if len(args) < 2:
     sys.exit(__doc__)
 src, addr = args[0], args[1]
 va = int(addr, 16)
-d = d or os.path.join(permute.ROOT, 'build', 'permute', '%08x' % va)
+d = d or os.path.join(permute.modcfg.BUILD, 'permute', '%08x' % va)     # build/permute (lithtech), build/d3dren/permute (--module d3dren)
 if f:
     m = os.path.join(d, f)
 else:

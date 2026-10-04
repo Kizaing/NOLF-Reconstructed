@@ -1,0 +1,53 @@
+file: bin/talon/d3d.ren (348160 bytes)
+machine 0x14c, characteristics 0x210e (DLL)
+timestamp 2002-02-07 06:19:43+00:00 (0x3c621c7f)
+linker 6.0, image base 0x10000000, entry point RVA 0x3d024 (VA 0x1003d024)
+section alignment 0x1000, file alignment 0x1000, size of image 0x9e000, subsystem 2, os 4.0, subsys 4.0
+stack reserve/commit 0x100000/0x1000, heap reserve/commit 0x100000/0x1000, checksum 0x0
+
+sections:
+  name             VA      vsize    raw off   raw size  flags
+  .text      10001000      44890       1000      45000  R-XC--
+  .rdata     10046000       14bc      46000       2000  R---I-
+  .data      10048000      4e320      48000       6000  RW--I-
+  .rsrc      10097000         b8      4e000       1000  R---I-
+  .reloc     10098000       5a1c      4f000       6000  R---I-
+
+data directories:
+  IMAGE_DIRECTORY_ENTRY_EXPORT RVA 0x47440 size 0x7c
+  IMAGE_DIRECTORY_ENTRY_IMPORT RVA 0x46d48 size 0x64
+  IMAGE_DIRECTORY_ENTRY_RESOURCE RVA 0x97000 size 0xb8
+  IMAGE_DIRECTORY_ENTRY_BASERELOC RVA 0x98000 size 0x483c
+  IMAGE_DIRECTORY_ENTRY_IAT RVA 0x46000 size 0x138
+
+exports (dll name d3d.ren):
+  ordinal 1  FreeModeList  RVA 0x10fd3 (VA 0x10010fd3)
+  ordinal 2  GetSupportedModes  RVA 0x10f44 (VA 0x10010f44)
+  ordinal 3  RenderDLLSetup  RVA 0x10ff1 (VA 0x10010ff1)
+
+imports:
+  DDRAW.dll (3)
+    DirectDrawCreateEx, DirectDrawEnumerateA, DirectDrawCreate
+  WINMM.dll (1)
+    timeGetTime
+  KERNEL32.dll (63)
+    LCMapStringW, ReadFile, QueryPerformanceFrequency, QueryPerformanceCounter, Sleep, InterlockedExchange, GetProcAddress, GetModuleHandleA, TlsAlloc, TlsSetValue, SetEndOfFile, IsBadCodePtr, HeapAlloc, HeapFree, InterlockedDecrement, InterlockedIncrement, GetCommandLineA, GetVersion, RtlUnwind, ExitProcess, TerminateProcess, GetCurrentProcess, HeapReAlloc, HeapSize, RaiseException, HeapDestroy, HeapCreate, VirtualFree, InitializeCriticalSection, DeleteCriticalSection, EnterCriticalSection, LeaveCriticalSection, VirtualAlloc, WideCharToMultiByte, MultiByteToWideChar, LCMapStringA, GetLastError, CloseHandle, WriteFile, GetCurrentThreadId, SetFilePointer, TlsFree, SetLastError, TlsGetValue, SetHandleCount, GetStdHandle, GetFileType, GetStartupInfoA, GetModuleFileNameA, FreeEnvironmentStringsA, FreeEnvironmentStringsW, GetEnvironmentStrings, GetEnvironmentStringsW, GetStringTypeA, GetStringTypeW, SetStdHandle, GetCPInfo, FlushFileBuffers, CreateFileA, GetACP, GetOEMCP, LoadLibraryA, SetUnhandledExceptionFilter
+  USER32.dll (7)
+    GetClientRect, ClientToScreen, GetDesktopWindow, GetWindowRect, AdjustWindowRect, SetWindowPos, ShowCursor
+  total 74 imported functions
+
+base relocations: {3: 8913, 0: 37} (HIGHLOW=3, ABSOLUTE=0 padding)
+
+Rich header (checksum key present: True):
+  component                                  build   objs
+  1 Import0 (import thunks)                      0     91
+  4 Linker 6.00                               8168      1
+  6 Cvtres 5.00                               1720      1
+  10 Utc12 C (VC6 C compiler back end)        8168    120
+  11 Utc12 C++ (VC6 C++ compiler back end)    8168     73
+  12 AliasObj 6.0                             7291      1
+  14 Masm 6.13                                7299     37
+  19 Linker 5.12 (?)                          8034      6
+  29 Utc13 C++ (VS.NET)                       8830      1
+  37 Implib (?)                               8755      3
+  total objects (excluding Import0): 243

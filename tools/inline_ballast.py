@@ -1,35 +1,36 @@
-"""inline_ballast.py <src> <unitfilter> <addr> <anchor-text> K1,K2,... [pending]
-Run from the repo root. Inserts an inline function with K stores (inline cost ~K) right before the first
-occurrence of <anchor-text> and reports the checker status for each K: finds how much budget a STUB's
-original had left at that point. With 'pending', inserts K free inline calls AFTER the anchor line instead
-(the calls that share the remaining budget). The source file is restored after every run."""
+r"""inline_ballast.py <src> <unitfilter> <addr> <anchor-text> K1,K2,... [pending]      (module: --module d3dren / DECOMP_MODULE)
+Inserts an inline function with K stores (inline cost ~K) right before the first occurrence of <anchor-text> and reports the
+checker status for each K: finds how much budget a STUB's original had left at that point. With 'pending', inserts K free
+inline calls AFTER the anchor line instead (the calls that share the remaining budget).
+
+Every K is compiled and checked on a PRIVATE copy (build/<module>/scratch/check/): the source file and the unit's object are
+never touched.  <unitfilter> is accepted for compatibility and ignored."""
 import os
-import subprocess
 import sys
 
-W = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import toolenv  # noqa: E402  (module selection, MSYS argument repair, private compiles)
 
 
-def run(srcrel, filt, addr, repls):
-    p = os.path.join(W, srcrel)
-    orig = open(p, newline='', encoding='latin-1').read()
-    s = orig
+def run(srcpath, addr, repls):
+    s = open(srcpath, newline='', encoding='latin-1').read()
     for a, b in repls:
         assert a in s, a
         s = s.replace(a, b, 1)
-    open(p, 'w', newline='', encoding='latin-1').write(s)
-    try:
-        r = subprocess.run(['python', 'tools/build.py', 'check', filt], cwd=W, capture_output=True, text=True).stdout
-    finally:
-        open(p, 'w', newline='', encoding='latin-1').write(orig)
-    if 'COMPILE FAILED' in r:
-        return 'COMPILE FAILED ' + ' | '.join(l for l in r.splitlines() if 'error' in l)[:300]
-    return ' '.join(l for l in r.splitlines() if addr in l)
+    ev = toolenv.evaluate(srcpath, s, tool='inline_ballast')
+    if ev.error:
+        return 'COMPILE FAILED ' + ' | '.join(ev.error)[:300]
+    va = int(addr, 16)
+    return ev.line(va) if va in ev.rows else 'no row for %08x' % va
 
 
 def main():
+    if len(sys.argv) < 6:
+        print(__doc__)
+        return 2
     src, filt, addr, anchor, ks = sys.argv[1:6]
     mode = sys.argv[6] if len(sys.argv) > 6 else 'cost'
+    path = os.path.abspath(src)
     for K in [int(k) for k in ks.split(',')]:
         if mode == 'cost':
             fn = 'static int g_bal[1000];\ninline void __ballast()\n{\n'
@@ -39,9 +40,10 @@ def main():
             fn = 'inline void __pend() {}\n'
             repl = [(anchor, anchor + '\n\t' + '__pend();' * K)]
         # the helper goes before the first annotation comment
-        r = run(src, filt, addr, [('\n// ', '\n' + fn + '\n// ')] + repl if K else [])
+        r = run(path, addr, [('\n// ', '\n' + fn + '\n// ')] + repl if K else [])
         print(K, r[:150], flush=True)
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

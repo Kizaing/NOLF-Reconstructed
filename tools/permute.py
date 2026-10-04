@@ -1,17 +1,28 @@
 r"""Randomised source permuter for one STUB (in the spirit of decomp-permuter, for VC6 C++).
 
-  python tools/permute.py <src file> <hex address> [--iters N] [--jobs J] [--seed S] [--temp T] [--ops a,b,..]
+  python tools/permute.py [--module d3dren] [<src file>] <hex address | Class::Method | name> [--iters N] [--jobs J] [--seed S]
+                          [--temp T] [--ops a,b,..] [--timeout SECONDS] [--cut] [--minutes M] [--resume]
 
-Applies random source mutations to the function's body, compiles every candidate privately (a copy of the unit
-under build/permute/<address>/, never the unit's own object, so it is safe next to other checks) and scores the
+The target is a hex address, or a (qualified) function name such as `ModelDraw::FUN_10002050` that exactly one FUNCTION/STUB
+annotation carries; without a source file the unit that annotates it is found.  Works on any function of a big unit file and
+on member functions and constructors.  With --module d3dren (or DECOMP_MODULE=d3dren) everything comes from the module: the
+compiler wrapper and flags, DX8INC, the unit's // FLAGS: line, the module's namemap, and the output directory.  Run from Git
+Bash or PowerShell, no extra environment.
+
+Applies random source mutations to the function's body, compiles every candidate privately (a copy of the unit in
+build/permute/<address>/w<slot>/, build/d3dren/permute/... for d3dren; its relative #include "..." lines are rewritten to point at
+the originals; never the unit's own object or source, so it is safe next to other checks and never writes into src/) and scores the
 function against the exe: instruction mismatches after alignment (ignoring stack offsets, then exact), then
-size and differing bytes. It walks by simulated annealing from the current source.
+size and differing bytes. It walks by simulated annealing from the current source.  Every compile has a timeout (default 90 s,
+--timeout): a mutated source that hangs CL.EXE is killed together with its C1/C2 children and counts as a failed candidate.
+--cut compiles only the part of the unit up to the end of the function (faster for a big unit; the whole file is used when that
+does not compile): inlining decisions only depend on what is defined before the function.
 
 The mutations are NOT all semantics-preserving (type changes, operand swaps, statement moves without a dependency
 test). That is deliberate: the only result it reports as solved is a byte-identical function, and identical code
 is identical behaviour. An improved-but-not-matching candidate must be read before it is adopted.
 
-Output (build/permute/<address>/):
+Output (build/permute/<address>/, build/d3dren/permute/<address>/ for d3dren):
   best.cpp     the best-scoring version of the whole source file so far
   match.cpp    the first byte-identical version (the search stops); verify with `build.py check <unit>` after
                copying it over the source (relocation targets and the unit's other functions are checked there)
@@ -20,19 +31,24 @@ Output (build/permute/<address>/):
   result.json  start/best ALIGNED, the mutations in the best candidate, compile failures per mutation
   hints.txt    ftype probe hits (a member zeroed as int that compiles closer as a float, or the reverse)
 
-  python tools/permute.py --minimize <src file> <hex address>
+  python tools/permute.py [<src file>] <hex address | name> --minimize
 reverts every hunk of match.cpp that the match does not need (writes min.cpp, prints the remaining diff).
 
   python tools/permute.py <src> <addr> --text <scratch copy> --outdir <dir> [--include <private include/>]
 permutes a scratch copy of the source (the unit file still gives the flags and include directory) and writes
 elsewhere: nothing under src/ or include/ is ever written. --sample N [-v] shows what each mutation does and its
 compile-failure rate; --ftype-only runs just the ftype probes. Mutation list: --help.
+  python tools/permute_apply.py [--module d3dren] <src file> <hex address> [old=new ...]     copies min.cpp/match.cpp's body into the source
 """
 import hashlib, math, os, random, re, shutil, subprocess, sys, time
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TOOLS)
 sys.path.insert(0, TOOLS)
+import modcfg  # noqa: E402  (module tag LITHTECH or D3DREN; --module is consumed here)
+import toolenv  # noqa: E402  (module defaults: compiler environment, MSYS argument repair, timeouts)
+
+COMPILE_TIMEOUT = 90        # seconds per candidate compile; a mutated source that hangs CL.EXE is killed with its children
 
 # ---------------------------------------------------------------- mutations
 
@@ -1891,23 +1907,28 @@ class Target:
         self.include = [os.path.abspath(d) for d in (include or [])]
         self.build = build
         self.src = os.path.abspath(src)
-        self.va = int(addr, 16)
         self.unit = build.Unit(self.src)
+        self.va = resolve_function(self.unit, addr)
         self.annot = [a for a in self.unit.annots if a.va == self.va and a.kind != 'GLOBAL']
         if not self.annot:
             sys.exit('no FUNCTION/STUB annotation for %08x in %s' % (self.va, src))
         self.annot = self.annot[0]
         self.exe = build.Exe(build.EXE)
         ext = build.SymTab().funcs.get(self.va)
+        if ext is None:
+            sys.exit('%08x is not a function start in %s (the Ghidra extent is unknown; see config splits.csv)' % (
+                self.va, os.path.basename(build.SYMBOLS_CSV)))
         self.exe_len = ext[0] - self.va
         self.target = self.exe.read(self.va, self.exe_len + 64)
-        self.dir = os.path.abspath(outdir) if outdir else os.path.join(ROOT, 'build', 'permute', '%08x' % self.va)
+        # private scratch directory of this module, never under src/: build/permute/<addr> (lithtech), build/d3dren/permute/<addr>
+        self.dir = os.path.abspath(outdir) if outdir else os.path.join(build.BUILD, 'permute', '%08x' % self.va)
         os.makedirs(self.dir, exist_ok=True)
         self.symname = None
-        # known names -> va (build/namemap.json): relocation targets are checked against them, so a candidate that
-        # swaps two calls or two globals is not a match
+        self.last_error = None
+        # known names -> va (build/namemap.json of the module): relocation targets are checked against them, so a candidate
+        # that swaps two calls or two globals is not a match
         import json
-        nm = os.path.join(ROOT, 'build', 'namemap.json')
+        nm = os.path.join(build.BUILD, 'namemap.json')
         self.name2va = {}
         if os.path.exists(nm):
             for va, n in json.load(open(nm)).items():
@@ -1920,22 +1941,16 @@ class Target:
             self.right.pop()
 
     def compile(self, text, slot, want_msgs=False, include=None):
-        b = self.build
+        """Compile `text` as this unit in a private scratch directory (never src/); None when it does not compile or the
+        compiler hangs (killed, with its children, after COMPILE_TIMEOUT seconds).  include: private include directories
+        searched before include/; want_msgs: return the compiler output instead."""
         d = os.path.join(self.dir, 'w%s' % slot)
         os.makedirs(d, exist_ok=True)
-        cpp = os.path.join(d, os.path.basename(self.src))
-        obj = cpp[:-4] + '.obj'
-        open(cpp, 'w', encoding='latin1', newline='').write(text)
-        if os.path.exists(obj):
-            os.remove(obj)
-        env = dict(os.environ, TMP=d, TEMP=d)
-        args = [b.VC6CL] + ['/I' + x for x in (include or []) + self.include] + b.COMMON_FLAGS + self.unit.flags + \
-            ['/I' + os.path.dirname(self.src), '/Fo' + obj, cpp]
-        r = subprocess.run(['cmd', '/c'] + args, capture_output=True, text=True, cwd=os.path.dirname(self.src), env=env)
+        first = ['/I' + x for x in (include or []) + self.include]
+        obj, out = toolenv.compile_tu(self.src, text, d, self.unit.flags, timeout=COMPILE_TIMEOUT, first=first)
         if want_msgs:
-            return r.stdout + r.stderr
-        if r.returncode != 0 or not os.path.exists(obj):
-            return None
+            return out
+        self.last_error = None if obj else (toolenv.compile_errors(out) or out.splitlines()[-4:])
         return obj
 
     def probe_types(self, head, L, tail, exprs, jobs=4):
@@ -2033,14 +2048,96 @@ class Target:
         return (scalar, ns, n, dsz, nd, hashlib.md5(bytes(h)).hexdigest())
 
 
+def _skip_lexeme(text, i):
+    """If a comment, string or character literal starts at i, the index just past it, else i."""
+    if text.startswith('//', i):
+        j = text.find('\n', i)
+        return len(text) if j < 0 else j
+    if text.startswith('/*', i):
+        j = text.find('*/', i + 2)
+        return len(text) if j < 0 else j + 2
+    c = text[i]
+    if c in '"\'':
+        j = i + 1
+        while j < len(text) and text[j] != c:
+            j += 2 if text[j] == '\\' else 1
+        return j + 1
+    return i
+
+
 def split_source(text, va):
-    m = re.search(r'// (STUB|FUNCTION): LITHTECH 0x0*%x\b[^\n]*\n' % va, text)
+    """(head, body, tail, signature) of the definition annotated for `va`: head ends right after the line holding the opening
+    brace, tail starts at the line break before the closing brace.  Works for member functions (Class::Method), constructors
+    with initialiser lists and a brace on the signature's line."""
+    m = re.search(r'// (STUB|FUNCTION): ' + modcfg.TAG + r' 0x0*%x\b[^\n]*\n' % va, text)
     if not m:
         sys.exit('annotation not found')
-    a = text.index('\n{\n', m.end()) + 3
-    b = text.index('\n}\n', a)
-    sig = text[m.end():a - 3]
-    return text[:a], text[a:b], text[b:], sig
+    i, depth = m.end(), 0
+    while i < len(text):
+        j = _skip_lexeme(text, i)
+        if j != i:
+            i = j
+            continue
+        c = text[i]
+        if c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+        elif c == ';' and depth == 0:
+            sys.exit('%08x is annotated on a declaration, not a definition' % va)
+        elif c == '{' and depth == 0:
+            break
+        i += 1
+    else:
+        sys.exit('no function body after the annotation of %08x' % va)
+    brace, d, j = i, 0, i
+    while j < len(text):
+        k = _skip_lexeme(text, j)
+        if k != j:
+            j = k
+            continue
+        if text[j] == '{':
+            d += 1
+        elif text[j] == '}':
+            d -= 1
+            if d == 0:
+                break
+        j += 1
+    else:
+        sys.exit('unbalanced braces in the function at %08x' % va)
+    a = brace + 1
+    if text[a:a + 1] == '\n':
+        a += 1
+    b = j - 1 if text[j - 1:j] == '\n' and j - 1 >= a else j
+    return text[:a], text[a:b], text[b:], text[m.end():brace]
+
+
+def resolve_function(unit, key):
+    """Address of the function named by `key`: a hex address, or a (qualified) name such as `ModelDraw::FUN_10002050`,
+    `FUN_10002050` or `DrawModelShadows` that exactly one FUNCTION/STUB annotation of the unit carries."""
+    k = str(key).strip()
+    if re.fullmatch(r'(0[xX])?[0-9a-fA-F]{6,8}', k):
+        return int(k, 16)
+    cands = [a for a in unit.annots if a.kind != 'GLOBAL' and a.name and (a.name == k or a.name.endswith('::' + k))]
+    vas = sorted({a.va for a in cands})
+    if len(vas) != 1:
+        sys.exit('%s: %d functions match %r %s' % (unit.rel, len(vas), k, ['%08x %s' % (a.va, a.name) for a in cands][:6]))
+    return vas[0]
+
+
+def locate(args):
+    """(source file, function key) from `[src] <hex|name>`; without a source file the unit that annotates the function is found."""
+    if len(args) >= 2:
+        return args[0], args[1]
+    import build
+    key = args[0]
+    hexa = re.fullmatch(r'(0[xX])?[0-9a-fA-F]{6,8}', key)
+    hits = [u for u in build.find_units() if any(
+        a.kind != 'GLOBAL' and ((hexa and a.va == int(key, 16)) or (not hexa and a.name and (a.name == key or a.name.endswith('::' + key))))
+        for a in u.annots)]
+    if len(hits) != 1:
+        sys.exit('%r: %d units annotate it %s (name the source file first)' % (key, len(hits), [u.rel for u in hits][:5]))
+    return hits[0].path, key
 
 
 def parse_params(sig):
@@ -2220,11 +2317,16 @@ failures per mutation) and hints.txt (ftype hits)."""
 
 def main(argv):
     global T
+    global COMPILE_TIMEOUT
     import argparse, json
     from concurrent.futures import ThreadPoolExecutor
-    ap = argparse.ArgumentParser(description=__doc__, epilog=HELP_OPS, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('src', help='the unit source file (its directory and flags are used for compiling)')
-    ap.add_argument('addr')
+    ap = argparse.ArgumentParser(description=__doc__, epilog=HELP_OPS, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 usage='permute.py [src file] <hex address | function name> [options]')
+    ap.add_argument('target', nargs='+', help='[src file] <hex address | Class::Method | name>; without the source file '
+                    'the unit that annotates the function is used (its directory and flags are used for compiling)')
+    ap.add_argument('--timeout', type=float, default=COMPILE_TIMEOUT, help='seconds per candidate compile (a hung CL.EXE is killed)')
+    ap.add_argument('--cut', action='store_true', help='compile only the unit up to the end of the function (faster for a big file; '
+                                                       'falls back to the whole file when that does not compile)')
     ap.add_argument('--iters', type=int, default=3000)
     ap.add_argument('--jobs', type=int, default=6)
     ap.add_argument('--seed', type=int, default=None)
@@ -2244,6 +2346,8 @@ def main(argv):
     ap.add_argument('-v', action='store_true')
     ap.add_argument('--ftype-only', action='store_true', help='run only the ftype probes (hints.txt), no search')
     a = ap.parse_args(argv)
+    COMPILE_TIMEOUT = a.timeout
+    a.src, a.addr = locate(a.target)
     a.ops = ','.join(','.join(OP_ALIASES.get(o, [o])) for o in a.ops.split(','))
     if a.minimize:
         return minimize(a)
@@ -2252,6 +2356,14 @@ def main(argv):
     ops = [o for o in a.ops.split(',') if o in MUTATORS]
     orig = load_text(a)
     head, body, tail, sig = split_source(orig, T.va)
+    if a.cut:
+        full_tail = tail
+        tail = '\n}\n'
+        if evaluate((0, head + body + tail)) is None:
+            print('--cut: the unit up to the end of the function does not compile (%s); using the whole file' % (T.last_error,))
+            tail = full_tail
+        else:
+            orig = head + body + tail
     sigl = [x for x in sig.split('\n') if x.strip() and not x.strip().startswith('//')]
     ctx = {'params': parse_params(sig), 'debug': a.debug,
            'void': bool(sigl and re.match(r'^\s*(?:static\s+|inline\s+)*void\s+[\w:~]+\s*\(', sigl[0])),
@@ -2270,7 +2382,7 @@ def main(argv):
 
     s0 = evaluate((0, orig))
     if s0 is None:
-        sys.exit('the unmodified source does not compile / the function was not found')
+        sys.exit('the unmodified source does not compile or the function was not found in the object: %s' % (T.last_error,))
     say('== %s %08x %s  start: ns=%d n=%d bytes=%d  (seed %s)' % (time.strftime('%H:%M:%S'), T.va, T.symname, s0[1], s0[2], s0[4], a.seed))
     rj = os.path.join(T.dir, 'result.json')
     prev = {}

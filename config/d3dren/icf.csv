@@ -1,0 +1,27 @@
+# Addresses where the linker folded identical COMDATs (/OPT:ICF): several source symbols (different template instances, empty
+# functions ...) legitimately live at one address, so `build.py check` must not report them as CLASH / ANNOTATION CONFLICT.
+# Every row was verified with `python tools/icfscan.py --module d3dren [--addr <va>]`: each name listed has a compiled
+# definition whose bytes (outside relocations) are identical to the image bytes at the address.
+# Optional third column `names`: ';'-separated mangled names; when present only those names are accepted there.
+# NOT here on purpose (the checker keeps reporting them): one function declared with two prototypes (FUN_1001bd70, FUN_10031d18,
+# FUN_1001dec3, FUN_100211d0, FUN_10021a80, FUN_1002d07c), one function under two names (FUN_10007e36/sb_Allocate),
+# data declared with two types or names (DAT_10055ce0, DAT_10056218, DAT_100566bc, DAT_100577a0,
+# DAT_100577c8, DAT_10058c90).
+addr,note,names
+1000e0c1,"CMoArray<T>::GenBegin (virtual, 22 bytes): T = unsigned short / unsigned long / IDirect3DVertexBuffer7* / QVert / TLVertex / LTMatrix / UnkType_VBCacheEntry"
+1000e291,"CMoArray<T>::GenIsValid (virtual, 16 bytes): same instances as 1000e0c1"
+10016150,"LTPlane, _CVector<float> and polygon-flush vertex empty constructors (16 bytes), independently byte matched","??0LTPlane@@QAE@XZ;??0?$_CVector@M@@QAE@XZ;??0UnkType_FlushVertex@@QAE@XZ"
+10016160,"LTMatrix::SetTranslation overloads taking three floats or an LTVector by value (32 bytes), independently compared by icfscan","?SetTranslation@LTMatrix@@QAEXMMM@Z;?SetTranslation@LTMatrix@@QAEXV?$_CVector@M@@@Z"
+10018a90,"_STL::_Vector_base<RenderState>::_Vector_base + _Vector_base<TextureState> + vector<TextureState>::vector (16-byte constructors of 12-byte vector headers)"
+10018b10,"_STL::_STL_alloc_proxy<RenderState*,RenderState,allocator>::_STL_alloc_proxy + the TextureState instance (16 bytes)"
+1001e3d2,"CMoArray<T>::GenGetSize (virtual, 4 bytes): same instances as 1000e0c1"
+1001e3fd,"CMoArray<T>::GenSetCacheSize (virtual, 10 bytes): same instances as 1000e0c1"
+1001e407,"CMoArray<unsigned long>::Insert2 + CMoArray<IDirect3DVertexBuffer7*>::Insert2 (191 bytes)"
+1001e4c6,"CMoArray<unsigned long>::Remove2 + CMoArray<IDirect3DVertexBuffer7*>::Remove2 (182 bytes)"
+1001e57c,"CMoArray<T>::_DeleteAndDestroyArray (32 bytes): T = unsigned short / unsigned long / IDirect3DVertexBuffer7* / QVert / TLVertex / LTMatrix / UnkType_VBCacheEntry"
+10029d5a,"DllMain stdcall entry and folded DrawPolyMgr callback: both independently verify the same six bytes","_DllMain@12;?FUN_10029d5a@DrawPolyMgr@@QAEHPAUWorldPoly@@HH@Z"
+1003451a,"vq_DefaultFn1 + vq_DefaultFn2 (empty void f(), 1 byte: ret)"
+1003a640,"BaseDelete<WorldPoly*> + BaseDelete<ObjectDrawer> (32 bytes; the function-template mangling has no template arguments)"
+1003b034,"CMoArray<unsigned long>::Init + CMoArray<IDirect3DVertexBuffer7*>::Init (53 bytes)"
+1003b069,"CMoArray<unsigned long>::SetSize2 + CMoArray<IDirect3DVertexBuffer7*>::SetSize2 (95 bytes)"
+1003b2c9,"CMoArray<unsigned long>::_AllocateTArray + CMoArray<IDirect3DVertexBuffer7*>::_AllocateTArray (24 bytes)"
