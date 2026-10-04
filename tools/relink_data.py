@@ -549,8 +549,30 @@ def piece_alignment(va):
     return al
 
 
-def make_piece_obj(img, name, lo, hi, names):
-    """One stand-in piece: section `name` with the exe's bytes [lo, hi) and a public symbol for every (va, name)."""
+def add_code_relocs(c, secno, lo, code_names):
+    """Code pointers in the exe's data bytes (static initializer tables, vtables, function pointer tables) are raw
+    addresses: when a base object moves the function they name, the copied pointer would be stale. Every aligned
+    dword equal to a known function start (code_names: va -> link name) becomes a DIR32 relocation to that
+    function (an unmoved function gets its old address back, so a false hit changes nothing)."""
+    sec = c.sections[secno - 1]
+    data = bytearray(sec.data)
+    ext = {}
+    for k in range((-lo) % 4, len(data) - 3, 4):
+        v = struct.unpack_from('<I', data, k)[0]
+        nm = code_names.get(v)
+        if nm is None:
+            continue
+        if nm not in ext:
+            ext[nm] = c.add_symbol(nm, 0, 0)
+        struct.pack_into('<I', data, k, 0)
+        sec.relocs.append([k, ext[nm], 6])         # IMAGE_REL_I386_DIR32
+    sec.data = bytes(data)
+    return len(sec.relocs)
+
+
+def make_piece_obj(img, name, lo, hi, names, code_names=None):
+    """One stand-in piece: section `name` with the exe's bytes [lo, hi) and a public symbol for every (va, name);
+    with code_names, code pointers in the bytes are relocated (add_code_relocs)."""
     c = F.Coff()
     if name == '.bss':
         sec = F.Sec('.bss', b'', [], F.SCN_CNT_UNINIT | F.SCN_ALIGN[piece_alignment(lo)] | F.SCN_MEM_READ | F.SCN_MEM_WRITE)
@@ -565,4 +587,6 @@ def make_piece_obj(img, name, lo, hi, names):
     c.syms.append(None)
     for va, nm in names:
         c.add_symbol(nm, va - lo, 1)
+    if code_names and name != '.bss':
+        add_code_relocs(c, 1, lo, code_names)
     return c

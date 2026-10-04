@@ -886,7 +886,7 @@ def make_standin_pieces(prep, layout, own):
         names[i].append((va, nm))
     out = []
     for i, (key, g, lo, hi, u) in enumerate(spans):
-        c = RD.make_piece_obj(img, g, lo, hi, names[i])
+        c = RD.make_piece_obj(img, g, lo, hi, names[i], prep.text_name)     # code pointers relocated
         if u == '(crt)':
             c.syms.append(Sym('__except_list', 0, -1, 0, coffedit.CLS_EXTERNAL))      # fs:[0], see make_standin
         p = os.path.join(d, '%08x_%s.obj' % (lo, (u or 'none').replace('/', '__').strip('()')))
