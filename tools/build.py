@@ -863,16 +863,46 @@ def mark_complete(units_json, results):
     """A source unit is complete when every function in its target object matches (decomp.dev's 'complete'
     measures; prebuilt library units are always complete)."""
     matched_by_unit = {}
+    matched_at = {}     # va -> (unit name, symbol) of the annotation that matched it
     for r in results:
         if r.a.kind == 'FUNCTION' and r.status == 'MATCH' and r.a.symbol:
             matched_by_unit.setdefault(r.a.unit.name, set()).add(r.a.va)
+            matched_at[r.a.va] = (r.a.unit.name, r.a.symbol)
     for e in units_json:
         md = e.setdefault('metadata', {})
         md['progress_categories'] = [unit_category(e['name'])]
         if 'source_path' in md:
             vas = OBJVAS.get(e['name'], [])
             matched = matched_by_unit.get(e['name'], set())
-            md['complete'] = bool(vas) and all(va in matched for va in vas)
+            md['complete'] = bool(vas) and all(va in matched or _same_copy(e['name'], matched_at.get(va))
+                                               for va in vas)
+
+
+def _function_body(obj, sym):
+    """A function's bytes with relocation fields zeroed, and its relocations as (offset, target name, type)."""
+    sec, start, end = obj.extent(sym)
+    body = bytearray(sec.data[start:end])
+    rels = []
+    for off, s, typ, _ in obj.relocs_in(sec, start, end):
+        body[off:off + REL_FIELD.get(typ, 4)] = bytes(REL_FIELD.get(typ, 4))
+        rels.append((off, s.name, typ))
+    return bytes(body), rels
+
+
+REL_FIELD = {0x0A: 2}    # IMAGE_REL_I386_SECTION is 2 bytes; the rest are 4
+
+
+def _same_copy(unit, owner):
+    """A function annotated in another unit counts for this one when this unit's object defines the same symbol
+    with the same body (an inline or template copy the original placed in this unit's range)."""
+    if owner is None:
+        return False
+    owner_unit, sym = owner
+    mine, theirs = LAST_OBJS.get(unit), LAST_OBJS.get(owner_unit)
+    if mine is None or theirs is None:
+        return False
+    copy = next((s for s in mine.symbols.values() if s.name == sym.name and s.is_function), None)
+    return copy is not None and _function_body(mine, copy) == _function_body(theirs, sym)
 
 
 def write_objdiff_json(units_json):
