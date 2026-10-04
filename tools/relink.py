@@ -211,8 +211,29 @@ def is_section_sym(s):
     return s.cls == coffedit.CLS_STATIC and s.naux and s.name.startswith('.')
 
 
+def unit_data_anchors(unit, coff):
+    """The defined data symbols for a unit's bound GLOBAL annotations (undefined externs are name hints only)."""
+    anchors = {}
+    for a in unit.annots:
+        if a.kind != 'GLOBAL' or not isinstance(a.symbol, str):
+            continue
+        matches = [s for s in coff.syms if s is not None and s.name == a.symbol and s.sec > 0
+                   and s.sec <= len(coff.sections) and not is_section_sym(s)
+                   and not coff.sections[s.sec - 1].flags & coffedit.SCN_CNT_CODE
+                   and coff.sections[s.sec - 1].name != '.drectve'
+                   and not coff.sections[s.sec - 1].name.startswith('.debug')]
+        if len(matches) > 1:
+            raise ValueError('%s: GLOBAL %s has multiple defined data symbols' % (unit.name, a.symbol))
+        if not matches:
+            continue
+        if a.symbol in anchors and anchors[a.symbol] != a.va:
+            raise ValueError('%s: GLOBAL %s has conflicting addresses' % (unit.name, a.symbol))
+        anchors[a.symbol] = a.va
+    return anchors
+
+
 class Prepared:
-    def __init__(self, orig):
+    def __init__(self, orig, library_data=None):
         self.orig = orig
         self.objvas = load_json('objvas.json')
         self.objsym = load_json('objsym.json')
@@ -220,6 +241,23 @@ class Prepared:
         for name, v in self.objvas.items():
             if v:
                 self.objs[name] = Coff.load(os.path.join(BUILD, 'target', name + '.obj'))
+        self.library_data = library_data
+        self.library_table_name = None
+        self.library_native_pieces = []
+        self.library_native_outputs = {}
+        self.library_native_intervals = []
+        if library_data is not None:
+            import library_data_relink as LDR
+            seed, spec, unit = LDR.make_table_seed(library_data, Coff, subset_sections)
+            name = 'library_data/' + unit.metadata['name']
+            if name in self.objs:
+                raise ValueError('native table seed collides with a target object')
+            self.library_table_name = name
+            self.objs[name] = seed
+            self.objvas[name] = [int(spec.metadata['original_va'], 16)]
+            # Resolve the seed's verified GUID references through the regular canonical-data path.
+            self.objsym[name] = {r['target_symbol']: int(r['target_va'], 16)
+                                 for r in spec.metadata['native_relocations']}
         self.unit_of, self.orig_vas = {}, {}
         self.add_gaps()
         self.order = sorted((min(v), k) for k, v in self.objvas.items() if v and k in self.objs)
@@ -426,6 +464,9 @@ class Prepared:
     def prep_base_unit(self, u, claimed):
         img = self.orig.img
         o = Coff.load(u.base_obj)
+        eh_plan = getattr(self, 'source_eh_plan', None)
+        if eh_plan is not None:
+            eh_plan.assert_object_unchanged(u.name, u.base_obj)
         F = coffedit
         code = [i + 1 for i, s in enumerate(o.sections) if s.flags & F.SCN_CNT_CODE]
         if not code:
@@ -448,6 +489,7 @@ class Prepared:
         code = [k for k in code if any(va in own for _, _, va in funcs.get(k, []))]
         if not code:
             raise BaseFail('no annotated function in any code section')
+        retained = eh_plan.extend_base_unit(self, u.name, o, code, funcs) if eh_plan else list(code)
 
         def va_at(secno, off):
             best = None
@@ -475,7 +517,7 @@ class Prepared:
                 S = o.syms[si]
                 if t not in (mktarget.IMAGE_REL_I386_DIR32, mktarget.IMAGE_REL_I386_REL32):
                     raise BaseFail('relocation type %x' % t)
-                if S.sec in code or S.sec == -1 or S.name == '__except_list':
+                if S.sec in retained or S.sec == -1 or S.name == '__except_list':
                     continue          # switch tables, calls between COMDAT functions, absolute symbols (__except_list = fs:[0])
                 fva_ = va_at(secno, off)
                 field = struct.unpack('<I', img.read(fva_, 4))[0]
@@ -493,6 +535,29 @@ class Prepared:
                 if S.sec > 0 and not (o.sections[S.sec - 1].flags & F.SCN_CNT_CODE):
                     data_refs.append((S.sec, S.value, tva, S.name))
                 rel[1] = sym_for(nm, 0x20 if t == mktarget.IMAGE_REL_I386_REL32 else 0)
+
+        # The ordinary function code above keeps the original routing and
+        # relocation policy. Verified native EH sections are appended after it;
+        # references that leave the retained unit use their proof-derived VA.
+        if eh_plan and eh_plan.unit(u.name):
+            for secno in eh_plan.section_numbers(u.name):
+                sec = o.sections[secno - 1]
+                for rel in sec.relocs:
+                    off, si, t = rel
+                    S = o.syms[si]
+                    if t not in (mktarget.IMAGE_REL_I386_DIR32, mktarget.IMAGE_REL_I386_REL32):
+                        raise BaseFail('source EH relocation type %x' % t)
+                    if S.sec in retained or S.sec == -1 or S.name == '__except_list':
+                        continue
+                    info = eh_plan.relocation(u.name, secno, off)
+                    tva = info['target_va']
+                    nm = self.canon_target(tva)
+                    if nm is None or nm != info['target_name']:
+                        raise BaseFail('source EH reloc +%x in section %d targets %08x without its verified canonical name' % (
+                            off, secno, tva))
+                    if S.sec > 0 and not (o.sections[S.sec - 1].flags & F.SCN_CNT_CODE):
+                        data_refs.append((S.sec, S.value, tva, S.name))
+                    rel[1] = sym_for(nm, 0x20 if t == mktarget.IMAGE_REL_I386_REL32 else 0)
         # does the object emit its functions in the original's address order? (COMDAT sections are placed in object
         # order, a plain .text keeps source order)
         emit = sorted((k, value, va) for k, lst in funcs.items() if k in code for value, nm, va in lst if va in own)
@@ -506,7 +571,8 @@ class Prepared:
         for idx, s in enumerate(o.syms):
             if s is None or s.sec not in code or is_section_sym(s) or s.typ != 0x20:
                 continue
-            va = fva.get(s.name)
+            source_name = s.name
+            va = fva.get(source_name)
             cn = self.text_name.get(va) if va else None
             if cn and cn not in claimed:
                 claimed.add(cn)
@@ -514,11 +580,14 @@ class Prepared:
             else:
                 s.name = '%s@%s' % (s.name, u.name.replace('/', '_'))
             s.cls = F.CLS_EXTERNAL
+            if eh_plan and va is not None:
+                eh_plan.record_function_symbol(u.name, source_name, va, s.name)
             include.append((s.name, va if cn and s.name == cn else None))
         self.data_refs[u.name] = (o, data_refs)
         self.base_code = getattr(self, 'base_code', {})
-        self.base_code[u.name] = code
-        return subset_sections(o, code), include, fva
+        self.base_code[u.name] = retained
+        result = subset_sections(o, retained)
+        return result, include, fva
 
     def own_data(self, name, x, layout):
         """--own-data: let base unit `name` keep its .rdata/.data sections (the chain relink_data found for it, `x`).
@@ -605,8 +674,16 @@ class Prepared:
         os.makedirs(d, exist_ok=True)
         self.paths = {}
         for name, o in self.objs.items():
+            if name == self.library_table_name:
+                # This one native .text data section is retained only as the real
+                # coverage anchor in objvas; its paired .rdata section is not a
+                # function VA and the native flags/section order remain untouched.
+                p = os.path.join(d, name.replace('/', '__') + '.obj')
+                o.save(p)
+                self.paths[name] = p
+                continue
             for va, sec in zip(self.objvas[name], o.sections):
-                if va + len(sec.data) > self.orig.text_end:      # the last extent runs to the page end: cut at the real end
+                if va + len(sec.data) > self.orig.text_end:      # last text extent may reach page end
                     keep = self.orig.text_end - va
                     assert not sec.data[keep:].strip(b'\0') and all(r[0] < keep for r in sec.relocs), name
                     sec.data, sec.size = sec.data[:keep], keep
@@ -627,6 +704,8 @@ class Prepared:
         for name in self.objs:
             if self.unit_of.get(name, name) in getattr(self, 'base', {}):
                 continue
+            if name == self.library_table_name:
+                continue
             for sva, secno, size in self.sections(name):
                 order.append((sva, self.leader[(name, secno)]))
         order.sort()
@@ -639,6 +718,98 @@ class Prepared:
                 f.write((n if n.startswith('?') else n[1:]) + '\n')
         with open(os.path.join(OUT, 'leaders.json'), 'w') as f:
             json.dump(order, f)
+        for name, (obj, comdat_symbols, path, _key) in getattr(self, 'library_native_outputs', {}).items():
+            obj.save(path)
+            self.paths[name] = path
+            self.includes.extend(comdat_symbols)
+
+    def install_library_data(self):
+        """Install selected native COFF data after source-owned aliases are complete."""
+        if self.library_data is None:
+            return
+        import library_data_relink as LDR
+        verified = self.library_data
+        aliases = LDR.native_aliases(verified)
+        used = set(self.text_name.values()) | set(self.data_name.values())
+        # Give every selected .rdata symbol a canonical external name before retargeting native relocs.
+        for sec in verified.sections():
+            if sec.metadata['original_output_group'] != '.rdata':
+                continue
+            for symbol in sec.metadata['symbols']:
+                va = int(symbol['va'], 16)
+                preferred = aliases[va]
+                if va in self.data_name:
+                    continue
+                name = preferred
+                if name in used:
+                    name = '%s@%08x' % (preferred, va)
+                self.data_name[va] = name
+                used.add(name)
+        table_va = LDR.TEXT_ANCHOR
+        if table_va not in self.text_name:
+            raise ValueError('native DirectInput table seed did not create its canonical text name')
+
+        outputs, native_pieces = {}, []
+        self.native_data_spans = []
+        self.own_names = getattr(self, 'own_names', set())
+        for ordinal, unit, sections in LDR.section_specs(verified):
+            obj, newno = LDR.copy_selected(unit, Coff, Sym, subset_sections, self.canon_target)
+            manifest_name = unit.metadata['name']
+            unit_key = 'library_data/' + manifest_name
+            comdat = []
+            selected_by_old = {int(s.metadata['coff_section_index']): s for s in sections}
+            for oldno, secmeta in selected_by_old.items():
+                outno = newno[oldno]
+                va0 = int(secmeta.metadata['original_va'], 16)
+                hi = va0 + int(secmeta.metadata['size'])
+                if secmeta.metadata['original_output_group'] == '.rdata':
+                    for va, nm in sorted(self.data_name.items()):
+                        if va0 <= va < hi:
+                            if not any(s is not None and s.cls == coffedit.CLS_EXTERNAL and s.name == nm
+                                       and s.sec == outno and s.value == va - va0 for s in obj.syms):
+                                obj.add_symbol(nm, va - va0, outno)
+                            self.own_names.add(va)
+                    self.native_data_spans.append((va0, hi, unit_key))
+                else:
+                    # The table is data in .text; the external alias keeps references resolvable,
+                    # but it never enters the FUNCTION inventory.
+                    nm = self.text_name[table_va]
+                    if not any(s is not None and s.cls == coffedit.CLS_EXTERNAL and s.name == nm
+                               and s.sec == outno and s.value == table_va - va0 for s in obj.syms):
+                        obj.add_symbol(nm, table_va - va0, outno)
+                for sym in secmeta.metadata['symbols']:
+                    va = int(sym['va'], 16)
+                    if va == table_va:
+                        continue
+                    nm = self.data_name[va]
+                    if not any(s is not None and s.cls == coffedit.CLS_EXTERNAL and s.name == nm
+                               and s.sec == outno and s.value == int(sym['offset']) for s in obj.syms):
+                        obj.add_symbol(nm, int(sym['offset']), outno)
+                if obj.sections[outno - 1].flags & coffedit.SCN_LNK_COMDAT:
+                    leaders = [s.name for s in obj.syms if s is not None and s.sec == outno
+                               and s.cls == coffedit.CLS_EXTERNAL and not is_section_sym(s)]
+                    if not leaders:
+                        raise ValueError('%s: selected COMDAT section has no external leader' % manifest_name)
+                    comdat.append(leaders[0])
+            if manifest_name == 'DX81/dilib3':
+                if unit_key != self.library_table_name:
+                    raise ValueError('native DirectInput table unit does not match its coverage seed')
+                self.objs[unit_key] = obj
+                self.library_native_outputs = getattr(self, 'library_native_outputs', {})
+            else:
+                va = min(int(s.metadata['original_va'], 16) for s in sections)
+                # The common tuple prefix is the real table address; ordinal only orders native members
+                # for the legacy scalar relink-data API and is never interpreted as a function VA.
+                key = (LDR.TEXT_ANCHOR, 3, va)
+                path = os.path.join(OUT, 'obj', unit_key.replace('/', '__') + '.obj')
+                outputs[unit_key] = (obj, comdat, path, key)
+                native_pieces.append((key, path))
+        for pva, psize, _ in LDR.verified_padding(verified):
+            if any(pva <= va < pva + psize for va in self.data_name):
+                raise ValueError('canonical data reference overlaps native alignment padding at %08x' % pva)
+        self.library_native_outputs = outputs
+        self.library_native_pieces = native_pieces
+        self.library_native_intervals = LDR.selected_intervals(verified)
 
 
 def data_report(prep):
@@ -774,8 +945,9 @@ def make_standin(prep):
 
 
 def build_layout(prep, units, full):
-    """relink_data.Layout over every unit's base object (located by its MATCH functions) and every library object."""
+    """relink_data.Layout over source objects, libraries, and selected native data members."""
     import relink_data as RD
+    import library_data_relink as LDR
     good = {}
     for r in INV_RESULTS:
         if r.status == 'MATCH' and r.a.kind == 'FUNCTION' and r.a.symbol is not None:
@@ -783,7 +955,10 @@ def build_layout(prep, units, full):
     objs = []
     for u in units:
         if os.path.exists(u.base_obj):
-            objs.append(RD.Obj(u.name, Coff.load(u.base_obj), good.get(u.name, {}), 'full' if u.name in full else 'base'))
+            coff = Coff.load(u.base_obj)
+            explicit_data = unit_data_anchors(u, coff)
+            objs.append(RD.Obj(u.name, coff, good.get(u.name, {}),
+                               'full' if u.name in full else 'base', explicit_data))
     libs = json.load(open(os.path.join(ROOT, 'config', 'libraries.json')))
     for L in libs['units']:
         objs.append(RD.Obj(L['name'], Coff.load(L['obj']), {nm: int(va, 16) for va, nm in L['functions'].items()}, 'lib'))
@@ -792,10 +967,36 @@ def build_layout(prep, units, full):
         u = prep.unit_of.get(n, n.split('#')[0])
         if vas and not n.startswith('gap/'):
             link_of[u] = min(link_of.get(u, 1 << 40), min(vas))
+    if prep.library_data is not None:
+        for ordinal, unit, sections in LDR.section_specs(prep.library_data):
+            obj, _ = LDR.copy_selected(unit, Coff, Sym, subset_sections, prep.canon_target)
+            name = 'library_data/' + unit.metadata['name']
+            table_fva, explicit = {}, {}
+            for sec in sections:
+                for symbol in sec.metadata['symbols']:
+                    va = int(symbol['va'], 16)
+                    if sec.metadata['original_output_group'] == '.text':
+                        table_fva[symbol['name']] = va
+                    elif sec.metadata['original_output_group'] == '.rdata':
+                        explicit[symbol['name']] = va
+            objs.append(RD.Obj(name, obj, table_fva, 'lib', explicit))
+            # RD.Layout has a scalar ordering API. Fractional tie-breaks preserve
+            # the shared real link anchor without encoding function VAs.
+            link_of[name] = LDR.TEXT_ANCHOR + ordinal / 16.0
     symva = load_json('symva.json')
     byname = {v: int(k, 16) for k, v in load_json('namemap.json').items()}
     # // GLOBAL: annotations (bound by inventory's check) also name globals that no code refers to
     byname.update({a.symbol: a.va for u in units for a in u.annots if a.kind == 'GLOBAL' and isinstance(a.symbol, str)})
+    if prep.library_data is not None:
+        native_aliases = LDR.native_aliases(prep.library_data)
+        native_names = {va: prep.data_name.get(va, nm) for va, nm in native_aliases.items()
+                        if va in prep.data_name}
+        name_to_va = {}
+        for va, nm in list(native_aliases.items()) + list(native_names.items()):
+            if nm in name_to_va and name_to_va[nm] != va:
+                raise ValueError('native library-data alias %s names multiple VAs' % nm)
+            name_to_va[nm] = va
+        byname.update(name_to_va)
 
     def va_of_name(n):
         return symva.get(n, byname.get(n))
@@ -863,8 +1064,21 @@ def make_standin_pieces(prep, layout, own):
         os.remove(os.path.join(d, f))
     ps = RD.pieces(layout, own)
     ps = [(key, g, lo, hi, u) for key, g, lo, hi, u in ps if hi > lo]
-    spans = [((-1, 0, RD.CRT_LO), '.data', RD.CRT_LO, RD.CRT_HI, '(crt)'),
-             ((1 << 40, 0, layout.rtail), '.rdata', layout.rtail, RDATA_HI, '(rtail)')] + ps
+    eh_plan = getattr(prep, 'source_eh_plan', None)
+    if eh_plan is not None:
+        ps = eh_plan.subtract_xdata_spans(ps)
+    if prep.library_data is not None:
+        import library_data_relink as LDR
+        ps = LDR.subtract_native_spans(ps, prep.library_native_intervals,
+                                       LDR.verified_padding(prep.library_data))
+    spans = [((-1, 0, RD.CRT_LO), '.data', RD.CRT_LO, RD.CRT_HI, '(crt)')]
+    tail_end = eh_plan.xdata_start if eh_plan is not None else RDATA_HI
+    if layout.rtail > tail_end:
+        raise ValueError('stand-in .rdata tail starts at %08x after native source EH metadata at %08x' %
+                         (layout.rtail, tail_end))
+    if tail_end > layout.rtail:
+        spans.append(((1 << 40, 0, layout.rtail), '.rdata', layout.rtail, tail_end, '(rtail)'))
+    spans += ps
     names = {i: [] for i in range(len(spans))}
     starts = sorted((lo, i) for i, (key, g, lo, hi, u) in enumerate(spans))
     import bisect
@@ -892,6 +1106,7 @@ def make_standin_pieces(prep, layout, own):
         p = os.path.join(d, '%08x_%s.obj' % (lo, (u or 'none').replace('/', '__').strip('()')))
         c.save(p)
         out.append((key, p))
+    out.extend(prep.library_native_pieces)
     return out, bad, ps
 
 
@@ -948,14 +1163,38 @@ def main():
     USE_ORDER = a.order
     os.makedirs(OUT, exist_ok=True)
     orig = Orig()
-    prep = Prepared(orig)
+    library_data = None
+    if a.mode == 'mixed':
+        import library_data_relink as LDR
+        if LDR.enabled(a.mode, a.own_data, a.standin_data, a.only):
+            library_data = LDR.verify_default(os.path.join(BUILD, 'library_data'))
+            if len(library_data.units) != 6 or len(library_data.sections()) != 38 \
+                    or library_data.payload_bytes != 1304 or library_data.padding_bytes != 4:
+                raise ValueError('verified native library-data inventory differs from the supported 6-unit manifest')
+            print('verified native library data: %d units, %d sections, %d payload bytes, %d alignment bytes' % (
+                len(library_data.units), len(library_data.sections()), library_data.payload_bytes,
+                library_data.padding_bytes))
+    prep = Prepared(orig, library_data)
     print('gap objects %d (%d bytes)' % (len(prep.gaps), sum(h - l for l, h in prep.gaps)))
     prep.run()
     prep.slice_interleaved()
+    eh_plan = None
     if a.mode == 'mixed':
         units, full, standin = inventory()
         print('fully matched units: %d (stand-in units kept as targets: %s)' % (len(full), sorted(standin)))
+        import source_eh_relink as SER
+        if SER.enabled(a.mode, a.own_data, a.standin_data, a.only):
+            eh_plan = SER.build_plan(prep, units, full)
+            prep.source_eh_plan = eh_plan
+            eh_plan.remove_target_tail(prep, subset_sections)
+            print('verified source EH: %d .text$x sections/%d bytes, %d .xdata$x sections/%d bytes, '
+                  '%d root + %d helper relocations' % (
+                      eh_plan.text_helper_sections, eh_plan.text_helper_bytes,
+                      eh_plan.xdata_sections_count, eh_plan.xdata_bytes,
+                      eh_plan.root_relocation_count, eh_plan.helper_relocation_count))
         prep.use_base(units, full, set(a.only.split(',')) if a.only else None)
+        if eh_plan is not None:
+            eh_plan.verify_base_coverage(prep)
         print('base objects used: %d; fell back to target: %s' % (len(prep.base), prep.base_failed))
         if a.report_data:
             rep, tot = data_report(prep)
@@ -1000,6 +1239,10 @@ def main():
             print('units supplying their own .rdata/.data: %d: %s' % (len(own), ', '.join(sorted(own))))
             if late:
                 print('  late data aliases in own sections: %d' % late)
+    if library_data is not None:
+        prep.install_library_data()
+        print('native library data installed: %d .rdata spans; DirectInput table remains a data section in .text' %
+              len(prep.native_data_spans))
     print("sliced %d interleaved library objects" % len(prep.sliced))
     prep.write()
     print('objects %d, renamed %d, unresolved %d, data symbols %d' % (
@@ -1007,9 +1250,11 @@ def main():
     for n, objs in list(prep.unresolved.items())[:20]:
         print('  unresolved', n, objs[:3])
     pieces = None
-    if lay is not None and (a.split_standin or own):
+    if lay is not None and (a.split_standin or own or library_data is not None):
         pieces, bad, ps = make_standin_pieces(prep, lay, set(own))
         print('stand-in pieces: %d' % len(pieces))
+        if library_data is not None:
+            print('native data pieces: %d' % len(prep.library_native_pieces))
         standin = None
     else:
         standin, bad = make_standin(prep)
@@ -1021,6 +1266,14 @@ def main():
     rc, out = do_link(prep, standin, idata, a.mode, pieces)
     print(out[-6000:])
     print('link rc', rc)
+    if rc == 0 and eh_plan is not None:
+        eh_plan.verify_linked_output(os.path.join(OUT, 'lithtech.exe'),
+                                     os.path.join(OUT, 'lithtech.map'), prep)
+        print('native source EH: linked anchors, bytes, padding, and root/helper relocations verified')
+    if rc == 0 and library_data is not None:
+        import library_data_relink as LDR
+        LDR.verify_linked_output(os.path.join(OUT, 'lithtech.exe'), library_data)
+        print('native library data: linked payload and 4 alignment bytes verified')
 
 
 if __name__ == '__main__':

@@ -108,6 +108,7 @@ private:
 	// The list of currently active graphs
 	CMoArray<DGuid>			m_ActiveIDs;	// 0x04
 	CMoArray<DGTracker>		m_ActiveGraphs;	// 0x18
+	void	AddGraph(DGuid id, DebugGraph *pGraph);
 	// Remove a graph from the list
 	void	RemoveGraph(uint32 index);
 	// Remove all graphs from the list

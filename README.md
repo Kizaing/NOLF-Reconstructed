@@ -8,15 +8,27 @@ function.
 
 | | Code matched | Functions |
 |---|---|---|
-| Whole binary (objdiff) | 91.2% | 4,517 of 4,772 |
-| Engine code | 89.3% | |
-| lithshared, WONAPI, VC6 CRT | 100% | |
+| Inventoried function code (objdiff) | 92.19% | 4,558 of 4,774 |
+| Engine code | 90.5% | |
+| Inventoried lithshared, WONAPI, VC6 CRT functions | 100% | |
 
-- 3,648 annotated engine functions compile byte-for-byte identical to the original, relocation targets included.
-- 51 functions are written but not yet matching (`// STUB:`); most differ only in register allocation,
+- 3,669 annotated functions pass the byte and relocation-consistency checks.
+- 41 functions are written but not yet matching (`// STUB:`); most differ only in register allocation,
   instruction scheduling or inlining decisions, and behave the same as the original (checked by a behaviour
   audit).
-- 307 of 341 units are complete. Most fully matched units also relink byte-identically into the original layout.
+- 314 of 341 report units are complete. The mixed relink currently reproduces 117 of 119 eligible source units
+  byte-for-byte; ftserv and l_allocator still have function-order differences.
+- No source stand-ins remain. The default mixed relink retains 21 compiler-generated exception helpers
+  (573 bytes) and 21 metadata sections (852 bytes) from six compiled source units. An original-guided check
+  verifies their 150 root/helper relocations; the relinker checks actual linked addresses, bytes, and padding.
+- The default mixed relink uses 1,304 payload bytes from 38 verified native library sections, including their
+  13 relocations and 4 alignment bytes. DirectX contributions match the engine's DX8.1 provenance; the exact
+  original UUID archive is unknown, although the installed VC6 UUID objects reproduce the selected data.
+
+These are function-code metrics, not whole-executable completion. The source exception helper ranges occupy
+54 existing report entries: 573 payload bytes and 168 padding bytes. Metadata and library-data totals are tracked separately
+and do not increase function-code coverage. The mixed relink supplies unfinished regions from the original
+executable; it is a layout check, not a standalone rebuilt game.
 
 Live progress: [decomp.dev](https://decomp.dev) (version `lithtech_1.0.9.6`), from the report in
 `progress/lithtech_1.0.9.6/report.json`.
@@ -60,7 +72,9 @@ inputs the build needs, and none are provided:
 - `lithtech.exe` from your own copy of Aliens versus Predator 2 (v1.0.9.6);
 - Visual C++ 6.0 SP5 with the Processor Pack;
 - the Talon SDK and lithshared headers, and the LithTech Jupiter source used as a reference for some headers;
-- the prebuilt VC6 CRT and WONAPI objects (for library matching).
+- the prebuilt VC6 CRT and WONAPI objects (for library matching);
+- the DirectX 8.1 `dinput.lib`/`dxguid.lib` and VC6 `uuid.lib` archives named in `config/library_data.json`
+  (for native library-data verification).
 
 The tools currently expect these at fixed paths on the author's machine (see the constants at the top of
 `tools/build.py` and `scripts\vc6cl.bat`). With them in place:
@@ -70,6 +84,9 @@ python tools/build.py              # compile, check, write target objects, objdi
 python tools/build.py check <unit> # compile and check one unit
 python tools/build.py diff <func>  # side-by-side disassembly against the original
 python tools/build.py report       # refresh progress/lithtech_1.0.9.6/report.json
+python tools/source_eh.py          # verify source EH helpers against the original; writes build/source_eh.json
+python tools/library_data.py       # verify native library data separately from function-code coverage
+python -m unittest discover -s tools/tests -v # run verifier regression tests
 ```
 
 Requires Python 3 with `capstone` and `pefile`, and `objdiff-cli`.

@@ -9,6 +9,70 @@
 #include "ltanimtracker.h"
 #include "../../build/proj/LT2/lithshared/stdlith/l_allocator.h"
 
+// Preserve the original call boundaries for node-array insertion without changing other array types.
+inline void CopyNodeRelation(NodeRelation &dst, const NodeRelation &src)
+{
+	LTRotation &(LTRotation::*copyRotation)(const	LTRotation &) = &LTRotation::operator=;
+	dst.m_Pos = src.m_Pos;
+	(dst.m_Rot.*copyRotation)(src.m_Rot);
+}
+
+template<> inline BOOL CMoArray<NodeRelation, DefaultCache>::Insert2(DWORD index, const NodeRelation &toInsert, LAlloc *pAlloc)
+{
+	NodeRelation &(NodeRelation::*copyNode)(const NodeRelation &) = &NodeRelation::operator=;
+	NodeRelation *pNewArray;
+	DWORD	newSize, i;
+
+	ASSERT( index <= m_nElements );
+	if(index > m_nElements)
+		return FALSE;
+
+	// Create a new array (possibly).
+	newSize = m_nElements + 1;
+
+	if( m_Cache.GetCacheSize() == 0 )
+	{
+		pNewArray = _AllocateTArray( newSize + m_Cache.GetWantedCache(), pAlloc );
+		if( !pNewArray )
+			return FALSE;
+
+		// Copy the old array into the new one, start inserting at index.
+		for( i=0; i < index; i++ )
+			pNewArray[i] = m_pArray[i];
+
+		for( i=index; i < m_nElements; i++ )
+			(pNewArray[i+1].*copyNode)(m_pArray[i]);
+
+		// Insert the new item into the array
+		(pNewArray[index].*copyNode)(toInsert);
+
+		// Free the old array and set our pointer to the new one
+		if( m_pArray )
+		{
+			void (*destroyArray)(LAlloc *, NodeRelation *, DWORD) = BaseDelete;
+			(*destroyArray)(pAlloc, m_pArray, GetNumAllocatedElements());
+			m_pArray = NULL;
+			m_Cache.SetCacheSize(0);
+		}
+
+		m_Cache.SetCacheSize(m_Cache.GetWantedCache());
+		m_pArray = pNewArray;
+	}
+	else
+	{
+		for( i=m_nElements; i > index; i-- )
+			CopyNodeRelation(m_pArray[i], m_pArray[i-1]);
+
+		m_Cache.SetCacheSize(m_Cache.GetCacheSize() - 1);
+
+		m_pArray[index] = toInsert;
+	}
+
+	++m_nElements;
+
+	return TRUE;
+}
+
 // GLOBAL: LITHTECH 0x004d483c
 extern char *g_pNoModelFilename;
 
@@ -998,11 +1062,8 @@ void Model::SetNodeParentOffsets()
 }
 
 // FUNCTION: LITHTECH 0x0044f830 ?Mat_InverseTransformation@@YAXPAVLTMatrix@@0@Z
-// 0x0044f8f0 is AnimTimeRef::AnimTimeRef() out of line (??0AnimTimeRef@@QAE@XZ) and 0x00450000 (after
-// VerifyChildModelTree) LTMatrix::Init(16 floats). Their only callers in the exe are ModelInstance::UpdateTransforms
-// (objectmgr, its inlined TransformMaker constructor) and SetObjectFilenames; no function of this file calls them out of
-// line (ParseCommandString inlines both), so whatever placed them here is not in the exe (probably a function /OPT:REF
-// dropped). Left unannotated: our object has no copies of them.
+// The header-emitted AnimTimeRef constructor (0x0044f8f0) and LTMatrix::Init (0x00450000) copies are annotated in
+// shared/objectmgr.cpp, which owns the emitted object copies.
 
 // FUNCTION: LITHTECH 0x0044f920
 uint32 Model::CalcNumTris(uint32 iLOD)
@@ -1080,17 +1141,9 @@ uint32 Model::CalcNumParentAnims()
 
 
 // Parses the model's command string (the "ModelEdit" properties).
-// Wave 6 (hillclimb): storing m_iNormalRefNode before m_bNormalRef fixes the register choice of the NormalRef
-// matrix copy (orig `idx << 6` in esi, base in eax) and of the ShadowCenterOffset atof loads; what is left is the
-// order of those two stores before FindNode (orig: m_bNormalRef (ebp) first, then [edi] = -1). Writing m_bNormalRef
-// first restores the store order but brings the register differences back (0 for LTFALSE, INVALID_MODEL_NODE,
-// 0xFFFFFFFF, hoisting m_iNormalRefAnim's reset, `!= LTNULL`, GetArray()[] give the same).
-// Earlier: GetAt/Get, pointer arithmetic in both operand orders, a local index, a local pointer, memcpy.
-// Wave 7 phase 2: audit: behaviour matches. Of the 21 aligned, 7 are string-address immediates (relocated, same
-// strings) and 12 the switch jump table decoded as code; the real difference is the one store moved at +0x395
-// (m_iNormalRefNode / m_bNormalRef order before FindNode, 12 bytes). Not reworked this phase.
-// PARKED: order of two stores before FindNode (12 bytes; the fix costs register choices elsewhere); behaviour identical
-// STUB: LITHTECH 0x0044fa10
+// Keep the NormalRef reset stores in their original order. Reload the node index through a volatile pointer after
+// SetupTransforms so VC6 uses the same register and load sequence for the transform copy.
+// FUNCTION: LITHTECH 0x0044fa10
 void Model::ParseCommandString()
 {
 	struct FloatCommand
@@ -1173,8 +1226,8 @@ void Model::ParseCommandString()
 				else if(stricmp("NormalRef", parse.m_Args[0]) == 0)
 				{
 					// Node name and animation name: the reference transform is the first frame of the animation.
-					m_iNormalRefNode = (uint32)-1;
 					m_bNormalRef = LTFALSE;
+					m_iNormalRefNode = (uint32)-1;
 					if(FindNode(parse.m_Args[1], &m_iNormalRefNode))
 					{
 						m_iNormalRefAnim = (uint32)-1;
@@ -1184,7 +1237,8 @@ void Model::ParseCommandString()
 							maker.m_nAnims = 1;
 							if(maker.SetupTransforms())
 							{
-								m_mNormalRef = m_Transforms[m_iNormalRefNode];
+								volatile uint32 *normalNode = &m_iNormalRefNode;
+								m_mNormalRef = m_Transforms[*normalNode];
 								m_bNormalRef = LTTRUE;
 							}
 						}
@@ -1324,17 +1378,9 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 // FUNCTION: LITHTECH 0x00450be0 ?GenFindElement@?$CMoArray@VAnimKeyFrame@@VNoCache@@@@UBEHABVAnimKeyFrame@@AAVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00450c10 ?GenGetNext@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBE?AVNodeRelation@@AAVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00450c60 ?GenGetAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UBE?AVNodeRelation@@AAVGenListPos@@@Z
-// The original runs out of inline budget after two copy loops and calls NodeRelation::operator= out of line.
-// That copy is 0x00453c40 (??4NodeRelation@@QAEAAV0@ABV0@@Z, after GenAppendList<AnimInfo>); annotate it once
-// this matches.
-// Wave 7 phase 2: audit: `calls 5` = the exe's two calls of NodeRelation::operator= (0x453c40, the memberwise copy
-// with LTRotation::operator= inlined) and its BaseDelete under an ICF name, where ours inlines NodeRelation's
-// operator= three times and calls LTRotation::operator= (0x4502a0) once: inlining decisions only. inline_budget.py
-// can't analyse it (the body is the stock dynarray.h template: "no body"). An explicit
-// `NodeRelation& operator=(const NodeRelation&)` in model.h (tried once, reverted) changes nothing: VC6 still
-// inlines it at all three sites (GenAppend's B is the 1000u floor; Append -> Insert -> Insert2 -> operator=).
-// PARKED: inlining decisions inside the stock CMoArray::Insert2 (NodeRelation::operator= out of line twice in the exe); behaviour identical
-// STUB: LITHTECH 0x00450cb0 ?GenAppend@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHAAVNodeRelation@@@Z
+// VC6 keeps the NodeRelation copy used by this specialization out of line; the other array instantiations
+// inline their copies. Keep Insert2 specialized so its copy sites retain that compiler decision.
+// FUNCTION: LITHTECH 0x00450cb0 ?GenAppend@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHAAVNodeRelation@@@Z
 // FUNCTION: LITHTECH 0x00450ea0 ?GenRemoveAt@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXVGenListPos@@@Z
 // FUNCTION: LITHTECH 0x00451040 ?GenRemoveAll@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEXXZ
 // FUNCTION: LITHTECH 0x00451070 ?GenCopyList@?$CMoArray@VNodeRelation@@VDefaultCache@@@@UAEHABV?$GenList@VNodeRelation@@@@@Z
@@ -1390,6 +1436,7 @@ ModelSocket* Model::FindSocket(const char *pName, uint32 *index)
 // FUNCTION: LITHTECH 0x00453a00 ?GenGetSize@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@UBEKXZ
 // FUNCTION: LITHTECH 0x00453a10 ?GenCopyList@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEHABV?$GenList@VAnimInfo@@@@@Z
 // FUNCTION: LITHTECH 0x00453b40 ?GenAppendList@?$CMoArray@VAnimInfo@@VNoCache@@@@UAEHABV?$GenList@VAnimInfo@@@@@Z
+// FUNCTION: LITHTECH 0x00453c40 ??4NodeRelation@@QAEAAV0@ABV0@@Z
 // FUNCTION: LITHTECH 0x00453c80 ?SetSize2@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@QAEHKPAVLAlloc@@@Z
 // FUNCTION: LITHTECH 0x00453cf0 ?InternalNiceSetSize@?$CMoArray@VNodeKeyFrame@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z
 // FUNCTION: LITHTECH 0x00453e10 ?InternalNiceSetSize@?$CMoArray@PAVModelNode@@VNoCache@@@@AAEHKHPAVLAlloc@@@Z

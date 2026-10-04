@@ -67,7 +67,7 @@ extern int32 g_ShowTickCounts;
 void dm_HeapCompact();
 void con_DoWorldCommand(char *pWorldName, char *pRecordFilename);
 
-// The console tables (static data in this file, not reconstructed yet).
+// The console tables are defined below the command handlers.
 // GLOBAL: LITHTECH 0x004d09b8
 extern LTSaveFn g_SaveFns[2];
 #define NUM_SAVEFNS (sizeof(g_SaveFns) / sizeof(g_SaveFns[0]))
@@ -825,6 +825,59 @@ void SaveModelAdd(FILE *fp)
 	fprintf(fp, "ModelDirAdd %f %f %f\n", g_ConsoleModelDirAdd.x, g_ConsoleModelDirAdd.y, g_ConsoleModelDirAdd.z);
 	fprintf(fp, "WMAmbient %f %f %f\n", g_ConsoleModelDirAdd2.x, g_ConsoleModelDirAdd2.y, g_ConsoleModelDirAdd2.z);
 }
+
+
+void con_ListCommands(int argc, char *argv[]);
+void con_Set(int argc, char *argv[]);
+
+// The release BlastServer command is empty; VC6 folds it at 0x004359b0 with other empty handlers.
+static void con_BlastServer(int argc, char *argv[])
+{
+}
+
+LTSaveFn g_SaveFns[2] = {
+	input_SaveBindings,
+	SaveModelAdd
+};
+
+LTCommandStruct g_LTCommandStructs[36] = {
+	{ "BlastServer", con_BlastServer, 0 },
+	{ "ListInputDevices", con_ListInputDevices, 0 },
+	{ "quit", con_Quit, 0 },
+	{ "serv", con_ServerCommand, 0 },
+	{ "ModelAdd", con_ModelAdd, 0 },
+	{ "ModelDirAdd", con_ModelDirAdd, 0 },
+	{ "World", con_World, 0 },
+	{ "TimeDemo", con_TimeDemo, 0 },
+	{ "EnableDevice", con_EnableDevice, 0 },
+	{ "RangeBind", con_RangeBind, 0 },
+	{ "Bind", con_Bind, 0 },
+	{ "UnBind", con_UnBind, 0 },
+	{ "Scale", con_Scale, 0 },
+	{ "RangeScale", con_RangeScale, 0 },
+	{ "AddAction", con_AddAction, 0 },
+	{ "SSFile", con_SSFile, 0 },
+	{ "UpdateServer", con_UpdateServer, 0 },
+	{ "RenderCommand", con_RenderCommand, 0 },
+	{ "RCom", con_RenderCommand, 0 },
+	{ "Set", con_Set, 0 },
+	{ "ListCommands", con_ListCommands, 0 },
+	{ "RestartConsole", con_RestartConsole, 0 },
+	{ "RestartRender", con_RestartRender, 0 },
+	{ "ResizeScreen", con_ResizeScreen, 0 },
+	{ "EnvMap", con_EnvMap, 0 },
+	{ "RebindTextures", con_RebindTextures, 0 },
+	{ "RebindLightmaps", con_RebindLightmaps, 0 },
+	{ "HeapCompact", con_HeapCompact, 0 },
+	{ "ConsoleHistory", con_ConsoleHistory, 0 },
+	{ "ClearHistory", con_ClearHistory, 0 },
+	{ "WriteHistory", con_WriteHistory, 0 },
+	{ "ReadHistory", con_ReadHistory, 0 },
+	{ "Exec", con_Exec, 0 },
+	{ "MoveConsole", con_MoveConsole, 0 },
+	{ "ShowTicks", con_ShowTicks, 0 },
+	{ "WMAmbient", con_WMAmbient, 0 }
+};
 
 
 //------------------------------------------------------------------

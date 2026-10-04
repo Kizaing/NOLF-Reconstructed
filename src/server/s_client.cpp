@@ -1159,33 +1159,28 @@ void sm_TracePacket(CServerMgr *pServerMgr, CPacket *pPacket)
 }
 
 
-// One byte: the inlined CMoArray::Insert2 shift loop adds m_pArray + i with the operands swapped
-// (lea ecx,[eax+edx] in the original, [edx+eax] here). The instance is CPacket::m_Data's Append(0) inside
-// WriteType (packet.h is frozen); the order is register-allocation noise inside the inlined Insert2.
-// Wave 7 phase 2: audit: behaviour matches. Tried: the m_nPacketsSent increment before/between/after the
-// reset, ++ prefix, the packet flags as a ternary or if/else, explicit m_DataLen/m_Pos stores for ResetWrite,
-// the room test reversed/nested/`- 4`/`>= n + 5`, a pServerMgr local: never better than the 1-instruction
-// difference (lea ecx,[eax+edx] vs [edx+eax] at +0x11e inside the inlined CMoArray::Insert2 of WriteType).
-// PARKED: one lea operand order inside the inlined CMoArray::Insert2 (packet.h, frozen); behaviour identical
-// STUB: LITHTECH 0x00471760
+// The count alias preserves VC6's original update order around the inlined WriteType.
+// FUNCTION: LITHTECH 0x00471760
 LTBOOL sm_FlushUpdate(UpdateInfo *pInfo, CPacket *pPacket, uint8 packetID, int nRoomNeeded)
 {
 	uint32 packetFlags;
 
-	if (nRoomNeeded != -1 && pPacket->GetSpaceLeft() > nRoomNeeded + 4)
-		return LTFALSE;
+	if (!(nRoomNeeded != -1 && pPacket->GetSpaceLeft() > nRoomNeeded + 4))
+	{
+		packetFlags = 0;
+		if (packetID == SMSG_UPDATE)
+			packetFlags = MESSAGE_GUARANTEED;
 
-	packetFlags = 0;
-	if (packetID == SMSG_UPDATE)
-		packetFlags = MESSAGE_GUARANTEED;
+		sm_TracePacket(pInfo->m_pServerMgr, pPacket);
+		SendToClient(pInfo->m_pServerMgr, pInfo->m_pClient, packetID, pPacket, FALSE, packetFlags);
 
-	sm_TracePacket(pInfo->m_pServerMgr, pPacket);
-	SendToClient(pInfo->m_pServerMgr, pInfo->m_pClient, packetID, pPacket, FALSE, packetFlags);
-
-	pPacket->ResetWrite();
-	pPacket->WriteType((uint8)0);
-	pInfo->m_nPacketsSent++;
-	return LTTRUE;
+		pPacket->ResetWrite();
+		uint32 *pNPacketsSent = &pInfo->m_nPacketsSent;
+		pPacket->WriteType((uint8)0);
+		(*pNPacketsSent)++;
+		return LTTRUE;
+	}
+	return LTFALSE;
 }
 
 

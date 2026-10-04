@@ -209,13 +209,18 @@ public:
 		{
 			EnterCriticalSection(&m_pTree->m_CriticalSection);
 
-			uint32 seekOffset = m_SeekOffset;
-			if ((g_pDeFileLastRezItm == m_pRezItm) && (g_nDeFileLastRezPos == seekOffset))
+			uint32 seekOffset;
+			if (g_pDeFileLastRezItm == m_pRezItm)
 			{
-				sizeRead = m_pRezItm->Read((BYTE*)pData, size);
+				seekOffset = m_SeekOffset;
+				if (g_nDeFileLastRezPos == seekOffset)
+					sizeRead = m_pRezItm->Read((BYTE*)pData, size);
+				else
+					sizeRead = m_pRezItm->Read((BYTE*)pData, size, seekOffset);
 			}
 			else
 			{
+				seekOffset = m_SeekOffset;
 				sizeRead = m_pRezItm->Read((BYTE*)pData, size, seekOffset);
 			}
 
@@ -864,23 +869,12 @@ int df_GetRawInfo(HLTFileTree *hTree, const char *pName, char* sFileName, unsign
 // FUNCTION: LITHTECH 0x004272e0 ?SeekTo@DosFileStream@@UAEKK@Z
 // FUNCTION: LITHTECH 0x00427310 ?Read@DosFileStream@@UAEKPAXK@Z
 // FUNCTION: LITHTECH 0x004273b0 ?SeekTo@RezFileStream@@UAEKK@Z
-// Remaining diff (6 aligned instructions): with Jupiter's if/else of two CRezItm::Read calls (tail-merged into push -1 /
-// push seekOffset) only the pData load differs: the original loads it into edi before comparing g_pDeFileLastRezItm
-// (so that compare uses eax); ours loads it at the merged call. Tried: operand order of both compares, a BYTE* local for
-// pData before/after the seek offset, no seekOffset local (reloads m_SeekOffset, worse).
-// Wave 6 also tried: a ternary / `if(...) seekOffset = -1;` with one Read call (19 bytes differ, still 6 aligned),
-// m_SeekOffset read before EnterCriticalSection, an inverted condition, unbraced bodies, a CRezItm* local,
-// Jupiter/DosFileStream's `if(sizeRead == size) {...} else {memset...}` (worse).
-// Wave 7 tried (no change): seekOffset declared at function scope, a CRezItm* local, a BYTE* local at the top.
-// Wave 7 phase 2: audit: behaviour matches (same calls, globals, constants). The 6 aligned are one load placement at
-// +0x3a..+0x54: the exe loads g_pDeFileLastRezItm into eax and pData into edi before the first compare and m_SeekOffset
-// after it; ours loads m_SeekOffset before the compare and pData at the merged Read call. Register/scheduling only.
-// Untried: the RezFileStream class body (in-class inline Read) moved after the code that first uses its vtable.
-// PARKED: load scheduling of pData/m_SeekOffset around the cached-position test (6 aligned); behaviour identical
-// STUB: LITHTECH 0x004273e0 ?Read@RezFileStream@@UAEKPAXK@Z
+// Read m_SeekOffset after testing the cached item, matching the original load order.
+// FUNCTION: LITHTECH 0x004273e0 ?Read@RezFileStream@@UAEKPAXK@Z
 // FUNCTION: LITHTECH 0x00427ac0 ?AllocVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEPAXXZ
 // FUNCTION: LITHTECH 0x00427b30 ?AllocVoid@?$ObjectBank@VRezFileStream@@VLCriticalSection@@@@UAEPAXXZ
-// FUNCTION: LITHTECH 0x00427ba0 ?FreeVoid@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEXPAX@Z
+// The identical RezFileStream COMDAT follows its AllocVoid instance in the original ICF order.
+// FUNCTION: LITHTECH 0x00427ba0 ?FreeVoid@?$ObjectBank@VRezFileStream@@VLCriticalSection@@@@UAEXPAX@Z
 // FUNCTION: LITHTECH 0x00427be0 ?Term@?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEXXZ
 // FUNCTION: LITHTECH 0x00427c10 ??_G?$ObjectBank@VDosFileStream@@VLCriticalSection@@@@UAEPAXI@Z
 // FUNCTION: LITHTECH 0x00427c50 ??_G?$ObjectBank@VRezFileStream@@VLCriticalSection@@@@UAEPAXI@Z

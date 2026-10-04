@@ -166,6 +166,24 @@ class Unit:
                 self.annots.append(a)
 
 
+FUNCTION_POINTER_RE = re.compile(
+    r'\(\s*(?:(?:__cdecl|__stdcall|__fastcall|__thiscall)\s+)?'
+    r'(?:[A-Za-z_][\w:]*::\s*)?\*+\s*(?:(?:const|volatile)\s+)*'
+    r'([A-Za-z_][\w:]*)\s*(?:\[[^\]]*\]\s*)*\)\s*\(')
+
+
+def _function_pointer_name(line):
+    """Name in a function-pointer variable declarator, including arrays and member pointers."""
+    line = line.split('//')[0].split('=')[0]
+    for m in FUNCTION_POINTER_RE.finditer(line):
+        prefix = line[:m.start()]
+        # A callback parameter inside an ordinary prototype is not a variable declaration.
+        # Balanced prefix parentheses allow __declspec(...) on the variable itself.
+        if prefix.count('(') == prefix.count(')'):
+            return m.group(1)
+    return None
+
+
 def _decl_name(lines, i, is_data):
     """Qualified name declared by the first code line at/after lines[i]."""
     while i < len(lines):
@@ -176,6 +194,9 @@ def _decl_name(lines, i, is_data):
         if is_data:
             if '=' in l:
                 l = l[:l.index('=')] + '='      # the initializer can't name it: `const float x = 0.1f;`
+            pointer_name = _function_pointer_name(l)
+            if pointer_name is not None:
+                return pointer_name
             m = re.findall(r'([A-Za-z_][\w:]*)\s*(?:\[[^\]]*\])*\s*(?:=|;|$)', l)      # Cls::s_X too
             m = m or re.findall(r'([A-Za-z_]\w*)\s*\(', l)[:1]      # constructor syntax: LTLink g_X(LTLink_Init);
             return m[-1] if m else None
@@ -707,7 +728,30 @@ def write_library_units(libs, namemap):
     return out_units, claimed
 
 
-def write_targets(units, symtab, namemap, libs=None):
+def matched_body_ends(results, symtab, base_objects, exe_path):
+    """Return verified end VAs for matched FUNCTION bodies followed by linker padding."""
+    if results is None:
+        return {}
+    import mktarget
+    img = mktarget._image(exe_path)
+    body_ends = {}
+    for r in results:
+        if r.a.kind != 'FUNCTION' or r.status != 'MATCH' or not r.a.symbol:
+            continue
+        o = base_objects.get(r.a.unit.name)
+        extent = symtab.funcs.get(r.a.va)
+        if o is None or extent is None:
+            continue
+        _, start, end = o.extent(r.a.symbol)
+        body_end = r.a.va + (end - start)
+        original_end = extent[0]
+        if body_end < original_end:
+            mktarget.validate_body_end(r.a.va, original_end, body_end, img)
+            body_ends[r.a.va] = body_end
+    return body_ends
+
+
+def write_targets(units, symtab, namemap, libs=None, results=None):
     try:
         import mktarget
     except ImportError:
@@ -721,6 +765,7 @@ def write_targets(units, symtab, namemap, libs=None):
         lib_units, lib_claimed = write_library_units(libs, namemap)
         claimed |= lib_claimed | library_funclet_vas(libs)
     ranges = load_unit_ranges()
+    body_ends = matched_body_ends(results, symtab, LAST_OBJS, EXE)
     src_units = {u.name: u for u in units}
     mk_funcs = symtab_for_mktarget().func_addrs
     for name in sorted(set(ranges) | set(src_units)):
@@ -735,7 +780,9 @@ def write_targets(units, symtab, namemap, libs=None):
             continue
         target = os.path.join(BUILD, 'target', name + '.obj')
         os.makedirs(os.path.dirname(target), exist_ok=True)
-        info = mktarget.write_target_obj(target, sorted(vas), EXE, symtab_for_mktarget(), namemap)
+        unit_body_ends = {va: end for va, end in body_ends.items() if va in vas}
+        info = mktarget.write_target_obj(target, sorted(vas), EXE, symtab_for_mktarget(), namemap,
+                                         body_ends=unit_body_ends)
         _note_names(info['name2va'], SYMVA, name)
         OBJVAS[name] = sorted(vas)
         for bad in mktarget.verify(target, EXE, info['name2va']):
@@ -815,12 +862,16 @@ def unit_category(name):
 def mark_complete(units_json, results):
     """A source unit is complete when every function in its target object matches (decomp.dev's 'complete'
     measures; prebuilt library units are always complete)."""
-    matched = {r.a.va for r in results if r.a.kind == 'FUNCTION' and r.status == 'MATCH'}
+    matched_by_unit = {}
+    for r in results:
+        if r.a.kind == 'FUNCTION' and r.status == 'MATCH' and r.a.symbol:
+            matched_by_unit.setdefault(r.a.unit.name, set()).add(r.a.va)
     for e in units_json:
         md = e.setdefault('metadata', {})
         md['progress_categories'] = [unit_category(e['name'])]
         if 'source_path' in md:
             vas = OBJVAS.get(e['name'], [])
+            matched = matched_by_unit.get(e['name'], set())
             md['complete'] = bool(vas) and all(va in matched for va in vas)
 
 
@@ -1007,7 +1058,7 @@ def main(argv):
         print('%d stand-ins not in lithtech.exe (// STANDIN: lines; a relink cannot contain them)' % standins)
     if cmd == 'all':
         save_namemap(namemap)
-        units_json = write_targets(units, symtab, namemap, libs)
+        units_json = write_targets(units, symtab, namemap, libs, results=results)
         if units_json is not None:
             mark_complete(units_json, results)
             write_objdiff_json(units_json)

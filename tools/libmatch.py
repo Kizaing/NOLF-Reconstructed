@@ -740,6 +740,25 @@ def isolated(accepted, textx_lo):
     return out
 
 
+def reject_contradicted_xdata(accepted, objs, log):
+    """Reject .text$x candidates whose own-object .xdata$x relocation target positively mismatched."""
+    bad_xdata = {(ob.id, d.secno) for ob in objs for d in ob.dsecs
+                 if d.secname == '.xdata$x' and d.status == 'mismatch'}
+    rejected = []
+    for s in accepted:
+        if s.secname != '.text$x' or s.va is None:
+            continue
+        if not any(key[0] == 'S' and key[1] == s.ob.id and (key[1], key[2]) in bad_xdata
+                   for _, _, key, _, _ in s.relocs):
+            continue
+        va = s.va
+        s.cands.pop(va, None)
+        log.append('xdata-mismatch: %08x %s %s references contradicted same-object .xdata$x (candidate rejected)' % (
+            va, s.ob.id, s.name()))
+        rejected.append(s)
+    return rejected
+
+
 # ---------------------------------------------------------------- output
 
 def build_units(objs, accepted, vals):
@@ -779,6 +798,44 @@ def build_units(objs, accepted, vals):
     return units, names
 
 
+def resolve_stable(objs, exe, gh, fam_secs, log):
+    """Resolve until no candidates are rejected; fail closed if rejection makes no progress."""
+    secs = [s for ob in objs for s in ob.secs]
+    max_rounds = sum(len(s.cands) for s in secs) + 1
+
+    def candidate_count():
+        return sum(len(s.cands) for s in secs)
+
+    for _ in range(max_rounds):
+        for ob in objs:
+            for sec in ob.secs + ob.dsecs:
+                sec.va, sec.status = None, None
+                if hasattr(sec, 'done'):
+                    sec.done = False
+        accepted, known, evidence = resolve(objs, exe, gh, log)
+        accepted, evid = attribute(objs, accepted, exe, known)
+        # Data classification establishes which local unwind contributions are positively contradicted.
+        classify(objs, accepted, exe)
+        before = candidate_count()
+        contradicted = reject_contradicted_xdata(accepted, objs, log)
+        if contradicted:
+            if candidate_count() >= before:
+                raise RuntimeError('libmatch xdata rejection made no candidate progress; refusing stale results')
+            continue
+        iso = isolated(accepted, TEXTX_LO)
+        if iso:
+            for sec in iso:
+                log.append('isolated: %08x %s %s (dropped)' % (sec.va, sec.ob.id, sec.name()))
+                for other in fam_secs[FAMILY.get(sec.ob.lib, sec.ob.lib)]:
+                    other.cands.pop(sec.va, None)
+            if candidate_count() >= before:
+                raise RuntimeError('libmatch isolated rejection made no candidate progress; refusing stale results')
+            continue
+        return accepted, known, evidence, evid
+    raise RuntimeError('libmatch resolution did not stabilize after %d candidate-removal rounds; refusing stale results'
+                       % max_rounds)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-v', action='store_true')
@@ -796,21 +853,7 @@ def main():
     for ob in objs:
         for sec in ob.secs:
             fam_secs[FAMILY.get(ob.lib, ob.lib)].append(sec)
-    for it in range(12):
-        for ob in objs:
-            for sec in ob.secs + ob.dsecs:
-                sec.va, sec.status = None, None
-                if hasattr(sec, 'done'):
-                    sec.done = False
-        accepted, known, evidence = resolve(objs, exe, gh, log)
-        accepted, evid = attribute(objs, accepted, exe, known)
-        iso = isolated(accepted, TEXTX_LO)
-        if not iso:
-            break
-        for sec in iso:
-            log.append('isolated: %08x %s %s (dropped)' % (sec.va, sec.ob.id, sec.name()))
-            for other in fam_secs[FAMILY.get(sec.ob.lib, sec.ob.lib)]:
-                other.cands.pop(sec.va, None)
+    accepted, known, evidence, evid = resolve_stable(objs, exe, gh, fam_secs, log)
     conflicts, dplaced, vals = classify(objs, accepted, exe)
     units, names = build_units(objs, accepted, vals)
     srcbuilt = collections.defaultdict(dict)

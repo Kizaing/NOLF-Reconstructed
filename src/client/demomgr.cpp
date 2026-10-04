@@ -65,6 +65,8 @@ extern uint32 g_Ticks_WorldModels;
 // GLOBAL: LITHTECH 0x004e48f0
 extern uint32 g_Ticks_Translucent;
 
+// Name the emitted literal at its first byte so its relocation is symbol+0, not DAT_004d1afb+1.
+// GLOBAL: LITHTECH 0x004d1afc ??_C@_0BE@ECIK@?5?5?5?5?5?5?5?5Translucent?$AA@
 
 // A profile counter and its range over the PlayDemoReps runs.
 struct PDCounter

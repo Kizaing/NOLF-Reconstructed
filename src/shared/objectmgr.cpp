@@ -31,6 +31,9 @@ LTLink g_ObjectMgrs(LTLink_Init);
 
 // FUNCTION: LITHTECH 0x00466630 _$E2
 // FUNCTION: LITHTECH 0x00466640 _$E1
+// Header-emitted methods present in this object.
+// FUNCTION: LITHTECH 0x0044f8f0 ??0AnimTimeRef@@QAE@XZ
+// FUNCTION: LITHTECH 0x00450000 ?Init@LTMatrix@@QAEXMMMMMMMMMMMMMMMM@Z
 
 
 // ------------------------------------------------------------------------- //

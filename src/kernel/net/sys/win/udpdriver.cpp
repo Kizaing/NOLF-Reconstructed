@@ -94,6 +94,14 @@ CUDPConn* FindConnByAddr2(CUDPDriver *pDriver, sockaddr_in *pAddr);
 int FindAddrInList(sockaddr_in *pTest, CMoArray<CUDPQuery> &sessions);
 
 
+// CBaseDriver and BaseService defaults emitted from netmgr.h.
+// FUNCTION: LITHTECH 0x00433cd0 ?GetServiceList@CBaseDriver@@UAEKAAPAVNetService@@@Z
+// FUNCTION: LITHTECH 0x00433ce0 ?GetSessionList@CBaseDriver@@UAEKAAPAVNetSession@@PAD@Z
+// FUNCTION: LITHTECH 0x00433cf0 ?GetLocalIpAddress@CBaseDriver@@UAEIPADKAAG@Z
+// FUNCTION: LITHTECH 0x00433d00 ?SendTcpIp@CBaseDriver@@UAEKPAXKPADK@Z
+// FUNCTION: LITHTECH 0x00433d10 ??_GCBaseDriver@@UAEPAXI@Z
+// FUNCTION: LITHTECH 0x00433d30 ??_GBaseService@@UAEPAXI@Z
+
 // ----------------------------------------------------------------- //
 // Internal helpers.
 // ----------------------------------------------------------------- //

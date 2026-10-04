@@ -34,7 +34,7 @@ typedef std::map<std::string, ExtraChildSet> ExtraChildMap;
 // Installs the si_ function pointers.
 void si_SetupFunctionPointers(ILTServer *pServer);
 
-// The interface classes CLTServer embeds (their methods live in server_interface.cpp).
+// The interface classes CLTServer embeds (their methods live in serverde_impl.cpp).
 // vtable 0x004c8318.
 class SPhysicsLT : public ILTPhysics
 {
@@ -123,24 +123,9 @@ public:
 class CLTServer : public ILTServer
 {
 public:
-	CLTServer(CServerMgr *pServerMgr)
-		: m_ModelLT(pServerMgr), m_PhysicsLT(pServerMgr), m_LightAnimLT(pServerMgr)
-	{
-		m_pServerMgr = pServerMgr;
-		m_pCommonLT = &m_CommonLT;
-		m_pModelLT = &m_ModelLT;
-		m_pTransformLT = &m_TransformLT;
-		m_pPhysicsLT = &m_PhysicsLT;
-		m_pLightAnimLT = &m_LightAnimLT;
-		m_pSoundMgr = pServerMgr;
+	CLTServer(CServerMgr *pServerMgr);
 
-		m_CommonLT.SetMathLT(&m_MathLT);
-		m_CommonLT.m_pServerMgr = pServerMgr;
-		m_CommonLT.m_pTransformLT = &m_TransformLT;
-		m_CommonLT.m_pModelLT = &m_ModelLT;
-	}
-
-	virtual			~CLTServer() {}
+	virtual			~CLTServer();
 
 	// ILTCSBase.
 	virtual HMESSAGEWRITE	StartHMessageWrite();

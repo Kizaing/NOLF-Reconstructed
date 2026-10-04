@@ -1,6 +1,7 @@
 # Ghidra names that matched code has proven wrong. build.py uses these over symbols.csv.
 # Sync them back into the Ghidra project, then delete the rows.
 addr,name,ghidra_name,evidence
+004afc30,AIL_shutdown@0,MSS32.DLL::_AIL_shutdown@0,MSS_auto_cleanup passes the stdcall shutdown code thunk to atexit at 004afc20
 004c62b0,WSOCK32.DLL!inet_addr,WSOCK32.DLL!Ordinal_10,WSOCK32 import by ordinal 10
 004c62b4,WSOCK32.DLL!WSAGetLastError,WSOCK32.DLL!Ordinal_111,WSOCK32 import by ordinal 111
 004c62b8,WSOCK32.DLL!ntohl,WSOCK32.DLL!Ordinal_14,WSOCK32 import by ordinal 14

@@ -242,58 +242,46 @@ LTRESULT LMessageImpl::ReadCompRotationFL(LTRotation &rot)
 	return LT_OK;
 }
 
-// The original calls CPacket::WriteType<uint8> out of line (0x00417c20).
-// Wave 5: with `#pragma inline_depth(1)` at the end of the file (template call sites take the end-of-file value)
-// this compiles to the original's 192 bytes, with the loop shaped `if(len != 0){ i = len; do{...}while(--i); }`
-// and `theByte` in the loop block. Left: the original reuses the dead pMsg argument slot for `len`/`theByte`
-// (frame is a single `push ecx`; ours needs `sub esp,8`) and stores m_Pos before loading the vtable for Release.
-// The pragma is not shipped: WriteMessage needs depth 2 (CMoArray::operator[] -> Get) in the same unit.
-// Wave 6: 5 free inline calls after the WriteType (or before the final Release) also give 192 bytes (aligned 18:
-// the dead-argument slot for len/theByte and the m_Pos store order remain). A function-scope CPacketRef (`->`
-// sites, its destructor) or ReadByte() supply at most 3 of them and change nothing.
-// Wave 7 decode of the exe (192 bytes): packet_Get into a CPacketRef temporary, packet_AddRef, the temporary's
-// Release, m_Unknown04 copied, pMsg set, ReadWordFL into the dead pMsg slot, 0xFFFF -> pMsg = NULL + Release, then
-// `do { ReadByteFL; WriteTypeImpl<uint8> (0x417c20) } while(--len)`, then AddRef, m_Pos = 1, Release (no null tests
-// there). Same behaviour as ours: the audit's call/string/jcc differences are all the inlined WriteTypeImpl.
-// Wave 7 phase 2 (budget model): B = 1000u (floor). Top-level sites packet_AddRef 44u, ~CPacketRef 42u, WriteType
-// (free, 20u); WriteType passes 894u to WriteTypeImpl (170u), which is inlined. The exe's out-of-line WriteTypeImpl
-// needs k = 5 (or 6) extra free pending sites after WriteType at top level (--solve: dB -300..+104), i.e. five
-// inline-candidate calls between the loop and the end that produce no code; the exe's tail (AddRef; m_Pos = 1;
-// Release, all virtual or plain stores) has none. Not found: the CPacketRef forms supply at most 3. Most promising
-// untried idea: the original's loop/tail written through inline LMessageImpl/CPacket accessors that fold away.
-// PARKED: inlining decision only (exe calls WriteTypeImpl<uint8> out of line; model needs 5 unexplained free pending sites)
-// STUB: LITHTECH 0x00445cc0
+// The scoped length and byte temporaries reuse the dead argument slot. The member-function call keeps WriteTypeImpl
+// out of line, and the uint16 reference preserves the m_Pos store order.
+// FUNCTION: LITHTECH 0x00445cc0
 LTRESULT LMessageImpl::ReadMessageFL(ILTMessage* &pMsg)
 {
 	CPacket *pPacket;
-	uint16 len;
 	uint32 i;
 
 	pPacket = packet_AddRef(packet_Get(MAX_PACKET_LEN, MAX_PACKET_LEN));
 	pPacket->m_Message.m_Unknown04 = m_Unknown04;
 	pMsg = &pPacket->m_Message;
 
-	ReadWordFL(len);
-	if(len == 0xFFFF)
 	{
-		pMsg = LTNULL;
-		pPacket->Release();
-		return LT_OK;
-	}
+		uint16 len;
+		ReadWordFL(len);
+		if(len == 0xFFFF)
+		{
+			pMsg = LTNULL;
+			pPacket->Release();
+			return LT_OK;
+		}
 
-	if(len != 0)
-	{
+		if(len == 0)
+			goto FinishReadMessage;
 		i = len;
+	}
+	{
 		do
 		{
 			uint8 theByte;
 			ReadByteFL(theByte);
-			pPacket->WriteType(theByte);
+			void (CPacket::*writeByte)(uint8) = &CPacket::WriteTypeImpl;
+			(pPacket->*writeByte)(theByte);
 		} while(--i);
 	}
 
+FinishReadMessage:
 	pPacket->AddRef();
-	pPacket->m_Pos = 1;
+	uint16 &readPos = pPacket->m_Pos;
+	readPos = 1;
 	pPacket->Release();
 	return LT_OK;
 }
@@ -504,14 +492,4 @@ LTRESULT LMessageImpl::GetStatus(uint32 &flags)
 		flags |= LMSTAT_WRITEOVERFLOW;
 
 	return LT_OK;
-}
-
-// FUNCTION: LITHTECH 0x00446130
-char const* LMessageImpl::ReadString()
-{
-	char *pRet;
-
-	pRet = m_pPacket->ReadString();
-	CHECK_AUTORESET(m_pPacket);
-	return pRet;
 }

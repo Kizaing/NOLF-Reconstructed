@@ -1,0 +1,1141 @@
+{
+  "schema": "verified-library-data-config-v1",
+  "original_image": "E:\\AVP2Source\\bin\\lithtech.exe",
+  "original_image_sha256": "62c8f98091187909df0edfb062b0ed4abd09c7c4af75991c0a2bae713087b0be",
+  "typed_payload_bytes": {
+    ".rdata": 600,
+    ".text": 704
+  },
+  "alignment_padding_bytes": {
+    ".rdata": 4
+  },
+  "padding": [
+    {
+      "va": "004c9e9c",
+      "size": 4,
+      "original_output_group": ".rdata",
+      "kind": "alignment_padding",
+      "bytes": "00000000",
+      "proof": "Following UUID member requires alignment 8: align(004c9e9c,8)=004c9ea0. Native linker alignment must produce these bytes; do not emit an original-byte substitute."
+    }
+  ],
+  "placement_evidence": {
+    "order": [
+      "DX81/dilib3",
+      "DX81/dxguid",
+      "VC6_UUID/cguid_i_guid0",
+      "VC6_UUID/objidl_i_guid18",
+      "VC6_UUID/unknwn_i_guid0",
+      "VC6_UUID/objidl_i_guid13"
+    ],
+    "order_status": "Original selected-data interval order is proved; independent original library-command/archive-extraction order is unknown. No synthetic function addresses are allowed to manufacture order.",
+    "dilib3_text_order_anchor": "004af960: genuine static data section in executable .text; use separate typed placement, not FUNCTION marker.",
+    "rdata_interval": [
+      "004c9c84",
+      "004c9ee0"
+    ],
+    "text_interval": [
+      "004af960",
+      "004afc20"
+    ]
+  },
+  "units": [
+    {
+      "name": "DX81/dilib3",
+      "kind": "library_data_only",
+      "archive": "E:\\AVP2Source\\8.1 sdk\\lib\\dinput.lib",
+      "archive_sha256": "6cefbeaf8688ea42259a055f84feec0410a666be6ddfdcc745c2661edeb123da",
+      "member": "obj\\i386\\dilib3.obj",
+      "member_sha256": "bd25d02aa3c7a570312360d47fe8ff8c9d4e6bee12a5955450193b14594cf7e8",
+      "comp_id": "28/9178",
+      "provenance_status": "original_family_proven",
+      "provenance_evidence": "Exactly one corresponding Rich compiler entry and all selected payload/relocation fields match. Constants alone do not discriminate SDK versions.",
+      "sections": [
+        {
+          "kind": "data",
+          "coff_section_index": 3,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40300040",
+          "original_va": "004c9c84",
+          "size": 24,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": false,
+          "comdat_selection": 0,
+          "native_section_sha256": "2d75ff5854c15381894949e2081142619149b43de80e517831f85283bc2c1367",
+          "native_relocations": [
+            {
+              "offset": 20,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_c_rgodfDIJoy",
+              "target_symbol_storage_class": 3,
+              "target_symbol_section": 4,
+              "target_va": "004af960",
+              "addend": 0,
+              "verified_original_field_va": "004c9c98"
+            }
+          ],
+          "symbols": [
+            {
+              "name": "_c_dfDIJoystick",
+              "offset": 0,
+              "va": "004c9c84",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 4,
+          "coff_section_name": ".text",
+          "coff_section_flags": "60500020",
+          "original_va": "004af960",
+          "size": 704,
+          "original_output_group": ".text",
+          "alignment": 16,
+          "comdat": false,
+          "comdat_selection": 0,
+          "native_section_sha256": "d5bb9b74ca57efcf2de79a4c174ed138ef94efb32bdf563d2e13b104bddf8473",
+          "native_relocations": [
+            {
+              "offset": 0,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_XAxis",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e7c",
+              "addend": 0,
+              "verified_original_field_va": "004af960"
+            },
+            {
+              "offset": 16,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_YAxis",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e6c",
+              "addend": 0,
+              "verified_original_field_va": "004af970"
+            },
+            {
+              "offset": 32,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_ZAxis",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e5c",
+              "addend": 0,
+              "verified_original_field_va": "004af980"
+            },
+            {
+              "offset": 48,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_RxAxis",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e4c",
+              "addend": 0,
+              "verified_original_field_va": "004af990"
+            },
+            {
+              "offset": 64,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_RyAxis",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e3c",
+              "addend": 0,
+              "verified_original_field_va": "004af9a0"
+            },
+            {
+              "offset": 80,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_RzAxis",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e2c",
+              "addend": 0,
+              "verified_original_field_va": "004af9b0"
+            },
+            {
+              "offset": 96,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_Slider",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e1c",
+              "addend": 0,
+              "verified_original_field_va": "004af9c0"
+            },
+            {
+              "offset": 112,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_Slider",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9e1c",
+              "addend": 0,
+              "verified_original_field_va": "004af9d0"
+            },
+            {
+              "offset": 128,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_POV",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9dec",
+              "addend": 0,
+              "verified_original_field_va": "004af9e0"
+            },
+            {
+              "offset": 144,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_POV",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9dec",
+              "addend": 0,
+              "verified_original_field_va": "004af9f0"
+            },
+            {
+              "offset": 160,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_POV",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9dec",
+              "addend": 0,
+              "verified_original_field_va": "004afa00"
+            },
+            {
+              "offset": 176,
+              "type": 6,
+              "type_name": "IMAGE_REL_I386_DIR32",
+              "target_symbol": "_GUID_POV",
+              "target_symbol_storage_class": 2,
+              "target_symbol_section": 0,
+              "target_va": "004c9dec",
+              "addend": 0,
+              "verified_original_field_va": "004afa10"
+            }
+          ],
+          "symbols": [
+            {
+              "name": "_c_rgodfDIJoy",
+              "offset": 0,
+              "va": "004af960",
+              "coff_type": 0,
+              "storage_class": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "DX81/dxguid",
+      "kind": "library_data_only",
+      "archive": "E:\\AVP2Source\\8.1 sdk\\lib\\dxguid.lib",
+      "archive_sha256": "73a147b9ff6e4527e543e9a436cb244adcdae4ad89b89df51a0634f9a8c13682",
+      "member": "obj\\i386\\dxguid.obj",
+      "member_sha256": "d04fa4fb7a23999cf68916158d9335ab985fa7f7b529463a83125fc529a49113",
+      "comp_id": "29/9178",
+      "provenance_status": "original_family_proven",
+      "provenance_evidence": "Exactly one corresponding Rich compiler entry and all selected payload/relocation fields match. Constants alone do not discriminate SDK versions.",
+      "sections": [
+        {
+          "kind": "data",
+          "coff_section_index": 5,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9c9c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "c60af258e8fb4a74d3b285d41f57e9a43641264d5290e67e702cbd5c8f8f71bb",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IKsControl",
+              "offset": 0,
+              "va": "004c9c9c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 17,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9cac",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "e449e16e75810ff4d9e01bc13398d36e3eb687589743f2d4e342f95baa8b3ecd",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IDirectMusicPerformance2",
+              "offset": 0,
+              "va": "004c9cac",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 21,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9cbc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "a9d2111a783936bc649414610459831dfeb870877ca7479e54f69dca7a694969",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IDirectMusicStyle",
+              "offset": 0,
+              "va": "004c9cbc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 25,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9ccc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "3980038d69f589709e287803923bc90ce94a3055b8303a153f6a876d75010251",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IDirectMusicSegment",
+              "offset": 0,
+              "va": "004c9ccc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 26,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9cdc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "5fd9ff6e1756dacafe404c4df8d8b0cc2194689f20d60ad697680d0f6babb2e4",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IDirectMusicObject",
+              "offset": 0,
+              "va": "004c9cdc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 27,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9cec",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "ec123150ab5153612370a7b40a2234385a4a1ee0406498258c6e072d7bb5d72e",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IDirectMusicGetLoader",
+              "offset": 0,
+              "va": "004c9cec",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 28,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9cfc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "26e80a7d1960c4ba5b904306dd94fd69ffa736db360eac750e326e87f7dfeec1",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IDirectMusicLoader",
+              "offset": 0,
+              "va": "004c9cfc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 38,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d0c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "a32923111e863c91b070a51102e674745ce1888ec6e1d9e42e1c20e4df516b08",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_PerfMasterVolume",
+              "offset": 0,
+              "va": "004c9d0c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 56,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d1c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "1728429453231bd69491a961a9b7f840006a39147ea905f5d59e29d77249381b",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_Download",
+              "offset": 0,
+              "va": "004c9d1c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 76,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d2c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "b8b079b5e5ece2711ce958ca174d2ff7547a2145bba60588683719429cacdb9b",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_NOTIFICATION_SEGMENT",
+              "offset": 0,
+              "va": "004c9d2c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 77,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d3c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "0c52cee9cc8b383a3680e087c0a7649df57607dec9bae96568fe70a78a1f3c34",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_DirectMusicAllTypes",
+              "offset": 0,
+              "va": "004c9d3c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 87,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d4c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "8e90af8a059c880297cf29f7cf3477ff969d2958c1099f48e15c266c7633207f",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_CLSID_DirectMusicChordMap",
+              "offset": 0,
+              "va": "004c9d4c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 88,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d5c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "37b10697b2cc50cbfb4710829bfb21c370b7e49584e8aa3eaaf8994447d3fd59",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_CLSID_DirectMusicStyle",
+              "offset": 0,
+              "va": "004c9d5c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 91,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d6c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "c0dcc12f047dca9be458b0329ab044c8e798d9738450ada1674634fbde042054",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_CLSID_DirectMusicSegment",
+              "offset": 0,
+              "va": "004c9d6c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 92,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d7c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "aa01cf717dd58b4b758508f934643645ea8d0b7cf999da3ed5f0d3567fe0f72f",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_CLSID_DirectMusicPerformance",
+              "offset": 0,
+              "va": "004c9d7c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 118,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d8c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "46250503348a3278b78763d1c32b0f08bae1000eac657e1197e4e297867be25e",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_DMUS_PROP_Effects",
+              "offset": 0,
+              "va": "004c9d8c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 119,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9d9c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "8dde6d7e681e703656ca8e1f9e0d70b3a41b98c8878bf0108f7a927b5dc25a11",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_DMUS_PROP_WavesReverb",
+              "offset": 0,
+              "va": "004c9d9c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 147,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9dac",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "910a315aadb7a52a759feba6adde3b23b999625eabbd418530804e9831a70758",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_CLSID_DirectMusicCollection",
+              "offset": 0,
+              "va": "004c9dac",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 290,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9dbc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "388e7684d389ac1824c279d4d02e70e039387fee62da0a041ed41614b54897b4",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_SysKeyboard",
+              "offset": 0,
+              "va": "004c9dbc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 291,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9dcc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "c26d2395db46e7ded4df601be1674467605bb6717800e48696cb730a640bb99f",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_SysMouse",
+              "offset": 0,
+              "va": "004c9dcc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 292,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9ddc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "b33c9fd4a3b976c0731806239ed25ea2b7faa1ec13768b3a124c6dd9d20c9124",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_Unknown",
+              "offset": 0,
+              "va": "004c9ddc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 293,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9dec",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "51c9b2aa4e21826450609f2f8fbf2f350b9f47a8e802952585bef17100877c66",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_POV",
+              "offset": 0,
+              "va": "004c9dec",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 294,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9dfc",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "f95f75c90da2355eb2bb93153c7ba99cb42235b96fc06d1f4195909952476921",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_Key",
+              "offset": 0,
+              "va": "004c9dfc",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 295,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e0c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "129a569d40e09e16eb9e4e0b791b9e416824796e015fd64954b2fac92bf57fc0",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_Button",
+              "offset": 0,
+              "va": "004c9e0c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 296,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e1c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "514eddb8ff4c9d1a41551d17653506e14d5fc0b71c1b37ab29ce3b957853e7c5",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_Slider",
+              "offset": 0,
+              "va": "004c9e1c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 297,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e2c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "4948d009e40f1aeec9c2e05076f57efc415bd9030ae2e9ceb38fe8f845a304e0",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_RzAxis",
+              "offset": 0,
+              "va": "004c9e2c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 298,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e3c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "eebd1182594821faee13fec0c5a79886a63302dcfaa48f08e52983e9ea7a3c63",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_RyAxis",
+              "offset": 0,
+              "va": "004c9e3c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 299,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e4c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "7af3273b07cf919e074ffc99d06b1d77b86bc5b6441503e3750448795686c68c",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_RxAxis",
+              "offset": 0,
+              "va": "004c9e4c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 300,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e5c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "1642ef2d2976aca4f1abe63b804e2d6ad27782a0b3bf79594da5cd689b6c90ca",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_ZAxis",
+              "offset": 0,
+              "va": "004c9e5c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 301,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e6c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "faea24cd1bd1ee77f233ed73d03065f3ecc2156ce686c10165e18ec40c60de2a",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_YAxis",
+              "offset": 0,
+              "va": "004c9e6c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 302,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e7c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "a6cfb77603eb9a1be30ad5f7bfb780d4ca9acaa90e21acc6279616df1ea85b01",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_XAxis",
+              "offset": 0,
+              "va": "004c9e7c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        },
+        {
+          "kind": "data",
+          "coff_section_index": 309,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40301040",
+          "original_va": "004c9e8c",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 4,
+          "comdat": true,
+          "comdat_selection": 2,
+          "native_section_sha256": "1d671c60ffd122313a51519ff4e20053378091f3f1edd34c67019f1df8b87de4",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IDirectInputDevice2A",
+              "offset": 0,
+              "va": "004c9e8c",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VC6_UUID/cguid_i_guid0",
+      "kind": "library_data_only",
+      "archive": "E:\\MSVC6\\VC98\\Lib\\uuid.lib",
+      "archive_sha256": "f91ed09b3773b4538b0a881a85c6bb467c1ae4992d92883639a5d019294ac2fc",
+      "member": "Guidlib.tmp_0\\cguid_i_guid0.obj",
+      "member_sha256": "c33fe343e6584664df0180f2535ae2a12264ac71e14ee891fdaff9780be1e06e",
+      "comp_id": null,
+      "provenance_status": "verified_native_substitute_original_archive_unknown",
+      "provenance_evidence": "Exact native bytes and external symbols, original code pointer fields agree with compiled symbol relocations. No @comp.id in this installed member; original UUID archive/version is not established. Rich25/9210 means Implib, not UUID compiler and must not be attributed here.",
+      "sections": [
+        {
+          "kind": "data",
+          "coff_section_index": 2,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40400040",
+          "original_va": "004c9ea0",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 8,
+          "comdat": false,
+          "comdat_selection": 0,
+          "native_section_sha256": "374708fff7719dd5979ec875d56cd2286f6d3cf7ec317a3b25632aab28ec37bb",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_GUID_NULL",
+              "offset": 0,
+              "va": "004c9ea0",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VC6_UUID/objidl_i_guid18",
+      "kind": "library_data_only",
+      "archive": "E:\\MSVC6\\VC98\\Lib\\uuid.lib",
+      "archive_sha256": "f91ed09b3773b4538b0a881a85c6bb467c1ae4992d92883639a5d019294ac2fc",
+      "member": "Guidlib.tmp_0\\objidl_i_guid18.obj",
+      "member_sha256": "782e41a275cf45b4eeee79e00bbd13cbbb183645f3fe56bbbe4a673cafbcad87",
+      "comp_id": null,
+      "provenance_status": "verified_native_substitute_original_archive_unknown",
+      "provenance_evidence": "Exact native bytes and external symbols, original code pointer fields agree with compiled symbol relocations. No @comp.id in this installed member; original UUID archive/version is not established. Rich25/9210 means Implib, not UUID compiler and must not be attributed here.",
+      "sections": [
+        {
+          "kind": "data",
+          "coff_section_index": 2,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40400040",
+          "original_va": "004c9eb0",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 8,
+          "comdat": false,
+          "comdat_selection": 0,
+          "native_section_sha256": "b7a5f1b43761bc643a756ad0ce1734b854f59a8ac350d0c8a6487a9b51ec60bb",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IStream",
+              "offset": 0,
+              "va": "004c9eb0",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VC6_UUID/unknwn_i_guid0",
+      "kind": "library_data_only",
+      "archive": "E:\\MSVC6\\VC98\\Lib\\uuid.lib",
+      "archive_sha256": "f91ed09b3773b4538b0a881a85c6bb467c1ae4992d92883639a5d019294ac2fc",
+      "member": "Guidlib.tmp_0\\unknwn_i_guid0.obj",
+      "member_sha256": "418f44424aa8b57680b1448fb2301dbede9d1ca80acb18d331357f1b956c3a7d",
+      "comp_id": null,
+      "provenance_status": "verified_native_substitute_original_archive_unknown",
+      "provenance_evidence": "Exact native bytes and external symbols, original code pointer fields agree with compiled symbol relocations. No @comp.id in this installed member; original UUID archive/version is not established. Rich25/9210 means Implib, not UUID compiler and must not be attributed here.",
+      "sections": [
+        {
+          "kind": "data",
+          "coff_section_index": 2,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40400040",
+          "original_va": "004c9ec0",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 8,
+          "comdat": false,
+          "comdat_selection": 0,
+          "native_section_sha256": "c0b8112a8998b72d19d314c4b80a0734cdd386cb917d2627cd68cc17d6080b65",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IUnknown",
+              "offset": 0,
+              "va": "004c9ec0",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VC6_UUID/objidl_i_guid13",
+      "kind": "library_data_only",
+      "archive": "E:\\MSVC6\\VC98\\Lib\\uuid.lib",
+      "archive_sha256": "f91ed09b3773b4538b0a881a85c6bb467c1ae4992d92883639a5d019294ac2fc",
+      "member": "Guidlib.tmp_0\\objidl_i_guid13.obj",
+      "member_sha256": "b5cf00b7657e62bb4bb8c546e096a291b08edbff1b4efa2868119b45cca5802c",
+      "comp_id": null,
+      "provenance_status": "verified_native_substitute_original_archive_unknown",
+      "provenance_evidence": "Exact native bytes and external symbols, original code pointer fields agree with compiled symbol relocations. No @comp.id in this installed member; original UUID archive/version is not established. Rich25/9210 means Implib, not UUID compiler and must not be attributed here.",
+      "sections": [
+        {
+          "kind": "data",
+          "coff_section_index": 2,
+          "coff_section_name": ".rdata",
+          "coff_section_flags": "40400040",
+          "original_va": "004c9ed0",
+          "size": 16,
+          "original_output_group": ".rdata",
+          "alignment": 8,
+          "comdat": false,
+          "comdat_selection": 0,
+          "native_section_sha256": "125f8161cd25417d005f11cf3ad4a63e0b74edcd8a59ddbe38e201653a0adfc9",
+          "native_relocations": [],
+          "symbols": [
+            {
+              "name": "_IID_IPersistStream",
+              "offset": 0,
+              "va": "004c9ed0",
+              "coff_type": 0,
+              "storage_class": 2
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

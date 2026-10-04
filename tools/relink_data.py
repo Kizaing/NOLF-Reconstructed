@@ -101,8 +101,10 @@ def reloc_target(img, va_field, data, off, t):
 class Obj:
     """One object's data sections with the addresses the exe gives them."""
 
-    def __init__(self, unit, coff, fva, kind):
+    def __init__(self, unit, coff, fva, kind, explicit_data=None):
         self.unit, self.o, self.fva, self.kind = unit, coff, fva, kind
+        # Bound // GLOBAL annotations are unit-local (static names can repeat in other objects).
+        self.explicit_data = dict(explicit_data or {})
         self.secva = {}
         self.conflicts = []         # (from section, offset, section, va so far, va implied, symbol)
         self.points = []            # (secno, offset, va, symbol name) from code relocations: where the exe has each symbol
@@ -117,14 +119,29 @@ class Obj:
                 secva.setdefault(s.sec, self.fva[s.name] - s.value)
         code_known = set(secva)
         propagate = self.kind != 'base'         # a partly matched unit's data layout may differ: only code says where
+        explicit_names = set(self.explicit_data)
         if propagate and va_of_name:
             # globals that only other units' code refers to (console variables): the name's address
             for s in o.syms:
                 if s is not None and s.sec > 0 and s.cls == F.CLS_EXTERNAL and not is_section_sym(s) \
-                        and is_data(o.sections[s.sec - 1]) and not o.sections[s.sec - 1].flags & F.SCN_LNK_COMDAT:
+                        and s.name not in explicit_names and is_data(o.sections[s.sec - 1]) \
+                        and not o.sections[s.sec - 1].flags & F.SCN_LNK_COMDAT:
                     va = va_of_name(s.name)
                     if va is not None and region_of(va):
                         self.named.append((s.sec, s.value, va, s.name))
+        for name, va in self.explicit_data.items():
+            matches = [s for s in o.syms if s is not None and s.name == name and s.sec > 0
+                       and not is_section_sym(s)]
+            if len(matches) != 1:
+                raise ValueError('%s: explicit data anchor %s has %d object symbols' % (self.unit, name, len(matches)))
+            s = matches[0]
+            sec = o.sections[s.sec - 1]
+            if not is_data(sec):
+                raise ValueError('%s: explicit data anchor %s is not defined in a data section' % (self.unit, name))
+            if region_of(va) not in ('.rdata', '.data', '.bss', '.CRT'):
+                raise ValueError('%s: explicit data anchor %s at %08x is outside output data regions' % (
+                    self.unit, name, va))
+            self.named.append((s.sec, s.value, va, s.name))
         for k, v, va, n in self.named:
             if k in secva:
                 if secva[k] != va - v:
@@ -244,8 +261,9 @@ def build_chain(img, obj, group, va_of_name=None, min_start=None):
     if group == '.bss':
         secs = [(k, s) for k, s in secs if s.size]
     floor = min_start or 0
-    # a start candidate: located in this group's region, and (COMDATs) not below the previous object's contribution
-    loc = [(k, s) for k, s in secs if k in obj.secva and region_of(obj.secva[k]) == group
+    # A mismatched address remains a candidate when the input section belongs to this group, so the chain reports it.
+    loc = [(k, s) for k, s in secs if k in obj.secva
+           and (region_of(obj.secva[k]) == group or group_of(s.name) == group)
            and (obj.secva[k] >= floor or not s.flags & F.SCN_LNK_COMDAT)]
     best = None
     for c, _ in loc or [(None, None)]:

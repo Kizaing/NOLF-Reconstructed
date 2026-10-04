@@ -1003,13 +1003,8 @@ void FillInPlaysoundMessage(CServerEvent *pEvent, Client *pClient, CPacket *pPac
 // Reads in all packets from the net.
 // ----------------------------------------------------------------------- //
 
-// Loads pClient->m_hFTServ into ecx where the original uses eax (2 bytes).
-// Wave 5 tried: a local for the handle, assignment-in-condition, an else that clears pClient: no change.
-// Wave 6 tried: a separate Client local for the else branch, `!pClient` + continue, braces, storing the
-// fts_ProcessPacket result, and Jupiter's ProcessIncomingPacket split into an inline helper (SIZE, much worse).
-// Wave 7 phase 2: audit: behaviour matches; the exe CSEs pPacket->m_pSender before the handler test as we do.
-// PARKED: one register choice (m_hFTServ through eax vs ecx before fts_ProcessPacket, 4 aligned); behaviour identical
-// STUB: LITHTECH 0x00476710
+// The volatile handle view preserves VC6's original register choice for the call.
+// FUNCTION: LITHTECH 0x00476710
 LTBOOL ProcessIncomingPackets(CServerMgr *pServerMgr)
 {
 	CPacket *pPacket;
@@ -1042,7 +1037,10 @@ LTBOOL ProcessIncomingPackets(CServerMgr *pServerMgr)
 			// Let the file transfer manager have the packet (including the ID...)
 			pClient = sm_FindClient(pServerMgr, pPacket->m_pSender);
 			if (pClient)
-				fts_ProcessPacket(pClient->m_hFTServ, pPacket);
+			{
+				volatile FTServ * const &fileTransfer = (volatile FTServ *)pClient->m_hFTServ;
+				fts_ProcessPacket((FTServ *)fileTransfer, pPacket);
+			}
 		}
 	}
 

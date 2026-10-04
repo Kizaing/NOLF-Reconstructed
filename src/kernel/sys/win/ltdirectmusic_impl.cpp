@@ -2962,4 +2962,5 @@ int CLTDirectMusicMgr::GetVolumeOffset()
 // FUNCTION: LITHTECH 0x0044af60 ?AllocChunk@?$CLithChunkAllocator@VCBand@CLTDirectMusicMgr@@@@AAEHXZ
 // FUNCTION: LITHTECH 0x0044afe0 ?AllocChunk@?$CLithChunkAllocator@VCStyle@CLTDirectMusicMgr@@@@AAEHXZ
 // FUNCTION: LITHTECH 0x0044b0a0 ?InsertFirst@?$CLithBaseList@VCChunk@?$CLithChunkAllocator@VCDLSBank@CLTDirectMusicMgr@@@@@@QAEXPAVCChunk@?$CLithChunkAllocator@VCDLSBank@CLTDirectMusicMgr@@@@@Z
-// FUNCTION: LITHTECH 0x0044b0d0 ?Delete@?$CLithBaseList@VCChunk@?$CLithChunkAllocator@VCCommandItem@CLTDirectMusicMgr@@@@@@QAEXPAVCChunk@?$CLithChunkAllocator@VCCommandItem@CLTDirectMusicMgr@@@@@Z
+// This identical Delete copy follows InsertFirst in the original COMDAT order.
+// FUNCTION: LITHTECH 0x0044b0d0 ?Delete@?$CLithBaseList@VCChunk@?$CLithChunkAllocator@VCDLSBank@CLTDirectMusicMgr@@@@@@QAEXPAVCChunk@?$CLithChunkAllocator@VCDLSBank@CLTDirectMusicMgr@@@@@Z

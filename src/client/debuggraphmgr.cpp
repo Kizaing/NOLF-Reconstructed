@@ -170,6 +170,14 @@ LTRESULT DebugGraph::MoveTo(LTRect *pRect)
 // CDebugGraphMgr
 // ------------------------------------------------------------------ //
 
+// Retain this unreferenced graph-creation path to preserve VC6 template instantiation order.
+void CDebugGraphMgr::AddGraph(DGuid id, DebugGraph *pGraph)
+{
+	DGTracker tracker(id, pGraph);
+	m_ActiveIDs.Add(id);
+	m_ActiveGraphs.Add(tracker);
+}
+
 // FUNCTION: LITHTECH 0x004309c0
 CDebugGraphMgr::CDebugGraphMgr()
 {

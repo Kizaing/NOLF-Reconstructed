@@ -50,6 +50,9 @@ def main():
             print(l)
         if l.startswith('units supplying their own .rdata/.data:'):
             print(l.split(':')[0] + ': ' + l.split(':')[1].strip())
+        if l.startswith(('verified native library data:', 'verified source EH:',
+                         'native source EH:', 'native library data:')):
+            print(l)
     exe = os.path.join(out, 'lithtech.exe')
     if r.returncode != 0 or 'link rc 0' not in r.stdout or not os.path.exists(exe):
         print(r.stdout[-3000:], r.stderr[-3000:])

@@ -1,4 +1,4 @@
-r"""VC6 inline-budget model and oracle (wave 7).
+r"""VC6 inline-budget model and oracle (wave 7; wave 8: hashed cost cache, ICF, STLport/header templates, margins).
 
   python tools/inline_budget.py <function name or hex address> [options]
       -v          print the whole site tree (default: top level + every site whose decision differs)
@@ -6,11 +6,14 @@ r"""VC6 inline-budget model and oracle (wave 7).
       --sweep     find the budget range for which the model reproduces the exe's out-of-line calls
       --solve     what-if: smallest budget change and/or extra free pending sites (accessors) reproducing the exe
       --no-cost   don't measure callee costs (only B(F) and the tree)
+      --summary   one JSON line (SUMMARY {...}): differing calls with their sites, budget ranges, nearest dB, the
+                  smallest --solve answers and a confidence (reproduces / undecided / confident / unexplained)
+      --no-icf    don't resolve ICF-folded exe calls by comparing code
       -j N        parallel compiles (default 6)
-      --alias VA=MANGLED   name an exe address no matched function has named yet (repeatable)
+      --alias VA=MANGLED   name an exe address by hand (rarely needed since wave 8: ICF is resolved by code)
       --cost NAME=U        what-if: use cost U for a callee (mangled or undecorated name; repeatable)
   python tools/inline_budget.py --validate [names...]
-      run the model on matched functions (default: the README's inline cases) and score its predictions
+      run the model on matched functions (default: NOTES.md's inline cases) and score its predictions
   python tools/inline_budget.py --variants <function> <variants.py> [--sweep]
       score vtry-style source variants in memory (the source file is never touched): B, size, model and build
       out-of-line calls vs the exe
@@ -28,6 +31,27 @@ src/<dir>/__ib_*.ibtmp (compiled with /Tp) and deleted afterwards; the unit itse
           budget: the largest ballast at which the callee still inlines gives cost(callee) (exact to ~1u). The
           call expression is built from the undecorated signature; costs are cached in build/inline_costs.json.
   model   the rules below, replayed over the tree; compared with our /O2 build and with the exe.
+
+WAVE 8
+  cache   build/inline_costs.json: unit -> "mangled|key" -> cost, where key hashes the callee's own /Od listing
+          (its source lines and code, without line numbers and label counters), the unit's flags/defines and
+          PROBE_VERSION. Editing a callee or a header it reads changes the key: stale costs are never used. Failed
+          probes are cached the same way.
+  probes  elaborated-type keywords are dropped from the whole signature (`X<class Y>` was C2908 in every STLport
+          probe), names are undecorated with a 64K buffer (2K truncated STLport names), namespace functions
+          (_STL::__stl_new) are called as free functions, virtual members by a qualified (direct) call, abstract
+          classes' ctors by an explicit `p->C::C()`. STLport members and header templates (CMoArray, LTVector
+          operators, BaseNew<>) instantiate in the probe like any other callee.
+  header  a STUB whose body is a header template (standalone annotation, e.g. CMoArray<NodeRelation>::GenAppend):
+          B = max(1000, 2 x (cost + 4)) from its own cost probe (R4: cost = size), same convention as measure_B.
+  ICF     every callee's out-of-line /O2 copy is emitted (a call after an inline ballast that leaves 12u, so it
+          is refused; `#pragma inline_depth(0)` would change compiler-generated members' code). Callees with
+          identical code and relocation targets are one class; an exe call whose name is no callee (and not a
+          function our build calls directly) is matched by code (masked relocations; named relocation targets
+          must agree). Model, build and exe are compared per class.
+  margin  each charged site's margin = limit - cost. |margin| <= ERR (2u, IB_ERR) is UNDECIDED (shown as
+          `inline?`/`refused?` and flagged in the call table); --sweep says how far our B is from the nearest
+          reproducing budget and calls it UNDECIDED within 2 x ERR.
 
 THE MODEL (measured with toy programs in wave 7; u = 1/6 of `g[3] = 1;`)
  R1 Size is counted on the front end's tree, before any optimisation: dead stores, `if(0)` bodies, code after
@@ -80,20 +104,28 @@ TOOLS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TOOLS)
 sys.path.insert(0, TOOLS)
 import build  # noqa: E402
-from coffobj import undecorate as _undecorate  # noqa: E402
+import coffobj  # noqa: E402
+import ctypes, hashlib  # noqa: E402
 import threading as _threading  # noqa: E402
 _und_lock = _threading.Lock()
+_und_buf = ctypes.create_string_buffer(65536)   # coffobj's 2048-byte buffer truncates STLport names
 
 
 def undecorate(name, flags=0x1000):
-    """coffobj.undecorate shares one ctypes buffer: serialise it (the cost probes run in threads)."""
+    """MSVC undecorated name with a buffer big enough for STLport names; serialised (the cost probes run in
+    threads)."""
+    if not name.startswith('?'):
+        return name[1:] if name.startswith('_') else name
     with _und_lock:
-        return _undecorate(name, flags)
+        n = ctypes.windll.dbghelp.UnDecorateSymbolName(name.encode('latin1'), _und_buf, len(_und_buf), flags)
+        return _und_buf.value.decode('latin1') if n else name
 
 VC6CL = os.environ.get('VC6CL') or r'E:\AVP2Source\scripts\vc6cl.bat'
 COST_CACHE = os.path.join(ROOT, 'build', 'inline_costs.json')
 NAMEMAPS = [os.path.join(ROOT, 'build', 'namemap.json'), r'E:\AVP2Source\decomp\build\namemap.json']
 FLOOR, FREE, MAXDEPTH = 1000, 40, 8
+ERR = float(os.environ.get('IB_ERR', 2))          # u: decisions within +-ERR of their limit are "undecided"
+BCORR = int(os.environ.get('IB_BCORR', 0))     # experiment: subtract the probe call's 2 x 4u from a measured B
 INTDIV = bool(os.environ.get('IB_INTDIV'))     # experiment: truncate every share to an integer
 # compiler-generated inline candidates whose cost can't be probed with a call expression (toy-measured)
 FIXED_COSTS = {'??_H@YGXPAXIHP6EX0@Z@Z': 49,     # `vector constructor iterator' (arrays of classes with ctors)
@@ -111,8 +143,9 @@ def _tmpname(unit_dir):
     return os.path.join(unit_dir, '__ib_%d_%d.ibtmp' % (os.getpid(), n))
 
 
-def compile_asm(unit, text, flags=None):
-    """Compile `text` as if it were the unit's source; return the /FAs listing (or raise with the errors)."""
+def compile_asm(unit, text, flags=None, want_obj=False):
+    """Compile `text` as if it were the unit's source; return the /FAs listing (or raise with the errors); with
+    want_obj, (listing, CoffObj)."""
     cpp = _tmpname(os.path.dirname(unit.path))
     tmpd = tempfile.mkdtemp(prefix='ib_')
     asm, obj = os.path.join(tmpd, 'a.asm'), os.path.join(tmpd, 'a.obj')
@@ -128,7 +161,7 @@ def compile_asm(unit, text, flags=None):
                                env=env)
             text_asm = open(asm, encoding='latin1', errors='replace').read() if os.path.exists(asm) else ''
             if r.returncode == 0 and text_asm.rstrip().endswith('END'):
-                return text_asm
+                return (text_asm, coffobj.CoffObj(obj)) if want_obj else text_asm
             errs = [l for l in r.stdout.splitlines() if ' error ' in l or 'fatal error' in l]
             if errs and not any('C1083' in e or 'C1001' in e or 'Broken pipe' in e for e in errs):
                 raise CompileError(errs)
@@ -149,21 +182,32 @@ class CompileError(Exception):
 
 def parse_listing(asm):
     """{mangled: {'comdat': bool, 'calls': [mangled...], 'desc': str}} from a /FAs listing (call/jmp to symbols)."""
-    funcs, cur = {}, None
+    funcs, cur, body = {}, None, None
     for line in asm.splitlines():
         m = re.match(r'^(\S+)\s+PROC NEAR(.*)$', line)
         if m:
             cur = m.group(1)
             funcs[cur] = {'comdat': 'COMDAT' in m.group(2), 'calls': [], 'desc': m.group(2).strip(' ;\t')}
+            body = hashlib.sha1()
             continue
         if re.match(r'^\S+\s+ENDP', line):
+            if cur:
+                funcs[cur]['h'] = body.hexdigest()[:16]
             cur = None
             continue
         if cur:
+            body.update(_norm_line(line).encode('latin1') + b'\n')
             m = re.match(r'^\s+(call|jmp)\s+(?:DWORD PTR\s+)?(\?\S+|_\w\S*)', line)
             if m and not m.group(2).startswith('__imp_'):
                 funcs[cur]['calls'].append(m.group(2))
     return funcs
+
+
+def _norm_line(line):
+    """A listing line without what changes when unrelated code moves: source line numbers and the TU-wide label and
+    temporary counters ($L123, $SG123, $T123, $E123). What is left is the function's source text and /Od code."""
+    line = re.sub(r'^;\s*\d+\s*:', ';:', line)
+    return re.sub(r'\$(L|SG|T|E)\d+', r'$\1', line).rstrip()
 
 
 def desc_name(desc):
@@ -336,13 +380,24 @@ def arg_expr(t):
 
 def call_expr(mangled):
     """C++ statement calling `mangled` with dummy arguments, or None."""
+    alts = call_exprs(mangled)
+    return alts[0] if alts else None
+
+
+def call_exprs(mangled):
+    """Alternative C++ statements calling `mangled` with dummy arguments, best first (the probes fall back to the
+    next one when an expression does not compile)."""
     sig = full_signature(mangled).strip()
     if sig == mangled or sig.startswith("void __stdcall `"):
-        return None
+        return []
+    # `class X<class Y>` in a qualified name reads as an explicit specialisation to VC6 (C2908): drop the
+    # elaborated-type keywords everywhere (STLport names are full of them)
+    sig = re.sub(r'\b(class|struct|union|enum) ', '', sig)
+    sig = re.sub(r'\bconst ,', 'const,', sig).replace(' const >', ' const>')
     m = re.match(r'^(?:(public|protected|private): )?(static |virtual )?(.*?)(__thiscall|__cdecl|__stdcall|__fastcall) '
                  r'(.+?)\((.*)\)(const)?$', sig)
     if not m:
-        return None
+        return []
     access, static, ret, cc, qname, params, const = m.groups()
     params = [] if params.strip() in ('void', '') else split_params(params)
     if '...' in params:
@@ -357,35 +412,41 @@ def call_expr(mangled):
             depth -= 1
         elif c == ':' and depth == 0 and qname[i:i + 2] == '::':
             cut = i
-    if cut < 0:
+    if cut < 0 or not access:          # a free function, maybe in a namespace (_STL::__stl_new)
         call = '%s(%s)' % (qname, args)
     else:
         cls, name = qname[:cut], qname[cut + 2:]
         base = re.sub(r'<.*>$', '', cls).split('::')[-1]
         if name == cls.split('::')[-1] or name == base or re.sub(r'<.*>$', '', name) == base:      # constructor
-            # the object escapes: VC6 deletes a known side-effect-free ctor call on a dead local
-            return ('{ %s __ib_o(%s); __ib_p = &__ib_o; }' % (cls, args)) if args else '{ %s __ib_o; __ib_p = &__ib_o; }' % cls
+            # the object escapes: VC6 deletes a known side-effect-free ctor call on a dead local. An abstract
+            # class (ILTServer) can't be a local: call the constructor explicitly (an MS extension VC6 accepts)
+            return [('{ %s __ib_o(%s); __ib_p = &__ib_o; }' % (cls, args)) if args else
+                    '{ %s __ib_o; __ib_p = &__ib_o; }' % cls,
+                    '((%s *)__ib_p)->%s::%s(%s);' % (cls, cls, base, args)]
         if name.startswith('~'):
             if '<' in cls:    # a qualified template dtor name trips VC6 (C2908): call it unqualified
-                return '((%s *)__ib_p)->~%s();' % (cls, base)
-            return '((%s *)__ib_p)->%s::%s();' % (cls, cls, name)
+                return ['((%s *)__ib_p)->~%s();' % (cls, base)]
+            return ['((%s *)__ib_p)->%s::%s();' % (cls, cls, name)]
         if name == "`scalar deleting destructor'":
-            return 'delete (%s *)__ib_p;' % cls
-        if static:
+            return ['delete (%s *)__ib_p;' % cls]
+        if (static or '').strip() == 'static':
             call = '%s::%s(%s)' % (cls, name, args)
+        elif (static or '').strip() == 'virtual':
+            # a qualified call is direct (an inline candidate); an unqualified one is a virtual call
+            call = '((%s *)__ib_p)->%s::%s(%s)' % (cls, cls, name, args)
         else:
             call = '((%s *)__ib_p)->%s(%s)' % (cls, name, args)
     # use the result: VC6 deletes a call of a side-effect-free function whose result is unused
     ret = re.sub(r'\b(class|struct|union) ', '', (ret or '').strip())
     if ret in ('', 'void'):
-        return call + ';'
+        return [call + ';']
     if ret.endswith('&'):
-        return '__ib_p = (void *)&%s;' % call
+        return ['__ib_p = (void *)&%s;' % call]
     if ret.endswith('*'):
-        return '__ib_p = (void *)%s;' % call
+        return ['__ib_p = (void *)%s;' % call]
     if any(ret.startswith(s) or (' ' + s) in (' ' + ret) for s in SCALARS):
-        return '__ib_g[7998] = (int)%s;' % call
-    return call + ';'
+        return ['__ib_g[7998] = (int)%s;' % call]
+    return [call + ';']
 
 
 def _load_all():
@@ -396,19 +457,34 @@ def _load_all():
         return {}
 
 
+PROBE_VERSION = 'w8.2'      # bump when call_expr or the probe layout changes: every cached entry is re-measured
+
+
+def cost_key(unit, mangled, body_hash):
+    """Cache key: the callee's name plus a hash of its own /Od listing (its source lines and code, without line
+    numbers or label counters), the unit's flags/defines and the probe version. Editing the callee (or a header
+    it reads) changes the key, so stale costs are never used."""
+    h = hashlib.sha1(('%s|%s|%s' % (PROBE_VERSION, ' '.join(unit.flags), body_hash)).encode('latin1'))
+    return '%s|%s' % (mangled, h.hexdigest()[:12])
+
+
 def load_costs(unit):
     """Costs are cached per unit: one mangled name can have different bodies in different units (headers that
-    mirror each other, e.g. CMoArray/BaseNew in load_pcx.h vs ltdynarray.h)."""
-    return dict(_load_all().get(unit.name, {}))
+    mirror each other, e.g. CMoArray/BaseNew in load_pcx.h vs ltdynarray.h). Keys are cost_key()s; wave 7's
+    name-only entries are ignored."""
+    return {k: v for k, v in _load_all().get(unit.name, {}).items() if '|' in k}
 
 
 def save_costs(unit, c):
-    """Merge into the cache file (several runs may share it) and replace it atomically."""
+    """Merge into the cache file (several runs may share it) and replace it atomically. Failed probes are cached
+    too (their key changes with the callee's source and PROBE_VERSION), except transient whole-batch failures."""
     os.makedirs(os.path.dirname(COST_CACHE), exist_ok=True)
     allc = _load_all()
     cur = allc.setdefault(unit.name, {})
+    for k in [k for k in cur if '|' not in k]:       # wave 7 name-only entries: stale by construction
+        del cur[k]
     for k, v in c.items():
-        if v.get('cost') is not None:
+        if '|' in k and (v.get('cost') is not None or v.get('why') not in (None, 'compile failed')):
             cur[k] = v
     tmp = COST_CACHE + '.%d.tmp' % os.getpid()
     json.dump(allc, open(tmp, 'w'), indent=1, sort_keys=True)
@@ -419,20 +495,27 @@ BW_STORES = 500                   # wrapper ballast: B(W) = 2*(12 + 6*500 + 4) =
 BW = 2 * (12 + 6 * BW_STORES + 4)
 
 
-def measure_costs(unit, text, callees, log=print, jobs=6):
-    """{mangled: cost} for callees, via wrappers appended to the unit (cached by mangled name + unit flags)."""
-    cache = load_costs(unit)
+def measure_costs(unit, text, callees, hashes=None, log=print, jobs=6):
+    """{mangled: cost} for callees, via wrappers appended to the unit. hashes: {mangled: hash of the callee's /Od
+    listing} (parse_listing's 'h'); the cache is keyed by cost_key(name, that hash, unit flags)."""
+    hashes = hashes or {}
+    keyof = {c: cost_key(unit, c, hashes.get(c, '?')) for c in callees}
+    stored = load_costs(unit)
+    cache = {c: stored[keyof[c]] for c in callees if keyof[c] in stored}
     cache.update({k: {'cost': v, 'why': 'fixed (toy-measured)'} for k, v in FIXED_COSTS.items()})
     todo = [c for c in callees if c not in cache]
-    exprs = {}
+    exprs, alts = {}, {}
     for c in todo:
-        e = call_expr(c)
-        if e:
-            exprs[c] = e
+        alts[c] = call_exprs(c)
+        if alts[c]:
+            exprs[c] = alts[c].pop(0)
         else:
             cache[c] = {'cost': None, 'why': 'no call expression'}
+    if not exprs:
+        save_costs(unit, {keyof[c]: cache[c] for c in callees if c in cache and c not in FIXED_COSTS and c in hashes})
+        return {c: cache[c] for c in callees}
     # drop expressions that don't compile (one compile per round of removals)
-    tail = '\n#pragma inline_depth()\n' + PROBE_DATA
+    tail ='\n#pragma inline_depth()\n' + PROBE_DATA
     lift = ''.join('\t__ib_g[%d]=%d;\n' % (4000 + i, i + 1) for i in range(BW_STORES))
     # private/protected callees: open the classes up (only in this measurement copy)
     head = ['#define private public\n#define protected public\n']
@@ -474,6 +557,9 @@ def measure_costs(unit, text, callees, log=print, jobs=6):
                 exprs = {}
                 break
             for c in bad:
+                if alts.get(c):              # try the next form (keeps the order of exprs for the indices)
+                    exprs[c] = alts[c].pop(0)
+                    continue
                 cache[c] = {'cost': None, 'why': 'call expression does not compile: ' + exprs[c]}
                 del exprs[c]
     if exprs:
@@ -522,7 +608,7 @@ def measure_costs(unit, text, callees, log=print, jobs=6):
             if wc[c] >= BW - 42 or cost <= FREE:       # inlined with a limit <= 30u: free (or __forceinline)
                 cache[c]['cost'] = min(int(round(cost)), FREE)
                 cache[c]['free'] = True
-    save_costs(unit, cache)
+    save_costs(unit, {keyof[c]: cache[c] for c in callees if c in cache and c not in FIXED_COSTS and c in hashes})
     return {c: cache[c] for c in callees}
 
 # ----------------------------------------------------------------------------- the model
@@ -535,6 +621,7 @@ class Site:
         self.limit = None
         self.decision = None       # 'inline' / 'free' / 'force' / 'refused' / 'depth' / 'unknown'
         self.pending = 0
+        self.margin = None         # limit - cost for a charged (> 40u) site: >= 0 inlined, < 0 refused
 
 
 def build_tree(lst, root, depth=0, stack=()):
@@ -560,6 +647,7 @@ def simulate(sites, limit, costs, depth=1):
         info = costs.get(s.callee) or {}
         cost = info.get('cost')
         s.cost = cost
+        s.margin = (avail - cost) if cost is not None and cost > FREE else None
         if depth > MAXDEPTH:
             s.decision = 'depth'
             continue
@@ -590,6 +678,15 @@ def refused_multiset(sites, out=None):
     return out
 
 
+def undecided(s):
+    """A decision within the model's error (ERR u: B and costs are exact to ~1u, shares are fractions): a charged
+    site within ERR of its limit, or a site whose cost is within ERR of the 40u free threshold and whose limit
+    would refuse it if it were charged."""
+    if s.cost is not None and s.limit is not None and abs(s.cost - (FREE + 0.5)) <= ERR and s.cost > s.limit:
+        return s.decision in ('free', 'refused')
+    return s.margin is not None and s.decision in ('inline', 'refused') and -ERR <= s.margin <= ERR
+
+
 def walk(sites):
     for s in sites:
         yield s
@@ -599,24 +696,35 @@ def walk(sites):
 
 # ----------------------------------------------------------------------------- exe side
 
+_EXE_NAMES = []
+
+
+def exe_names():
+    """{va: name} from build/namemap.json (the last full check's names)."""
+    if not _EXE_NAMES:
+        names = {}
+        for p in NAMEMAPS:
+            if os.path.exists(p):
+                for k, v in json.load(open(p)).items():
+                    names.setdefault(int(k, 16), v)
+        _EXE_NAMES.append(names)
+    return _EXE_NAMES[0]
+
+
 def exe_calls(va, symtab):
     import pefile, capstone
     exe = build.Exe(build.EXE)
     end = symtab.funcs[va][0]
     data = exe.pe.get_memory_mapped_image()[va - exe.base:end - exe.base]
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
-    names = {}
-    for p in NAMEMAPS:
-        if os.path.exists(p):
-            for k, v in json.load(open(p)).items():
-                names.setdefault(int(k, 16), v)
+    names = exe_names()
     out = []
     for ins in md.disasm(data, va):
         if ins.mnemonic in ('call', 'jmp') and ins.op_str.startswith('0x'):
             t = int(ins.op_str, 16)
             if ins.mnemonic == 'jmp' and va <= t < end:
                 continue
-            out.append(ALIASES.get(t) or names.get(t) or symtab.names.get(t) or '%08x' % t)
+            out.append((t, ALIASES.get(t) or names.get(t) or symtab.names.get(t) or '%08x' % t))
     return out
 
 
@@ -645,6 +753,174 @@ def map_exe(ex_calls, callees):
                 continue
             key = hits[0]
         out[key] = out.get(key, 0) + k
+    return out
+
+
+# ----------------------------------------------------------------------------- ICF (identical code folding)
+# The linker folds byte-identical functions (/OPT:ICF): the exe then calls one surviving address whose name (from a
+# matched function) can be a different function than our callee (??0RayTri for ContainerPhysics' ctor,
+# BaseNew<uint32> for another BaseNew<>). The tool compiles every callee's out-of-line /O2 copy, groups callees with
+# identical code into classes, resolves unnamed or foreign exe targets by comparing bytes, and compares the model
+# with the exe per class.
+
+def _fn_image(o, sym):
+    """(code with relocation fields zeroed, ((offset, target name), ...)) of a function in a CoffObj."""
+    sec, a, b = o.extent(sym)
+    data = bytearray(sec.data[a:b])
+    rel = []
+    for off, rs, typ, add in o.relocs_in(sec, a, b):
+        for k in range(coffobj.REL_SIZES.get(typ, 4)):
+            if off + k < len(data):
+                data[off + k] = 0
+        rel.append((off, typ, '$sec' if rs.is_section_symbol or rs.name.startswith('$') else rs.name))
+    return bytes(data), tuple(rel)
+
+
+def _prune(unit, exprs, text_for, tag, log, alts=None):
+    """Drop call expressions that don't compile (their function is named __ib_<tag><i>), or replace them by their
+    next alternative."""
+    exprs, alts = dict(exprs), alts or {}
+    for _ in range(200):
+        t = text_for(exprs)
+        try:
+            return exprs, compile_asm(unit, t, want_obj=True)
+        except CompileError as e:
+            lines, bad = t.split('\n'), set()
+            keys = list(exprs)
+            for err in e.args[0]:
+                m = re.search(r'\((\d+)\)\s*:', err)
+                if m:
+                    for j in range(int(m.group(1)) - 1, -1, -1):
+                        mm = re.match(r'^void __ib_%s(\d+)\(\)' % tag, lines[j])
+                        if mm:
+                            bad.add(keys[int(mm.group(1))])
+                            break
+            if not bad:
+                log('ICF: emitter does not compile: %s' % e.args[0][:2])
+                return {}, None
+            for c in bad:
+                if alts.get(c):
+                    exprs[c] = alts[c].pop(0)
+                else:
+                    del exprs[c]
+    return {}, None
+
+
+def emit_copies(unit, text, callees, log=print):
+    """{mangled: (code, relocs)} of each callee's out-of-line /O2 copy: the unit is compiled at its own flags with
+    one extra function per callee that exhausts its budget first, so the callee is refused and emitted with its
+    normal code."""
+    alts = {c: call_exprs(c) for c in callees}
+    exprs = {c: a.pop(0) for c, a in alts.items() if a}
+    res = None
+    for head in ('#define private public\n#define protected public\n', ''):
+        def text_for(ex, head=head):
+            # each callee is called after an inline ballast that leaves 12u of the 1000u budget, so every
+            # charged (> 40u) callee is refused and emitted. (`#pragma inline_depth(0)` would also emit them, but
+            # it changes the code of compiler-generated members like an implicit operator=.)
+            t = head + text + '\n#pragma inline_depth()\n' + PROBE_DATA + probe_def('__ib_X', FLOOR - 24)
+            return t + ''.join('void __ib_E%d() {\n\t__ib_X();\n\t%s\n}\n' % (i, ex[c]) for i, c in enumerate(ex))
+        ok, res = _prune(unit, exprs, text_for, 'E', log, {c: list(a) for c, a in alts.items()})
+        if res:
+            break
+    if not res:
+        return {}
+    _, obj = res
+    by_und = {}
+    for sym in obj.functions():
+        by_und.setdefault(undecorate(sym.name, 0x80), sym)
+    out = {}
+    for c in callees:
+        sym = by_und.get(undecorate(c, 0x80))
+        if sym is not None:
+            out[c] = _fn_image(obj, sym)
+    return out
+
+
+def icf_classes(copies, prefer=()):
+    """{callee: representative}: callees with identical code and relocation targets are one class. The
+    representative is the first of `prefer` (callees called out of line) in the class, else the first by name."""
+    rank = {c: i for i, c in enumerate(prefer)}
+    groups = {}
+    for c in sorted(copies):
+        groups.setdefault(copies[c], []).append(c)
+    out = {}
+    for g in groups.values():
+        r = min(g, key=lambda c: (rank.get(c, len(rank)), c))
+        out.update({c: r for c in g})
+    return out
+
+
+def _exe_matches(exe, symtab, va, img):
+    code, rel = img
+    try:
+        got = bytearray(exe.read(va, len(code)))
+    except Exception:
+        return False
+    for off, typ, _ in rel:
+        for k in range(coffobj.REL_SIZES.get(typ, 4)):
+            if off + k < len(got):
+                got[off + k] = 0
+    # a REL_SECTION (2-byte) field is zeroed in ours only; compare where ours is not a zeroed reloc field
+    if bytes(got) != code:
+        return False
+    ext = symtab.funcs.get(va)
+    if ext:        # the exe function must not be longer (padding aside): a short body can be a prefix of another
+        tail = exe.read(va + len(code), max(0, ext[0] - va - len(code)))
+        if any(b not in (0xcc, 0x90) for b in tail):
+            return False
+    # the linker folds only functions whose relocations name the same targets: where the exe's target has a name,
+    # it must be ours (operator new's own `jmp` is not __stl_new's)
+    names = exe_names()
+    raw = exe.read(va, len(code))
+    for off, typ, n in rel:
+        if n == '$sec' or typ not in (coffobj.REL_DIR32, coffobj.REL_REL32) or off + 4 > len(raw):
+            continue
+        field = struct.unpack_from('<i' if typ == coffobj.REL_REL32 else '<I', raw, off)[0]
+        tva = (va + off + 4 + field) & 0xffffffff if typ == coffobj.REL_REL32 else field
+        tn = names.get(tva) or symtab.names.get(tva)
+        if tn and tn != n and _norm(tn) != _norm(n):
+            return False
+    return True
+
+
+def map_exe_icf(ex_list, callees, copies, canon, symtab, direct=()):
+    """[(va, name)] of the exe's calls -> ({class representative: count}, notes). Names first (map_exe's rules);
+    a target whose name is no callee is compared byte for byte with every callee's /O2 copy, unless our build calls
+    that name directly too (`direct`: a non-inline function both sides call)."""
+    exe = build.Exe(build.EXE)
+    exact = set(direct)
+    direct = exact | {_norm(x) for x in direct}
+    by_norm = {}
+    for c in callees:
+        by_norm.setdefault(_norm(c), []).append(c)
+    out, notes, cache = {}, [], {}
+    for va, n in ex_list:
+        if va not in cache:
+            key = n if n in callees else None
+            if key is None and n not in exact:      # a function our build calls directly is no inline candidate
+                hits = by_norm.get(_norm(n), [])
+                key = hits[0] if len(hits) == 1 else None
+            if key is None and n not in direct and _norm(n) not in direct:
+                hits = [c for c in sorted(copies) if _exe_matches(exe, symtab, va, copies[c])]
+                if hits:
+                    key = hits[0]
+                    notes.append('%08x %s = %s (identical code%s)' % (
+                        va, short(n)[:50], short(key)[:60], '' if len({canon.get(h, h) for h in hits}) == 1
+                        else '; ambiguous: ' + ', '.join(short(h)[:40] for h in hits[1:4])))
+            cache[va] = key
+        key = cache[va]
+        if key is not None:
+            k = canon.get(key, key)
+            out[k] = out.get(k, 0) + 1
+    return out, notes
+
+
+def fold(d, canon):
+    out = {}
+    for k, v in d.items():
+        k = canon.get(k, k)
+        out[k] = out.get(k, 0) + v
     return out
 
 
@@ -681,30 +957,68 @@ def apply_variant(text, ann, repls):
     return text, a
 
 
+def header_body(unit, ann, text):
+    """True when the annotation names a function whose body is not written after it: a template member defined in
+    a header (CMoArray<NodeRelation>::GenAppend), annotated standalone among other annotations."""
+    if not ann.mangled:
+        return False
+    if not ann.name:
+        try:
+            pos = body_start(text, ann.line)
+        except ValueError:
+            return True
+        lines = text[:pos].split('\n')[ann.line:]
+        return any(build.ANNOT.match(l) for l in lines)
+
+    def last(n):
+        n = re.sub(r'<[^<>]*>', '', re.sub(r'<[^<>]*>', '', n)).replace(' ', '')
+        return n.split('::')[-1]
+    return last(undecorate(ann.mangled)) != last(ann.name)
+
+
 def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6, quiet=False, variant=None,
-            solve=False):
+            solve=False, icf=True, summary=False):
     log = (lambda *a: None) if quiet else print
     unit, ann = find_function(key)
     text = open(unit.path, encoding='latin1').read()
+    hdr = header_body(unit, ann, text)
     if variant:
+        if hdr:
+            raise SystemExit('%s: the body is in a header: variants of the unit text cannot change it' % ann.mangled)
         text, ann = apply_variant(text, ann, variant)
-    log('%s  (%s:%d, %s)' % (ann.name, unit.rel, ann.line, ' '.join(unit.flags)))
+    if hdr:
+        import copy
+        ann = copy.copy(ann)
+        ann.name = undecorate(ann.mangled)
+    log('%s  (%s:%d, %s)%s' % (ann.name, unit.rel, ann.line, ' '.join(unit.flags),
+                               '  [body in a header: B from its own cost]' if hdr else ''))
     # our /O2 build and the /Od /Ob0 tree, in parallel with B
     with concurrent.futures.ThreadPoolExecutor(3) as ex:
         f_o2 = ex.submit(compile_asm, unit, text)
         f_tree = ex.submit(compile_asm, unit, text, tree_flags(unit))
-        f_B = ex.submit(measure_B, unit, ann, text)
-        o2, tl, B = parse_listing(f_o2.result()), parse_listing(f_tree.result()), f_B.result()
+        f_B = None if hdr else ex.submit(measure_B, unit, ann, text)
+        o2, tl = parse_listing(f_o2.result()), parse_listing(f_tree.result())
+        B = None if hdr else f_B.result()
+        if B and BCORR and B > FLOOR:      # experiment: B without the probe's own call
+            B = max(FLOOR, B - BCORR)
     root = fn_symbol(tl, ann.name, ann.mangled)
     root_o2 = fn_symbol(o2, ann.name, ann.mangled)
     if root is None or root_o2 is None:
         raise SystemExit('function not found in the listings')
+    if hdr:
+        # R4: a site costs the callee's size, so the function's own cost probe gives size(F); B as measure_B
+        # reports it (with its probe call's 4u: 2 x (size + 4))
+        own = measure_costs(unit, text, [root], {root: tl[root].get('h')}, log=log, jobs=jobs)[root]
+        if own.get('cost') is None:
+            raise SystemExit('size of %s not measurable: %s' % (ann.name, own.get('why')))
+        B = max(FLOOR, 2 * (own['cost'] + 4)) if not own.get('free') else FLOOR
     sites = build_tree(tl, root)
     callees = sorted({s.callee for s in walk_all(sites)})
     size = None if B is None or B <= FLOOR else B / 2.0 - 4
     log('B(F) = %s u  -> size(F) = %s u%s' % (B, size if size is not None else '<= %d' % (FLOOR // 2 - 4),
                                                 '' if size is not None else ' (budget at the 1000u floor)'))
-    costs = measure_costs(unit, text, callees, log=log, jobs=jobs) if costs_on else {}
+    costs = measure_costs(unit, text, callees, {c: tl[c].get('h') for c in callees}, log=log,
+                          jobs=jobs) if costs_on else {}
     for k, v in COST_OVERRIDES.items():           # --cost: what-if costs (mangled or undecorated name)
         for c in callees:
             if c == k or undecorate(c) == k:
@@ -713,26 +1027,44 @@ def analyse(key, verbose=False, use_exe=True, sweep=False, costs_on=True, jobs=6
     simulate(sites, B if B else FLOOR, costs)
     pred = refused_multiset(sites)
     ours = {k: v for k, v in count(o2[root_o2]['calls']).items() if k in tl and tl[k]['comdat'] or k in pred}
-    res = {'name': ann.name, 'B': B, 'size': size, 'pred': pred, 'ours': ours, 'sites': sites, 'costs': costs}
+    res = {'name': ann.name, 'va': ann.va, 'B': B, 'size': size, 'pred': pred, 'ours': ours, 'sites': sites,
+           'costs': costs, 'canon': {}, 'icf': []}
     if use_exe:
         st = build.SymTab()
         if ann.va in st.funcs:
-            ex_calls = count(exe_calls(ann.va, st))
-            res['exe'] = map_exe(ex_calls, callees)
+            ex_list = exe_calls(ann.va, st)
+            copies = emit_copies(unit, text, callees, log) if icf else {}
+            canon = icf_classes(copies, list(ours) + [c for c in pred if c not in ours] +
+                                [s.callee for s in walk(sites) if s.decision in ('inline', 'refused')])
+            res['canon'] = {k: v for k, v in canon.items() if k != v}
+            direct = [c for c in o2[root_o2]['calls'] if not (c in tl and tl[c]['comdat'])]
+            res['exe'], res['icf'] = map_exe_icf(ex_list, callees, copies, canon, st, direct)
     if not quiet:
         report(res, verbose)
     if sweep and 'exe' in res:
         do_sweep(res, sites, costs, B)
     if solve and 'exe' in res:
         do_solve(res, sites, costs, B)
+    if summary and 'exe' in res:
+        print('SUMMARY ' + json.dumps(summarize(res)), flush=True)
     return res
 
 
-def do_solve(res, sites, costs, B, max_extra=6, db_range=300):
+def _model(sites, b, costs, canon):
+    simulate(sites, b, costs)
+    return fold(refused_multiset(sites), canon)
+
+
+def _miss(p, want):
+    return sum(abs(p.get(k, 0) - want.get(k, 0)) for k in set(p) | set(want))
+
+
+def do_solve(res, sites, costs, B, max_extra=6, db_range=300, quiet=False):
     """What-if search: the budget changed by dB (a different own size or extra charges before the first site) and/or
     k extra free pending sites (accessor calls) inserted before top-level site j. Lists the smallest changes that make
-    the model reproduce the exe's out-of-line calls."""
+    the model reproduce the exe's out-of-line calls. Returns [(k, dB lo, dB hi, [j...])] (smallest first)."""
     want = res['exe']
+    canon = res.get('canon', {})
     B = B or FLOOR
     sols = []
     fake = 'FREE@__ib_pending'
@@ -743,17 +1075,18 @@ def do_solve(res, sites, costs, B, max_extra=6, db_range=300):
         for j in (range(n + 1) if k else [n]):
             trial = sites[:j] + [Site(fake, 1) for _ in range(k)] + sites[j:]
             for db in range(-db_range, db_range + 1, 2):
-                simulate(trial, max(FLOOR, B + db), costs)
-                p = refused_multiset(trial)
+                p = _model(trial, max(FLOOR, B + db), costs, canon)
                 p.pop(fake, None)
-                if all(p.get(x, 0) == want.get(x, 0) for x in set(p) | set(want)):
+                if _miss(p, want) == 0:
                     sols.append((k, abs(db), db, j))
         if len(sols) >= 1 and k >= 3 + min(s[0] for s in sols):
             break
     simulate(sites, B, costs)
     if not sols:
-        print('solve: no combination of <= %d extra pending sites and |dB| <= %d reproduces the exe' % (max_extra, db_range))
-        return
+        if not quiet:
+            print('solve: no combination of <= %d extra pending sites and |dB| <= %d reproduces the exe' % (
+                max_extra, db_range))
+        return []
     sols.sort()
     shown = {}
     for k, adb, db, j in sols:
@@ -763,13 +1096,16 @@ def do_solve(res, sites, costs, B, max_extra=6, db_range=300):
             shown[key][2] = max(shown[key][2], db)
             continue
         shown[key] = [k, db, db, j]
-    print('solve: changes that reproduce the exe (k extra free pending sites before top-level site j, budget change dB;'
-          ' an accessor call itself adds ~4-8u of own size):')
     groups = {}
     for k, lo, hi, j in shown.values():
         groups.setdefault((k, lo, hi), []).append(j)
-    for (k, lo, hi), js in sorted(groups.items(), key=lambda g: (g[0][0], min(abs(g[0][1]), abs(g[0][2])))):
-        js.sort()
+    out = sorted(([k, lo, hi, sorted(js)] for (k, lo, hi), js in groups.items()),
+                 key=lambda g: (g[0], 0 if g[1] <= 0 <= g[2] else min(abs(g[1]), abs(g[2]))))
+    if quiet:
+        return out
+    print('solve: changes that reproduce the exe (k extra free pending sites before top-level site j, budget change dB;'
+          ' an accessor call itself adds ~4-8u of own size):')
+    for k, lo, hi, js in out:
         rngs = []
         for j in js:
             if rngs and j == rngs[-1][1] + 1:
@@ -778,8 +1114,11 @@ def do_solve(res, sites, costs, B, max_extra=6, db_range=300):
                 rngs.append([j, j])
         where = ', '.join(('%d-%d' % (a, b) if a != b else '%d' % a) for a, b in rngs) if k else '-'
         first = js[0]
-        print('  k=%d dB in [%d, %d] (own size %+d..%+d u)  before top-level sites %s  (site %d = %s)' % (
-            k, lo, hi, lo // 2, hi // 2, where, first, short(sites[first].callee) if first < n else 'end'))
+        print('  k=%d dB in [%d, %d] (own size %+d..%+d u)  before top-level sites %s  (site %d = %s)%s' % (
+            k, lo, hi, lo // 2, hi // 2, where, first, short(sites[first].callee) if first < n else 'end',
+            '   UNDECIDED: within the model error' if k == 0 and min(abs(lo), abs(hi)) <= 2 * ERR and not lo <= 0 <= hi
+            else ''))
+    return out
 
 
 def walk_all(sites):
@@ -789,59 +1128,171 @@ def walk_all(sites):
             yield x
 
 
+def label(k, names):
+    """short(k), with the parameter list when several keys have the same short name (overloads)."""
+    n = short(k)
+    if names.get(n, 0) > 1:
+        m = re.search(r'\(.*\)', full_signature(k))
+        n += (m.group(0) if m else '').replace('class ', '').replace('struct ', '').replace('_CVector<float>',
+                                                                                            'LTVector')
+    return n
+
+
+def site_label(s):
+    d = s.decision
+    if undecided(s):
+        d += '?'
+    return d
+
+
 def report(res, verbose):
     def show(sites, ind=0):
         for s in sites:
-            interesting = verbose or s.depth == 1 or s.decision in ('refused', 'depth', 'unknown')
+            interesting = verbose or s.depth == 1 or s.decision in ('refused', 'depth', 'unknown') or undecided(s)
             if interesting:
-                print('%s%-9s %-55s cost %5s  limit %7.1f  pending %d' % (
-                    '  ' * (s.depth - 1), s.decision, short(s.callee)[:55], s.cost, s.limit, s.pending))
-            if s.decision not in ('refused', 'depth') and (verbose or s.depth < 2 or True):
+                print('%s%-9s %-55s cost %5s  limit %7.1f  pending %d%s' % (
+                    '  ' * (s.depth - 1), site_label(s), short(s.callee)[:55], s.cost, s.limit, s.pending,
+                    '  margin %+.1f' % s.margin if s.margin is not None and s.decision in ('inline', 'refused')
+                    else ''))
+            if s.decision not in ('refused', 'depth'):
                 show(s.children, ind + 1)
     show(res['sites'])
-    keys = sorted(set(res['pred']) | set(res['ours']) | set(res.get('exe', {})))
+    canon = res.get('canon', {}) if 'exe' in res else {}
+    pred, ours = fold(res['pred'], canon), fold(res['ours'], canon)
+    close = {}
+    for s in walk(res['sites']):
+        if undecided(s):
+            k = canon.get(s.callee, s.callee)
+            close[k] = min(close.get(k, 99), abs(s.limit - s.cost))
+    keys = sorted(set(pred) | set(ours) | set(res.get('exe', {})) | set(close))
+    names = count([short(k) for k in keys])
     print('\nout-of-line calls of inline candidates:   predicted / our build%s' % (' / exe' if 'exe' in res else ''))
     for k in keys:
-        p, o, e = res['pred'].get(k, 0), res['ours'].get(k, 0), res.get('exe', {}).get(k, 0)
+        p, o, e = pred.get(k, 0), ours.get(k, 0), res.get('exe', {}).get(k, 0)
         flag = '' if p == o else '   <-- model != build'
         if 'exe' in res and o != e:
             flag += '   <-- build != exe'
-        print('  %3d %3d %s  %s%s' % (p, o, ('%3d' % e) if 'exe' in res else '', short(k)[:70], flag))
+        if k in close:
+            flag += '   (UNDECIDED: a site within %gu of its limit or of the 40u free threshold)' % ERR
+        print('  %3d %3d %s  %s%s' % (p, o, ('%3d' % e) if 'exe' in res else '', label(k, names)[:90], flag))
+    groups = {}
+    for c, r in canon.items():
+        groups.setdefault(r, []).append(c)
+    for r, cs in sorted(groups.items()):
+        print('ICF: identical code, counted as one: %s = %s' % (short(r)[:50], ', '.join(short(c)[:50] for c in cs)))
+    for n in res.get('icf', []):
+        print('ICF: exe %s' % n)
     unknown = [k for k, v in res['costs'].items() if v.get('cost') is None]
     if unknown:
         print('cost unknown (treated as inlined, not charged): %s' % ', '.join(short(k) for k in unknown))
 
 
-def do_sweep(res, sites, costs, B):
+def do_sweep(res, sites, costs, B, quiet=False):
+    """Budgets for which the model reproduces the exe's out-of-line calls. Returns (ranges, closest (miss, b))."""
     want = res['exe']
+    canon = res.get('canon', {})
     ok = []
     best = (10 ** 9, None)
-    for b in range(FLOOR, max(3 * (B or FLOOR), 4000), 4):
-        simulate(sites, b, costs)
-        p = refused_multiset(sites)
-        miss = sum(abs(p.get(k, 0) - want.get(k, 0)) for k in set(p) | set(want))
-        if miss < best[0]:
+    top = max(3 * (B or FLOOR), 4000)
+    for b in range(FLOOR, top, 4):
+        miss = _miss(_model(sites, b, costs, canon), want)
+        if miss < best[0] or (miss == best[0] and abs(b - (B or FLOOR)) < abs(best[1] - (B or FLOOR))):
             best = (miss, b)
         if miss == 0:
             ok.append(b)
+    rngs = []
+    for b in ok:
+        if rngs and b - rngs[-1][1] <= 4:
+            rngs[-1][1] = b
+        else:
+            rngs.append([b, b])
+    # exact edges (1u)
+    for r in rngs:
+        while r[0] > FLOOR and _miss(_model(sites, r[0] - 1, costs, canon), want) == 0:
+            r[0] -= 1
+        while _miss(_model(sites, r[1] + 1, costs, canon), want) == 0 and r[1] < top + 8:
+            r[1] += 1
     simulate(sites, B or FLOOR, costs)
+    if quiet:
+        return rngs, best
     if not ok:
-        simulate(sites, best[1], costs)
-        p = refused_multiset(sites)
+        p = _model(sites, best[1], costs, canon)
         print('closest budget: %s u (%d out-of-line calls differ from the exe: %s)' % (best[1], best[0], ', '.join(
             '%s model %d exe %d' % (short(k), p.get(k, 0), want.get(k, 0)) for k in sorted(set(p) | set(want))
             if p.get(k, 0) != want.get(k, 0))))
         simulate(sites, B or FLOOR, costs)
-    if ok:
-        rngs = []
-        for b in ok:
-            if rngs and b - rngs[-1][1] <= 4:
-                rngs[-1][1] = b
-            else:
-                rngs.append([b, b])
-        print('budgets that reproduce the exe: %s  (ours %s)' % (', '.join('%d-%d' % tuple(r) for r in rngs), B))
+        print('no budget in [1000, %d] reproduces the exe with these costs/sites' % top)
     else:
-        print('no budget in [1000, %d] reproduces the exe with these costs/sites' % max(3 * (B or FLOOR), 4000))
+        print('budgets that reproduce the exe: %s  (ours %s)%s' % (', '.join('%d-%d' % tuple(r) for r in rngs), B,
+                                                                   _sweep_verdict(rngs, B)))
+    return rngs, best
+
+
+def _sweep_verdict(rngs, B):
+    B = B or FLOOR
+    if any(lo <= B <= hi for lo, hi in rngs):
+        d = min(min(B - lo, hi - B) for lo, hi in rngs if lo <= B <= hi)
+        return '  -> ours reproduces it, %du from the edge%s' % (d, ' (UNDECIDED: within the model error)'
+                                                                 if d <= 2 * ERR else '')
+    need = min((lo - B if lo > B else hi - B for lo, hi in rngs), key=abs)
+    return '  -> nearest: dB %+d (own size %+.1fu)%s' % (need, need / 2.0, ' (UNDECIDED: within the model error)'
+                                                          if abs(need) <= 2 * ERR else '')
+
+
+def summarize(res):
+    """Machine-readable verdict for --summary: what the exe's out-of-line calls need from the model, and how sure."""
+    want = res['exe']
+    canon = res['canon']
+    B = res['B'] or FLOOR
+    sites, costs = res['sites'], res['costs']
+    pred, ours = _model(sites, B, costs, canon), fold(res['ours'], canon)
+    close = {}
+    for s in walk(sites):
+        if undecided(s):
+            k = canon.get(s.callee, s.callee)
+            close[k] = min(close.get(k, 99), round(abs(s.limit - s.cost), 1))
+    keys = sorted(set(pred) | set(want) | set(ours))
+    names = count([short(k) for k in keys])
+    where = {}
+    for s in walk(sites):
+        if s.decision in ('inline', 'refused', 'depth'):
+            where.setdefault(canon.get(s.callee, s.callee), []).append(
+                [s.depth, s.decision, s.cost, round(s.limit, 1), None if s.margin is None else round(s.margin, 1)])
+    diffs = [{'callee': label(k, names)[:150], 'model': pred.get(k, 0), 'build': ours.get(k, 0), 'exe': want.get(k, 0),
+              'undecided_margin': close.get(k), 'sites[depth,decision,cost,limit,margin]': where.get(k, [])[:8]}
+             for k in keys if pred.get(k, 0) != want.get(k, 0) or ours.get(k, 0) != want.get(k, 0)]
+    rngs, best = do_sweep(res, sites, costs, res['B'], quiet=True)
+    sols = do_solve(res, sites, costs, res['B'], quiet=True)
+    simulate(sites, B, costs)
+    nearest = None
+    if rngs:
+        nearest = 0 if any(lo <= B <= hi for lo, hi in rngs) else min(
+            (lo - B if lo > B else hi - B for lo, hi in rngs), key=abs)
+    n = len(sites)
+    sol_out = [{'k': k, 'dB': [lo, hi], 'own_size_u': [lo / 2.0, hi / 2.0],
+                'before_sites': js[:12], 'first_site': short(sites[js[0]].callee) if k and js[0] < n else 'end'}
+               for k, lo, hi, js in sols[:4]]
+    miss = _miss(pred, want)
+    if miss == 0:
+        conf = 'undecided' if any(d['undecided_margin'] is not None for d in diffs) or close else 'reproduces'
+        edge = min((min(B - lo, hi - B) for lo, hi in rngs if lo <= B <= hi), default=None)
+        if edge is not None and edge <= 2 * ERR:
+            conf = 'undecided'
+    elif nearest is not None and abs(nearest) <= 2 * ERR:
+        conf = 'undecided'
+    elif sols or rngs:
+        conf = 'confident'
+        if any(d['undecided_margin'] is not None for d in diffs):
+            conf = 'undecided'
+    else:
+        conf = 'unexplained'
+    return {'va': '%08x' % res['va'], 'name': res['name'], 'B': res['B'], 'size': res['size'], 'floor': B <= FLOOR,
+            'model_vs_exe': miss, 'build_vs_exe': _miss(ours, want), 'diffs': diffs,
+            'budget_ranges': rngs, 'nearest_dB': nearest,
+            'closest_budget': None if rngs else {'B': best[1], 'miss': best[0]},
+            'solve': sol_out, 'undecided_sites': len(close),
+            'unknown_costs': sorted(short(k) for k, v in costs.items() if v.get('cost') is None),
+            'icf': res['icf'], 'confidence': conf}
 
 
 def measure_at(key, anchor):
@@ -891,9 +1342,8 @@ def run_variants(key, path, jobs, sweep, solve=False):
             print('%-24s %s' % (label, str(e)[:200]))
             continue
         want = r.get('exe', {})
-        keys = set(r['pred']) | set(want) | set(r['ours'])
-        dm = sum(abs(r['pred'].get(k, 0) - want.get(k, 0)) for k in keys)
-        db = sum(abs(r['ours'].get(k, 0) - want.get(k, 0)) for k in keys)
+        pred, ours = fold(r['pred'], r['canon']), fold(r['ours'], r['canon'])
+        dm, db = _miss(pred, want), _miss(ours, want)
         print('%-24s B=%-5s size=%-7s model-vs-exe %d  build-vs-exe %d   build: %s' % (
             label, r['B'], r['size'], dm, db, ', '.join('%s %d' % (short(k)[:28], v) for k, v in sorted(r['ours'].items()))),
             flush=True)
@@ -906,6 +1356,8 @@ def run_variants(key, path, jobs, sweep, solve=False):
 def validate(names, jobs):
     tot = good = 0
     exact = 0
+    und_bad = und_all = unknown = 0
+    alt = {}         # budget offset -> mispredicted sites (is the measured B, which includes the probe's call, right?)
     for n in names:
         try:
             r = analyse(n, use_exe=False, jobs=jobs, quiet=True)
@@ -923,11 +1375,28 @@ def validate(names, jobs):
         tot += nsite
         good += max(0, nsite - bad)
         exact += (bad == 0)
-        print('%-32s B=%-6s sites %3d  mispredicted %d%s' % (n, r['B'], nsite, bad, '' if bad == 0 else '  ' + ', '.join(
-            '%s %d/%d' % (short(k)[:30], r['pred'].get(k, 0), r['ours'].get(k, 0))
-            for k in sorted(keys) if r['pred'].get(k, 0) != r['ours'].get(k, 0))), flush=True)
-    print('\n%d of %d sites predicted (%.1f%%); %d of %d functions exact' % (good, tot, 100.0 * good / max(tot, 1), exact,
-                                                                           len(names)))
+        und = {s.callee for s in sites if undecided(s)}
+        badk = {k for k in keys if r['pred'].get(k, 0) != r['ours'].get(k, 0)}
+        und_all += len(und)
+        und_bad += len(und & badk)
+        unk = sum(1 for s in sites if s.decision == 'unknown')
+        unknown += unk
+        for d in (-8, -4, 4):
+            b2 = max(FLOOR, (r['B'] or FLOOR) + d) if (r['B'] or FLOOR) > FLOOR else FLOOR
+            simulate(r['sites'], b2, r['costs'])
+            p2 = refused_multiset(r['sites'])
+            alt[d] = alt.get(d, 0) + _miss(p2, r['ours'])
+        simulate(r['sites'], r['B'] or FLOOR, r['costs'])
+        print('%-32s B=%-6s sites %3d  mispredicted %d%s%s%s' % (
+            n, r['B'], nsite, bad, '' if bad == 0 else '  ' + ', '.join(
+                '%s %d/%d%s' % (short(k)[:30], r['pred'].get(k, 0), r['ours'].get(k, 0), ' (undecided)' if k in und
+                                else '') for k in sorted(badk)),
+            '  [%d undecided]' % len(und) if und else '', '  [%d cost unknown]' % unk if unk else ''), flush=True)
+    print('\n%d of %d sites predicted (%.1f%%); %d of %d functions exact; %d sites cost unknown' % (
+        good, tot, 100.0 * good / max(tot, 1), exact, len(names), unknown))
+    print('undecided callees (a site within %gu of its limit): %d, of which mispredicted: %d' % (ERR, und_all, und_bad))
+    print('mispredicted sites with B changed by %s (B > 1000 only): %s  (as measured: %d)' % (
+        '/'.join('%+d' % d for d in sorted(alt)), '/'.join(str(alt[d]) for d in sorted(alt)), tot - good))
 
 
 def main(argv):
@@ -962,7 +1431,8 @@ def main(argv):
         return
     for k in keys:
         analyse(k, verbose='-v' in flags, sweep='--sweep' in flags, costs_on='--no-cost' not in flags, jobs=jobs,
-                solve='--solve' in flags)
+                solve='--solve' in flags, icf='--no-icf' not in flags, summary='--summary' in flags,
+                quiet='--summary' in flags and '-v' not in flags)
 
 
 if __name__ == '__main__':

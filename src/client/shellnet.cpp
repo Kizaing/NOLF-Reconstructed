@@ -863,15 +863,14 @@ static LTRESULT ReadNewObjectInfo(CPacket *pPacket, InternalObjectSetup *pStruct
 
 
 
-// Wave 5: `pPacket->GetMessageImpl()` for ic_ReadCompPos and `m_vPosition.Init()` (a pending free call) bring it to
-// 976 bytes with 2 differing: Init() stores x,y,z while the original stores z,y,x (VEC_INIT). VEC_INIT plus any one
-// free inline call after the radius read (inline_scan p1: every statement from 895 to PlaySound) is a MATCH, so the
-// original has one more pending inline site there that is not Init().
-// Wave 7: VEC_INIT alone (1088 bytes), `= LTVector(0,0,0)` (1008), VEC_INIT with Jupiter's unused `LTVector vUp,
-// vRight;`, `LTVector(GetPos())` or `->m_Pos` instead of GetPos(): none supplies the missing site.
-// Wave 7 phase 2: audit: behaviour matches. The two differing stores are m_vPosition's zeros (z,y,x vs x,y,z).
-// PARKED: zero-store order of m_vPosition (VEC_INIT + one unknown pending site would match); behaviour identical
-// STUB: LITHTECH 0x0048c380
+// Keep the chained zero stores behind an inline call: VC6 counts this site when
+// deciding which earlier packet reads to inline. The original helper name is unknown.
+static inline void InitSoundPosition(LTVector &pos)
+{
+	VEC_INIT(pos);
+}
+
+// FUNCTION: LITHTECH 0x0048c380
 static LTRESULT ReadPlaySound(CClientShell *pShell, CPacket *pPacket)
 {
 	PlaySoundInfo playSoundInfo;
@@ -940,7 +939,7 @@ static LTRESULT ReadPlaySound(CClientShell *pShell, CPacket *pPacket)
 			if(pShell->m_pFrameClientObject)
 				playSoundInfo.m_vPosition = pShell->m_pFrameClientObject->GetPos();
 			else
-				playSoundInfo.m_vPosition.Init();
+				InitSoundPosition(playSoundInfo.m_vPosition);
 		}
 	}
 

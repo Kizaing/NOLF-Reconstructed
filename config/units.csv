@@ -59,7 +59,8 @@ shared/leech,004447d0,00444ad0,medium
 world/light_table,00444ad0,00444c40,medium
 shared/lightmap_planes,00444c40,004450c0,medium
 client/linesystem,004450c0,00445830,medium
-shared/lmessage,00445830,00446170,medium
+shared/lmessage,00445830,00446130,medium
+shared/lmessage_readstring,00446130,00446170,medium
 kernel/sys/win/load_pcx,00446170,004465d0,medium
 kernel/net/localdriver,004465d0,00446e50,medium
 kernel/sys/win/lt_cursor_impl,00446e50,00447050,high
@@ -97,8 +98,7 @@ server/s_net,00473ee0,00476e80,medium
 server/s_object,00476e80,004781d0,high
 server/server_extradata,004781d0,004790c0,medium
 server/server_filemgr,004790c0,004795f0,medium
-server/server_interface,004795f0,0047b710,low
-server/serverde_impl,0047b710,00482140,medium
+server/serverde_impl,004795f0,00482140,high
 server/serverevent,00482140,004821c0,medium
 server/servermgr,004821c0,00489710,medium
 client/setupobject,00489710,0048a640,medium
@@ -129,6 +129,7 @@ kernel/sys/win/smackvideomgrimpl,0049d310,0049e330,medium
 world/visquery,0049e330,0049ec40,low
 sound/wave,0049ec40,0049efd0,medium
 world/world_tree,0049efd0,004a0500,medium
+sound/mss_glue,004afc20,004afc50,medium
 lithshared/lith/baselist,004afc50,004afce0,high
 lithshared/rezmgr/rezmgr,004afce0,004b1be0,high
 lithshared/rezmgr/rezhash,004b1be0,004b1d50,high

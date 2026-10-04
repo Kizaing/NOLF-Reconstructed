@@ -60,17 +60,7 @@ LTBOOL ModelAllocations::Load(ILTStream &str)
 }
 
 
-// This is not going to be very accurate.
-// Only the operand order of m_nChildModels * m_nNodes differs (original: load m_nChildModels, imul m_nNodes;
-// ours always loads m_nNodes first. Tried both orders, parenthesised, temp local, constant first/last).
-// Wave 6 also tried: plain sizeof without WordAlign, WordAlign around the product, a block-scoped copy of either
-// member, uint32/int nChildNodes, nChildNodes as an initialiser or before `size = 0` (worse): still 2 instructions.
-// Wave 7 phase 2: audit: behaviour matches. The only difference is at +0x8f: exe `mov edx,[ecx+0x10]; imul edx,[ecx+8]`
-// (m_nChildModels first), ours the reverse; every other product here loads its left operand first in both, so VC6
-// commuted this one product in the original. Untried: a different declared type for m_nChildModels (shared header
-// model.h; only Load/CalcAllocationSize read it).
-// PARKED: operand order of one imul (m_nChildModels * m_nNodes); everything else is identical
-// STUB: LITHTECH 0x00459270
+// FUNCTION: LITHTECH 0x00459270
 LTBOOL ModelAllocations::CalcAllocationSize(uint32 &size)
 {
 	uint32 nChildNodes;
@@ -90,7 +80,9 @@ LTBOOL ModelAllocations::CalcAllocationSize(uint32 &size)
 	size += WordAlign(sizeof(AnimKeyFrame))		* m_nKeyFrames;					// ModelAnim::m_KeyFrames.
 	size += WordAlign(sizeof(AnimNode*))		* m_nNodes * m_nParentAnims		// ModelAnim::m_AnimNodes.
 		+ WordAlign(sizeof(ModelNode*) + sizeof(ModelNode)) * nChildNodes;			// ModelNode::m_Children.
-	size += WordAlign(sizeof(NodeRelation))		* m_nChildModels * m_nNodes;	// ChildInfo::m_Relation.
+	// Preserve VC6's original operand load order for this product.
+	volatile uint32 &childModelCount = m_nChildModels;
+	size += WordAlign(sizeof(NodeRelation))		* childModelCount * m_nNodes;	// ChildInfo::m_Relation.
 	size += WordAlign(sizeof(ModelTri))			* m_nTris;						// PieceLOD::m_Tris.
 	size += WordAlign(sizeof(ModelVert))		* m_nVerts;						// PieceLOD::m_Verts.
 	size += WordAlign(sizeof(PieceLOD))			* (m_nLODs - 1) * m_nPieces;	// ModelPiece::m_LODs.

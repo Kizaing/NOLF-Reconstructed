@@ -16,7 +16,7 @@ relocations against the original addresses and checks the bytes round-trip to th
 
 API:
   st = SymTab.load(csv_or_tsv_path, exe)       # symbols.csv (or the avp2_now.tsv stand-in)
-  info = write_target_obj(out_path, func_vas, exe_path, st, namemap)
+  info = write_target_obj(out_path, func_vas, exe_path, st, namemap, body_ends={va: end_va})
   verify(out_path, exe_path, info['name2va'])  -> list of mismatches ([] == OK)
 
 CLI:
@@ -598,19 +598,43 @@ def new_stats():
                           'byte_tables', 'short_out', 'bad_rel32', 'funcs_with_issues'], 0)
 
 
-def write_target_obj(out_path, func_vas, exe_path, symtab, namemap=None, stats=None):
+def validate_body_end(start, original_end, body_end, img):
+    """Validate an optional body cutoff against an original function extent.
+
+    A shorter body is permitted only when the omitted original bytes are a nonempty
+    linker-padding tail.  The symbol table extent itself is left unchanged.
+    """
+    if not start < body_end <= original_end:
+        raise ValueError('body end %08x is outside original extent [%08x, %08x)' %
+                         (body_end, start, original_end))
+    if body_end < original_end:
+        padding = img.read(body_end, original_end - body_end)
+        if len(padding) != original_end - body_end or any(b not in (0xCC, 0x90) for b in padding):
+            raise ValueError('body end %08x omits non-padding bytes in [%08x, %08x)' %
+                             (body_end, body_end, original_end))
+    return body_end
+
+
+def write_target_obj(out_path, func_vas, exe_path, symtab, namemap=None, stats=None, body_ends=None):
     """Write one COFF object with a COMDAT .text section per function.  Returns
-    dict(name2va, issues{va: [..]}, stats)."""
+    dict(name2va, issues{va: [..]}, stats).  body_ends optionally shortens matched
+    bodies whose omitted original tail has been verified as linker padding."""
     img = _image(exe_path)
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     md.detail = True
     res = Resolver(symtab, img, {int(k): v for k, v in (namemap or {}).items()})
     stats = stats if stats is not None else new_stats()
+    body_ends = body_ends or {}
+    unrequested = set(body_ends) - set(func_vas)
+    if unrequested:
+        raise ValueError('body ends supplied for unrequested functions: %s' %
+                         ', '.join('%08x' % va for va in sorted(unrequested)))
     for va in func_vas:           # entries first so names/extents are settled
         symtab.ensure_func(va)
     sections, issues = [], {}
     for va in sorted(set(func_vas)):
         a, e, _ = symtab.func_by_addr[va]
+        e = validate_body_end(a, e, body_ends[va], img) if va in body_ends else e
         name = res.code_exact(a)[0]
         data, relocs, labels, iss, _ = recover(a, e, img, symtab, res, md, stats)
         syms = [(name, 0, CLS_EXTERNAL, 0x20)]
