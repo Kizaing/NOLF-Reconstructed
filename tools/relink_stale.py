@@ -46,14 +46,36 @@ def main(argv):
                 return old - 0x400000 + (va - new)
         return k
 
+    # old [start, end) of every moved function: addresses inside one (labels, SEH scope tables, switch targets) too
+    allf = []
+    for l in open(os.path.join(d, 'lithtech.map'), encoding='latin1'):
+        m = re.match(r'\s*0001:[0-9a-f]{8}\s+(\S+)\s+([0-9a-f]{8})\s+f?\s', l)
+        if m:
+            allf.append(int(m.group(2), 16))
+    allf.sort()
+    ranges = []
+    for old, (new, nm) in moved.items():
+        j = bisect.bisect_right(allf, new)
+        size = (allf[j] - new) if j < len(allf) else 0x10
+        ranges.append((old, old + size, new, nm))
+    ranges.sort()
+    rlo = [r[0] for r in ranges]
+
+    def moved_target(v):
+        j = bisect.bisect_right(rlo, v) - 1
+        if j >= 0 and v < ranges[j][1]:
+            return ranges[j]
+        return None
+
     hits = 0
     for s in pe.sections:
         name = s.Name.rstrip(b'\0').decode()
         lo, n = s.VirtualAddress, min(s.Misc_VirtualSize, s.SizeOfRawData)
         for k in range(lo, lo + n - 3):
             v = struct.unpack_from('<I', img, k)[0]
-            if v in moved:
-                new, nm = moved[v]
+            t = moved_target(v)
+            if t is not None:
+                new, nm = t[2] + (v - t[0]), t[3] + ('+%x' % (v - t[0]) if v != t[0] else '')
                 ok = orig_at(k) if name == '.text' else k
                 o = struct.unpack_from('<I', orig, ok)[0] if ok + 4 <= len(orig) else None
                 if o != v:          # the relink changed it: a relocated pointer that equals another function's old address

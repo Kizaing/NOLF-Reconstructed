@@ -112,6 +112,16 @@ extern uint32 g_nMoveObjectCalls;
 LTBOOL i_IntersectSegment(ClientIntersectQuery *pQuery, ClientIntersectInfo *pInfo,
 	WorldTree *pWorldTree, LTBOOL bUnknown);
 
+// The first function in the object (0x004049c0, before g_TotalGlobalTimeCounter's initialisers).
+// FUNCTION: LITHTECH 0x004049c0
+LTBOOL ci_IntersectSegment(ClientIntersectQuery *pQuery, ClientIntersectInfo *pInfo)
+{
+	if(g_pClientMgr && g_pClientMgr->m_pCurShell)
+		return i_IntersectSegment(pQuery, pInfo, &g_pClientMgr->m_World.m_WorldTree, LTFALSE);
+
+	return LTFALSE;
+}
+
 
 // cutil.cpp.
 LTObject* cm_FindObject(CClientMgr *pClientMgr, uint16 objectID);			// 0x004265e0
@@ -173,6 +183,12 @@ public:
 // ------------------------------------------------------------------------ //
 // The interface implementations.
 // ------------------------------------------------------------------------ //
+// The member functions below are defined `inline` (the vtables reference them, so each is
+// still emitted once): their FN_NAME statics are then COMDATs that sit next to their name
+// strings in .data, as in lithtech.exe (a plain function's statics share one .data section at
+// the front of the object). ClientCommonLT's and CLTClient's constructors (and CLTClient's
+// destructor) are defined after the class's members, because VC6 emits a class's ??_G where
+// its constructor is defined (0x00406020 and 0x00407d30 follow the last member).
 
 void ci_Init(ILTClient *pClientDE);
 
@@ -210,10 +226,7 @@ public:
 class ClientCommonLT : public CommonLT
 {
 public:
-	ClientCommonLT(CClientMgr *pClientMgr)
-	{
-		m_pClientMgr = pClientMgr;
-	}
+	ClientCommonLT(CClientMgr *pClientMgr);
 
 	virtual LTRESULT SetObjectFilenames(HOBJECT pObj, ObjectCreateStruct *pStruct);
 	virtual LTRESULT CreateMessage(ILTMessage* &pMsg);
@@ -308,39 +321,9 @@ public:
 class CLTClient : public ILTClient
 {
 public:
-	CLTClient(CClientMgr *pClientMgr)
-		: m_CommonLT(pClientMgr), m_PhysicsLT(pClientMgr), m_VideoMgr(pClientMgr),
-		m_ModelLT(pClientMgr), m_LightAnimLT(pClientMgr), m_TexMod(pClientMgr),
-		m_CursorLT(pClientMgr)
-	{
-		m_CommonLT.m_pTransformLT = &m_TransformLT;
-		m_CommonLT.m_pModelLT = &m_ModelLT;
-		m_CommonLT.SetMathLT(&m_MathLT);
+	CLTClient(CClientMgr *pClientMgr);
 
-		m_pCommonLT = &m_CommonLT;
-		m_pPhysicsLT = &m_PhysicsLT;
-		m_pVideoMgr = &m_VideoMgr;
-		m_pDirectMusicMgr = pClientMgr->m_pDirectMusicMgr;
-		m_pModelLT = &m_ModelLT;
-		m_pTransformLT = &m_TransformLT;
-		m_pLightAnimLT = &m_LightAnimLT;
-		m_pTexMod = &m_TexMod;
-		m_pSoundMgr = &pClientMgr->m_SoundMgr;
-		m_pCursorLT = &m_CursorLT;
-		m_hVideo = LTNULL;
-
-		ci_Init(this);
-		m_pClientMgr = pClientMgr;
-	}
-
-	virtual ~CLTClient()
-	{
-		if(m_pDirectMusicMgr)
-		{
-			delete m_pDirectMusicMgr;
-			m_pDirectMusicMgr = LTNULL;
-		}
-	}
+	virtual ~CLTClient();
 
 // ILTCSBase.
 	virtual HMESSAGEWRITE	StartHMessageWrite();
@@ -478,7 +461,7 @@ ILTClient* ci_CreateClientInterface(CClientMgr *pClientMgr)
 // ------------------------------------------------------------------------ //
 
 // FUNCTION: LITHTECH 0x00404c40
-LTRESULT CPhysicsLT::SetVelocity(HOBJECT hObj, LTVector *pVel)
+inline LTRESULT CPhysicsLT::SetVelocity(HOBJECT hObj, LTVector *pVel)
 {
 	CHECK_PARAMS(hObj, CPhysicsLT::SetVelocity);
 
@@ -488,7 +471,7 @@ LTRESULT CPhysicsLT::SetVelocity(HOBJECT hObj, LTVector *pVel)
 }
 
 // FUNCTION: LITHTECH 0x00404cc0
-LTRESULT CPhysicsLT::SetAcceleration(HOBJECT hObj, LTVector *pAccel)
+inline LTRESULT CPhysicsLT::SetAcceleration(HOBJECT hObj, LTVector *pAccel)
 {
 	CHECK_PARAMS(hObj, CPhysicsLT::SetAcceleration);
 
@@ -498,7 +481,7 @@ LTRESULT CPhysicsLT::SetAcceleration(HOBJECT hObj, LTVector *pAccel)
 }
 
 // FUNCTION: LITHTECH 0x00404d40
-LTRESULT CPhysicsLT::MoveObject(HOBJECT hObj, LTVector *pPos, uint32 flags)
+inline LTRESULT CPhysicsLT::MoveObject(HOBJECT hObj, LTVector *pPos, uint32 flags)
 {
 	MoveState moveState;
 	uint32 moFlags;
@@ -529,7 +512,7 @@ LTRESULT CPhysicsLT::MoveObject(HOBJECT hObj, LTVector *pPos, uint32 flags)
 }
 
 // FUNCTION: LITHTECH 0x00404ee0
-LTRESULT CPhysicsLT::UpdateMovement(MoveInfo *pMoveInfo)
+inline LTRESULT CPhysicsLT::UpdateMovement(MoveInfo *pMoveInfo)
 {
 	MotionState *pState;
 
@@ -554,7 +537,7 @@ LTRESULT CPhysicsLT::UpdateMovement(MoveInfo *pMoveInfo)
 }
 
 // FUNCTION: LITHTECH 0x00404fb0
-LTRESULT CPhysicsLT::SetObjectDims(HOBJECT hObj, LTVector *pNewDims, uint32 flags)
+inline LTRESULT CPhysicsLT::SetObjectDims(HOBJECT hObj, LTVector *pNewDims, uint32 flags)
 {
 	LTVector newDims;
 	MoveState moveState;
@@ -591,14 +574,14 @@ LTRESULT CPhysicsLT::SetObjectDims(HOBJECT hObj, LTVector *pNewDims, uint32 flag
 }
 
 // FUNCTION: LITHTECH 0x00405110
-LTRESULT CPhysicsLT::GetGlobalForce(LTVector &vec)
+inline LTRESULT CPhysicsLT::GetGlobalForce(LTVector &vec)
 {
 	vec = m_pClientMgr->m_MotionState.m_Info.m_Force;
 	return LT_OK;
 }
 
 // FUNCTION: LITHTECH 0x00405140
-LTRESULT CPhysicsLT::SetGlobalForce(LTVector &vec)
+inline LTRESULT CPhysicsLT::SetGlobalForce(LTVector &vec)
 {
 	MotionState *pState;
 
@@ -619,7 +602,7 @@ LTRESULT CPhysicsLT::SetGlobalForce(LTVector &vec)
 }
 
 // FUNCTION: LITHTECH 0x004051e0
-LTRESULT CPhysicsLT::MovePushObjects(HOBJECT hToMove, LTVector &newPos,
+inline LTRESULT CPhysicsLT::MovePushObjects(HOBJECT hToMove, LTVector &newPos,
 	HOBJECT *hPushObjects, uint32 nPushObjects)
 {
 	FN_NAME(CPhysicsLT::MovePushObjects);
@@ -642,7 +625,7 @@ LTRESULT CPhysicsLT::MovePushObjects(HOBJECT hToMove, LTVector &newPos,
 }
 
 // FUNCTION: LITHTECH 0x00405310
-LTRESULT CPhysicsLT::RotatePushObjects(HOBJECT hToMove, LTRotation &newRot,
+inline LTRESULT CPhysicsLT::RotatePushObjects(HOBJECT hToMove, LTRotation &newRot,
 	HOBJECT *hPushObjects, uint32 nPushObjects)
 {
 	FN_NAME(CPhysicsLT::RotatePushObjects);
@@ -670,14 +653,14 @@ LTRESULT CPhysicsLT::RotatePushObjects(HOBJECT hToMove, LTRotation &newRot,
 }
 
 // FUNCTION: LITHTECH 0x00405460
-LTRESULT CPhysicsLT::GetStairHeight(float &fHeight)
+inline LTRESULT CPhysicsLT::GetStairHeight(float &fHeight)
 {
 	fHeight = m_fStairHeight;
 	return LT_OK;
 }
 
 // FUNCTION: LITHTECH 0x00405470
-LTRESULT CPhysicsLT::SetStairHeight(float fHeight)
+inline LTRESULT CPhysicsLT::SetStairHeight(float fHeight)
 {
 	m_fStairHeight = fHeight;
 	return LT_OK;
@@ -706,7 +689,7 @@ inline WorldPoly* cm_GetPolyFromHPoly(CClientMgr *pClientMgr, HPOLY hPoly)
 }
 
 // FUNCTION: LITHTECH 0x00405480
-LTRESULT ClientCommonLT::SetObjectFilenames(HOBJECT pObj, ObjectCreateStruct *pStruct)
+inline LTRESULT ClientCommonLT::SetObjectFilenames(HOBJECT pObj, ObjectCreateStruct *pStruct)
 {
 	FN_NAME(ClientCommonLT::SetObjectFilenames);
 	InternalObjectSetup objectSetup;
@@ -738,14 +721,14 @@ LTRESULT ClientCommonLT::SetObjectFilenames(HOBJECT pObj, ObjectCreateStruct *pS
 }
 
 // FUNCTION: LITHTECH 0x00405590
-LTRESULT ClientCommonLT::CreateMessage(ILTMessage* &pMsg)
+inline LTRESULT ClientCommonLT::CreateMessage(ILTMessage* &pMsg)
 {
 	pMsg = &m_pClientMgr->AllocPacket()->m_Message;
 	return LT_OK;
 }
 
 // FUNCTION: LITHTECH 0x004055b0
-LTRESULT ClientCommonLT::GetPolyTextureFlags(HPOLY hPoly, uint32 *pFlags)
+inline LTRESULT ClientCommonLT::GetPolyTextureFlags(HPOLY hPoly, uint32 *pFlags)
 {
 	WorldPoly *pPoly;
 
@@ -771,7 +754,7 @@ LTRESULT ClientCommonLT::GetPolyTextureFlags(HPOLY hPoly, uint32 *pFlags)
 // The output pointer is advanced per vertex (`*pVertexList = ...; pVertexList++`): indexing it gave the reverse
 // register assignment for the vertex count and the output pointer.
 // FUNCTION: LITHTECH 0x00405680
-LTRESULT ClientCommonLT::GetPolyInfo(HPOLY hPoly, LTPlane **ppPlane, LTVector *pVertexList,
+inline LTRESULT ClientCommonLT::GetPolyInfo(HPOLY hPoly, LTPlane **ppPlane, LTVector *pVertexList,
 	uint32 nVertexListMaxSize, uint32 *pnNumVertices)
 {
 	WorldPoly *pPoly;
@@ -810,7 +793,7 @@ LTRESULT ClientCommonLT::GetPolyInfo(HPOLY hPoly, LTPlane **ppPlane, LTVector *p
 }
 
 // FUNCTION: LITHTECH 0x004057b0
-LTRESULT ClientCommonLT::GetPolySurfaceFlags(HPOLY hPoly, uint32 &dwSurfFlags)
+inline LTRESULT ClientCommonLT::GetPolySurfaceFlags(HPOLY hPoly, uint32 &dwSurfFlags)
 {
 	WorldPoly *pPoly;
 
@@ -832,7 +815,7 @@ LTRESULT ClientCommonLT::GetPolySurfaceFlags(HPOLY hPoly, uint32 &dwSurfFlags)
 }
 
 // FUNCTION: LITHTECH 0x00405880
-LTRESULT ClientCommonLT::GetPointStatus(LTVector *pPoint)
+inline LTRESULT ClientCommonLT::GetPointStatus(LTVector *pPoint)
 {
 	WorldTree *pWorldTree = &m_pClientMgr->m_World.m_WorldTree;
 
@@ -845,7 +828,7 @@ LTRESULT ClientCommonLT::GetPointStatus(LTVector *pPoint)
 void w_GetLightVal(CLightTable *pTable, LTVector *pPos, LTRGBColor *pRGB);	// 0x00405980 (also called by server_interface.cpp)
 
 // FUNCTION: LITHTECH 0x004058b0
-LTRESULT ClientCommonLT::GetPointShade(LTVector *pPoint, LTVector *pColor)
+inline LTRESULT ClientCommonLT::GetPointShade(LTVector *pPoint, LTVector *pColor)
 {
 	LTRGBColor rgb;
 
@@ -1001,7 +984,7 @@ void w_GetLightVal(CLightTable *pTable, LTVector *pPos, LTRGBColor *pRGB)
 }
 
 // FUNCTION: LITHTECH 0x00405f50
-LTRESULT ClientCommonLT::GetAttachmentObjects(HATTACHMENT hAttachment, HOBJECT &hParent, HOBJECT &hChild)
+inline LTRESULT ClientCommonLT::GetAttachmentObjects(HATTACHMENT hAttachment, HOBJECT &hParent, HOBJECT &hChild)
 {
 	FN_NAME(ClientCommonLT::GetAttachmentObjects);
 	Attachment *pAttachment;
@@ -1023,6 +1006,11 @@ LTRESULT ClientCommonLT::GetAttachmentObjects(HATTACHMENT hAttachment, HOBJECT &
 	return LT_OK;
 }
 
+inline ClientCommonLT::ClientCommonLT(CClientMgr *pClientMgr)
+{
+	m_pClientMgr = pClientMgr;
+}
+
 // FUNCTION: LITHTECH 0x00406020 ??_GClientCommonLT@@UAEPAXI@Z
 
 
@@ -1031,7 +1019,7 @@ LTRESULT ClientCommonLT::GetAttachmentObjects(HATTACHMENT hAttachment, HOBJECT &
 // ------------------------------------------------------------------------ //
 
 // FUNCTION: LITHTECH 0x00406040
-LTRESULT CLTCursorClient::SetCursorMode(CursorMode cMode)
+inline LTRESULT CLTCursorClient::SetCursorMode(CursorMode cMode)
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1040,7 +1028,7 @@ LTRESULT CLTCursorClient::SetCursorMode(CursorMode cMode)
 }
 
 // FUNCTION: LITHTECH 0x00406060
-LTRESULT CLTCursorClient::GetCursorMode(CursorMode &cMode)
+inline LTRESULT CLTCursorClient::GetCursorMode(CursorMode &cMode)
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1049,7 +1037,7 @@ LTRESULT CLTCursorClient::GetCursorMode(CursorMode &cMode)
 }
 
 // FUNCTION: LITHTECH 0x00406080
-LTRESULT CLTCursorClient::IsCursorModeAvailable(CursorMode cMode)
+inline LTRESULT CLTCursorClient::IsCursorModeAvailable(CursorMode cMode)
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1058,7 +1046,7 @@ LTRESULT CLTCursorClient::IsCursorModeAvailable(CursorMode cMode)
 }
 
 // FUNCTION: LITHTECH 0x004060a0
-LTRESULT CLTCursorClient::LoadCursorBitmapResource(const char *pName, HLTCURSOR &hCursor)
+inline LTRESULT CLTCursorClient::LoadCursorBitmapResource(const char *pName, HLTCURSOR &hCursor)
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1067,7 +1055,7 @@ LTRESULT CLTCursorClient::LoadCursorBitmapResource(const char *pName, HLTCURSOR 
 }
 
 // FUNCTION: LITHTECH 0x004060c0
-LTRESULT CLTCursorClient::FreeCursor(const HLTCURSOR hCursor)
+inline LTRESULT CLTCursorClient::FreeCursor(const HLTCURSOR hCursor)
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1076,7 +1064,7 @@ LTRESULT CLTCursorClient::FreeCursor(const HLTCURSOR hCursor)
 }
 
 // FUNCTION: LITHTECH 0x004060e0
-LTRESULT CLTCursorClient::SetCursor(HLTCURSOR hCursor)
+inline LTRESULT CLTCursorClient::SetCursor(HLTCURSOR hCursor)
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1085,7 +1073,7 @@ LTRESULT CLTCursorClient::SetCursor(HLTCURSOR hCursor)
 }
 
 // FUNCTION: LITHTECH 0x00406100
-LTRESULT CLTCursorClient::IsValidCursor(HLTCURSOR hCursor)
+inline LTRESULT CLTCursorClient::IsValidCursor(HLTCURSOR hCursor)
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1094,7 +1082,7 @@ LTRESULT CLTCursorClient::IsValidCursor(HLTCURSOR hCursor)
 }
 
 // FUNCTION: LITHTECH 0x00406120
-LTRESULT CLTCursorClient::RefreshCursor()
+inline LTRESULT CLTCursorClient::RefreshCursor()
 {
 	if(!m_pClientMgr)
 		return LT_NOTINITIALIZED;
@@ -1108,7 +1096,7 @@ LTRESULT CLTCursorClient::RefreshCursor()
 // ------------------------------------------------------------------------ //
 
 // FUNCTION: LITHTECH 0x00406140
-LTRESULT LVideoMgr::StartOnScreenVideo(char *pFilename, uint32 flags, HVIDEO &hVideo)
+inline LTRESULT LVideoMgr::StartOnScreenVideo(char *pFilename, uint32 flags, HVIDEO &hVideo)
 {
 	VideoMgr *pMgr = m_pClientMgr->m_pVideoMgr;
 
@@ -1122,7 +1110,7 @@ LTRESULT LVideoMgr::StartOnScreenVideo(char *pFilename, uint32 flags, HVIDEO &hV
 }
 
 // FUNCTION: LITHTECH 0x004061e0
-LTRESULT LVideoMgr::StartTextureVideo(char *pFilename, uint32 flags, HVIDEO &hVideo)
+inline LTRESULT LVideoMgr::StartTextureVideo(char *pFilename, uint32 flags, HVIDEO &hVideo)
 {
 	VideoMgr *pMgr = m_pClientMgr->m_pVideoMgr;
 
@@ -1136,7 +1124,7 @@ LTRESULT LVideoMgr::StartTextureVideo(char *pFilename, uint32 flags, HVIDEO &hVi
 }
 
 // FUNCTION: LITHTECH 0x00406280
-LTRESULT LVideoMgr::UpdateVideo(HVIDEO hVideo)
+inline LTRESULT LVideoMgr::UpdateVideo(HVIDEO hVideo)
 {
 	VideoMgr *pMgr = m_pClientMgr->m_pVideoMgr;
 	VideoInst *pVideo = (VideoInst*)hVideo;
@@ -1151,7 +1139,7 @@ LTRESULT LVideoMgr::UpdateVideo(HVIDEO hVideo)
 }
 
 // FUNCTION: LITHTECH 0x00406340
-LTRESULT LVideoMgr::GetVideoStatus(HVIDEO hVideo)
+inline LTRESULT LVideoMgr::GetVideoStatus(HVIDEO hVideo)
 {
 	VideoMgr *pMgr = m_pClientMgr->m_pVideoMgr;
 	VideoInst *pVideo = (VideoInst*)hVideo;
@@ -1166,7 +1154,7 @@ LTRESULT LVideoMgr::GetVideoStatus(HVIDEO hVideo)
 }
 
 // FUNCTION: LITHTECH 0x00406400
-LTRESULT LVideoMgr::StopVideo(HVIDEO hVideo)
+inline LTRESULT LVideoMgr::StopVideo(HVIDEO hVideo)
 {
 	VideoMgr *pMgr = m_pClientMgr->m_pVideoMgr;
 	VideoInst *pVideo = (VideoInst*)hVideo;
@@ -1182,7 +1170,7 @@ LTRESULT LVideoMgr::StopVideo(HVIDEO hVideo)
 }
 
 // FUNCTION: LITHTECH 0x004064c0
-LTRESULT LVideoMgr::BindTextureVideoToPoly(HVIDEO hVideo, HPOLY hPoly)
+inline LTRESULT LVideoMgr::BindTextureVideoToPoly(HVIDEO hVideo, HPOLY hPoly)
 {
 	CClientMgr *pClientMgr = m_pClientMgr;
 	VideoMgr *pMgr = pClientMgr->m_pVideoMgr;
@@ -1213,7 +1201,7 @@ LTRESULT LVideoMgr::BindTextureVideoToPoly(HVIDEO hVideo, HPOLY hPoly)
 // ------------------------------------------------------------------------ //
 
 // FUNCTION: LITHTECH 0x004065e0
-LTRESULT ClientModelLT::SetCurAnim(LTAnimTracker *pTracker, HMODELANIM hAnim)
+inline LTRESULT ClientModelLT::SetCurAnim(LTAnimTracker *pTracker, HMODELANIM hAnim)
 {
 	FN_NAME(ClientModelLT::SetCurAnim);
 	ModelInstance *pInst;
@@ -1242,7 +1230,7 @@ LTRESULT ClientModelLT::SetCurAnim(LTAnimTracker *pTracker, HMODELANIM hAnim)
 // ------------------------------------------------------------------------ //
 
 // FUNCTION: LITHTECH 0x00406660
-LTRESULT ClientLightAnimLT::FindLightAnim(const char *pName, HLIGHTANIM &hLightAnim)
+inline LTRESULT ClientLightAnimLT::FindLightAnim(const char *pName, HLIGHTANIM &hLightAnim)
 {
 	if(m_pClientMgr->m_World.FindLightAnim(pName, &hLightAnim))
 	{
@@ -1256,7 +1244,7 @@ LTRESULT ClientLightAnimLT::FindLightAnim(const char *pName, HLIGHTANIM &hLightA
 }
 
 // FUNCTION: LITHTECH 0x00406690
-LTRESULT ClientLightAnimLT::GetNumFrames(HLIGHTANIM hLightAnim, uint32 &nFrames)
+inline LTRESULT ClientLightAnimLT::GetNumFrames(HLIGHTANIM hLightAnim, uint32 &nFrames)
 {
 	FN_NAME(ClientLightAnimLT::GetNumFrames);
 
@@ -1268,7 +1256,7 @@ LTRESULT ClientLightAnimLT::GetNumFrames(HLIGHTANIM hLightAnim, uint32 &nFrames)
 }
 
 // FUNCTION: LITHTECH 0x00406700
-LTRESULT ClientLightAnimLT::GetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info)
+inline LTRESULT ClientLightAnimLT::GetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info)
 {
 	FN_NAME(ClientLightAnimLT::GetLightAnimInfo);
 
@@ -1279,7 +1267,7 @@ LTRESULT ClientLightAnimLT::GetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info
 }
 
 // FUNCTION: LITHTECH 0x00406770
-LTRESULT ClientLightAnimLT::SetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info)
+inline LTRESULT ClientLightAnimLT::SetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info)
 {
 	return cm_SetLightAnimInfo(m_pClientMgr, hLightAnim, info, LTFALSE);
 }
@@ -1290,7 +1278,7 @@ LTRESULT ClientLightAnimLT::SetLightAnimInfo(HLIGHTANIM hLightAnim, LAInfo &info
 // ------------------------------------------------------------------------ //
 
 // FUNCTION: LITHTECH 0x00406790
-LTRESULT CLTClient::OpenFile(char *pFilename, ILTStream **pStream)
+inline LTRESULT CLTClient::OpenFile(char *pFilename, ILTStream **pStream)
 {
 	FileRef ref;
 
@@ -1313,13 +1301,13 @@ LTRESULT CLTClient::OpenFile(char *pFilename, ILTStream **pStream)
 }
 
 // FUNCTION: LITHTECH 0x00406870
-LTRESULT CLTClient::CopyFile(const char *pszSourceFile, const char *pszDestFile)
+inline LTRESULT CLTClient::CopyFile(const char *pszSourceFile, const char *pszDestFile)
 {
 	return cf_CopyFile(m_pClientMgr->m_hFileMgr, pszSourceFile, pszDestFile);
 }
 
 // FUNCTION: LITHTECH 0x004068a0
-LTRESULT CLTClient::SetObjectPos(HLOCALOBJ hObj, LTVector *pPos, LTBOOL bForce)
+inline LTRESULT CLTClient::SetObjectPos(HLOCALOBJ hObj, LTVector *pPos, LTBOOL bForce)
 {
 	FN_NAME(CLTClient::SetObjectPos);
 
@@ -1330,7 +1318,7 @@ LTRESULT CLTClient::SetObjectPos(HLOCALOBJ hObj, LTVector *pPos, LTBOOL bForce)
 }
 
 // FUNCTION: LITHTECH 0x00406910
-void CLTClient::SetObjectFlags(HOBJECT hObj, uint32 flags)
+inline void CLTClient::SetObjectFlags(HOBJECT hObj, uint32 flags)
 {
 	m_pCommonLT->SetObjectFlags(hObj, OFT_Flags, flags);
 }
@@ -1373,7 +1361,7 @@ inline PSParticle* ps_AddParticle(LTParticleSystem *pSystem, LTVector *pPos, LTV
 }
 
 // FUNCTION: LITHTECH 0x00406930
-LTParticle* CLTClient::AddParticle(HLOCALOBJ hObj, LTVector *pPos, LTVector *pVelocity, LTVector *pColor, float lifeTime)
+inline LTParticle* CLTClient::AddParticle(HLOCALOBJ hObj, LTVector *pPos, LTVector *pVelocity, LTVector *pColor, float lifeTime)
 {
 	LTParticleSystem *pSystem = (LTParticleSystem*)hObj;
 
@@ -1389,7 +1377,7 @@ LTParticle* CLTClient::AddParticle(HLOCALOBJ hObj, LTVector *pPos, LTVector *pVe
 
 
 // FUNCTION: LITHTECH 0x00406ac0
-LTRESULT CLTClient::StartQuery(char *pInfo)
+inline LTRESULT CLTClient::StartQuery(char *pInfo)
 {
 	CBaseDriver *pDriver = m_pClientMgr->m_NetMgr.m_pMainDriver;
 
@@ -1400,7 +1388,7 @@ LTRESULT CLTClient::StartQuery(char *pInfo)
 }
 
 // FUNCTION: LITHTECH 0x00406b10
-LTRESULT CLTClient::UpdateQuery()
+inline LTRESULT CLTClient::UpdateQuery()
 {
 	CBaseDriver *pDriver = m_pClientMgr->m_NetMgr.m_pMainDriver;
 
@@ -1411,7 +1399,7 @@ LTRESULT CLTClient::UpdateQuery()
 }
 
 // FUNCTION: LITHTECH 0x00406b60
-LTRESULT CLTClient::GetQueryResults(NetSession* &pListHead)
+inline LTRESULT CLTClient::GetQueryResults(NetSession* &pListHead)
 {
 	CBaseDriver *pDriver = m_pClientMgr->m_NetMgr.m_pMainDriver;
 
@@ -1423,7 +1411,7 @@ LTRESULT CLTClient::GetQueryResults(NetSession* &pListHead)
 }
 
 // FUNCTION: LITHTECH 0x00406bc0
-LTRESULT CLTClient::EndQuery()
+inline LTRESULT CLTClient::EndQuery()
 {
 	CBaseDriver *pDriver = m_pClientMgr->m_NetMgr.m_pMainDriver;
 
@@ -1434,7 +1422,7 @@ LTRESULT CLTClient::EndQuery()
 }
 
 // FUNCTION: LITHTECH 0x00406c10
-LTRESULT CLTClient::GetSConValueFloat(char *pName, float &val)
+inline LTRESULT CLTClient::GetSConValueFloat(char *pName, float &val)
 {
 	LTCommandVar *pVar;
 
@@ -1455,7 +1443,7 @@ LTRESULT CLTClient::GetSConValueFloat(char *pName, float &val)
 }
 
 // FUNCTION: LITHTECH 0x00406cc0
-LTRESULT CLTClient::GetSConValueString(char *pName, char *valBuf, uint32 bufLen)
+inline LTRESULT CLTClient::GetSConValueString(char *pName, char *valBuf, uint32 bufLen)
 {
 	LTCommandVar *pVar;
 
@@ -1477,7 +1465,7 @@ LTRESULT CLTClient::GetSConValueString(char *pName, char *valBuf, uint32 bufLen)
 }
 
 // FUNCTION: LITHTECH 0x00406d90
-float CLTClient::GetServerConVarValueFloat(char *pName)
+inline float CLTClient::GetServerConVarValueFloat(char *pName)
 {
 	LTCommandVar *pVar;
 
@@ -1492,7 +1480,7 @@ float CLTClient::GetServerConVarValueFloat(char *pName)
 }
 
 // FUNCTION: LITHTECH 0x00406dc0
-char* CLTClient::GetServerConVarValueString(char *pName)
+inline char* CLTClient::GetServerConVarValueString(char *pName)
 {
 	LTCommandVar *pVar;
 
@@ -1507,7 +1495,7 @@ char* CLTClient::GetServerConVarValueString(char *pName)
 }
 
 // FUNCTION: LITHTECH 0x00406df0
-LTRESULT CLTClient::SendToServer(ILTMessage &msg, uint8 msgID, uint32 flags)
+inline LTRESULT CLTClient::SendToServer(ILTMessage &msg, uint8 msgID, uint32 flags)
 {
 	FN_NAME(CLTClient::SendToServer);
 	LMessageImpl *pMsg = (LMessageImpl*)&msg;
@@ -1528,7 +1516,7 @@ LTRESULT CLTClient::SendToServer(ILTMessage &msg, uint8 msgID, uint32 flags)
 }
 
 // FUNCTION: LITHTECH 0x00407030
-LTRESULT CLTClient::ProcessAttachments(HOBJECT hObj)
+inline LTRESULT CLTClient::ProcessAttachments(HOBJECT hObj)
 {
 	Attachment *pCur;
 
@@ -1546,7 +1534,7 @@ LTRESULT CLTClient::ProcessAttachments(HOBJECT hObj)
 }
 
 // FUNCTION: LITHTECH 0x004070a0
-LTRESULT CLTClient::GetSpriteControl(HLOCALOBJ hObj, ILTSpriteControl* &pControl)
+inline LTRESULT CLTClient::GetSpriteControl(HLOCALOBJ hObj, ILTSpriteControl* &pControl)
 {
 	if(hObj && hObj->m_ObjectType == OT_SPRITE)
 	{
@@ -1558,7 +1546,7 @@ LTRESULT CLTClient::GetSpriteControl(HLOCALOBJ hObj, ILTSpriteControl* &pControl
 }
 
 // FUNCTION: LITHTECH 0x00407100
-LTRESULT CLTClient::ModelNodeControl(HOBJECT hObj, NodeControlFn fn, void *pUserData)
+inline LTRESULT CLTClient::ModelNodeControl(HOBJECT hObj, NodeControlFn fn, void *pUserData)
 {
 	FN_NAME(CLTClient::ModelNodeControl);
 
@@ -1570,7 +1558,7 @@ LTRESULT CLTClient::ModelNodeControl(HOBJECT hObj, NodeControlFn fn, void *pUser
 }
 
 // FUNCTION: LITHTECH 0x00407170
-LTRESULT CLTClient::GetCanvasFn(HOBJECT hCanvas, CanvasDrawFn &fn, void* &pUserData)
+inline LTRESULT CLTClient::GetCanvasFn(HOBJECT hCanvas, CanvasDrawFn &fn, void* &pUserData)
 {
 	FN_NAME(CLTClient::GetCanvasFn);
 
@@ -1582,7 +1570,7 @@ LTRESULT CLTClient::GetCanvasFn(HOBJECT hCanvas, CanvasDrawFn &fn, void* &pUserD
 }
 
 // FUNCTION: LITHTECH 0x004071e0
-LTRESULT CLTClient::SetCanvasFn(HOBJECT hCanvas, CanvasDrawFn fn, void* pUserData)
+inline LTRESULT CLTClient::SetCanvasFn(HOBJECT hCanvas, CanvasDrawFn fn, void* pUserData)
 {
 	FN_NAME(CLTClient::SetCanvasFn);
 
@@ -1594,7 +1582,7 @@ LTRESULT CLTClient::SetCanvasFn(HOBJECT hCanvas, CanvasDrawFn fn, void* pUserDat
 }
 
 // FUNCTION: LITHTECH 0x00407250
-LTRESULT CLTClient::GetCanvasRadius(HOBJECT hCanvas, float &radius)
+inline LTRESULT CLTClient::GetCanvasRadius(HOBJECT hCanvas, float &radius)
 {
 	FN_NAME(CLTClient::GetCanvasRadius);
 
@@ -1605,7 +1593,7 @@ LTRESULT CLTClient::GetCanvasRadius(HOBJECT hCanvas, float &radius)
 }
 
 // FUNCTION: LITHTECH 0x004072b0
-LTRESULT CLTClient::SetCanvasRadius(HOBJECT hCanvas, float radius)
+inline LTRESULT CLTClient::SetCanvasRadius(HOBJECT hCanvas, float radius)
 {
 	// (Talon reuses GetCanvasRadius's name here.)
 	FN_NAME(CLTClient::GetCanvasRadius);
@@ -1618,14 +1606,14 @@ LTRESULT CLTClient::SetCanvasRadius(HOBJECT hCanvas, float radius)
 }
 
 // FUNCTION: LITHTECH 0x00407320
-LTRESULT CLTClient::GetGlobalLightDir(LTVector &dir)
+inline LTRESULT CLTClient::GetGlobalLightDir(LTVector &dir)
 {
 	dir = g_GlobalLightDir;
 	return LT_OK;
 }
 
 // FUNCTION: LITHTECH 0x00407350
-LTRESULT CLTClient::SetGlobalLightDir(LTVector dir)
+inline LTRESULT CLTClient::SetGlobalLightDir(LTVector dir)
 {
 	dir.Norm();
 	if(dir.MagSqr() < 0.001f)
@@ -1636,28 +1624,28 @@ LTRESULT CLTClient::SetGlobalLightDir(LTVector dir)
 }
 
 // FUNCTION: LITHTECH 0x00407410
-LTRESULT CLTClient::GetGlobalLightColor(LTVector &color)
+inline LTRESULT CLTClient::GetGlobalLightColor(LTVector &color)
 {
 	color = g_GlobalLightColor;
 	return LT_OK;
 }
 
 // FUNCTION: LITHTECH 0x00407440
-LTRESULT CLTClient::SetGlobalLightColor(LTVector color)
+inline LTRESULT CLTClient::SetGlobalLightColor(LTVector color)
 {
 	g_GlobalLightColor = color;
 	return LT_OK;
 }
 
 // FUNCTION: LITHTECH 0x00407470
-LTRESULT CLTClient::GetAmbientLight(float &light)
+inline LTRESULT CLTClient::GetAmbientLight(float &light)
 {
 	light = (float)g_AmbientLight / 255.0f;
 	return LT_OK;
 }
 
 // FUNCTION: LITHTECH 0x004074a0
-LTRESULT CLTClient::SetAmbientLight(float light)
+inline LTRESULT CLTClient::SetAmbientLight(float light)
 {
 	if(light < 0.0f)
 		light = 0.0f;
@@ -1669,7 +1657,7 @@ LTRESULT CLTClient::SetAmbientLight(float light)
 }
 
 // FUNCTION: LITHTECH 0x004074f0
-LTRESULT CLTClient::GetAttachments(HLOCALOBJ hObj, HLOCALOBJ *inList, uint32 inListSize,
+inline LTRESULT CLTClient::GetAttachments(HLOCALOBJ hObj, HLOCALOBJ *inList, uint32 inListSize,
 	uint32 *outListSize, uint32 *outNumAttachments)
 {
 	FN_NAME(CLTClient::GetAttachments);
@@ -1680,7 +1668,7 @@ LTRESULT CLTClient::GetAttachments(HLOCALOBJ hObj, HLOCALOBJ *inList, uint32 inL
 }
 
 // FUNCTION: LITHTECH 0x00407560
-LTRESULT CLTClient::StartVideo(char *pFilename, uint32 flags)
+inline LTRESULT CLTClient::StartVideo(char *pFilename, uint32 flags)
 {
 	if(!pFilename)
 		RETURN_ERROR(2, CLTClient::StartVideo, LT_INVALIDPARAMS);
@@ -1695,7 +1683,7 @@ LTRESULT CLTClient::StartVideo(char *pFilename, uint32 flags)
 }
 
 // FUNCTION: LITHTECH 0x004075f0
-LTRESULT CLTClient::StopVideo()
+inline LTRESULT CLTClient::StopVideo()
 {
 	LTRESULT dResult;
 
@@ -1705,13 +1693,13 @@ LTRESULT CLTClient::StopVideo()
 }
 
 // FUNCTION: LITHTECH 0x00407620
-LTRESULT CLTClient::UpdateVideo()
+inline LTRESULT CLTClient::UpdateVideo()
 {
 	return m_pVideoMgr->UpdateVideo(m_hVideo);
 }
 
 // FUNCTION: LITHTECH 0x00407640
-LTRESULT CLTClient::IsVideoPlaying()
+inline LTRESULT CLTClient::IsVideoPlaying()
 {
 	if(m_pVideoMgr->GetVideoStatus(m_hVideo) == LT_OK)
 		return VIDEO_PLAYING;
@@ -1721,19 +1709,19 @@ LTRESULT CLTClient::IsVideoPlaying()
 }
 
 // FUNCTION: LITHTECH 0x00407680
-LTRESULT CLTClient::GetPointStatus(LTVector *pPoint)
+inline LTRESULT CLTClient::GetPointStatus(LTVector *pPoint)
 {
 	return m_pCommonLT->GetPointStatus(pPoint);
 }
 
 // FUNCTION: LITHTECH 0x00407690
-LTRESULT CLTClient::GetPointShade(LTVector *pPoint, LTVector *pColor)
+inline LTRESULT CLTClient::GetPointShade(LTVector *pPoint, LTVector *pColor)
 {
 	return m_pCommonLT->GetPointShade(pPoint, pColor);
 }
 
 // FUNCTION: LITHTECH 0x004076a0
-HMESSAGEWRITE CLTClient::StartMessage(uint8 messageID)
+inline HMESSAGEWRITE CLTClient::StartMessage(uint8 messageID)
 {
 	CPacket *pPacket;
 
@@ -1749,7 +1737,7 @@ HMESSAGEWRITE CLTClient::StartMessage(uint8 messageID)
 }
 
 // FUNCTION: LITHTECH 0x004076d0
-LTRESULT CLTClient::EndMessage2(HMESSAGEWRITE hMessage, uint32 flags)
+inline LTRESULT CLTClient::EndMessage2(HMESSAGEWRITE hMessage, uint32 flags)
 {
 	LTRESULT dResult;
 
@@ -1762,13 +1750,13 @@ LTRESULT CLTClient::EndMessage2(HMESSAGEWRITE hMessage, uint32 flags)
 }
 
 // FUNCTION: LITHTECH 0x00407750
-LTRESULT CLTClient::EndMessage(HMESSAGEWRITE hMessage)
+inline LTRESULT CLTClient::EndMessage(HMESSAGEWRITE hMessage)
 {
 	return EndMessage2(hMessage, MESSAGE_GUARANTEED);
 }
 
 // FUNCTION: LITHTECH 0x00407770
-HMESSAGEWRITE CLTClient::StartHMessageWrite()
+inline HMESSAGEWRITE CLTClient::StartHMessageWrite()
 {
 	CPacket *pPacket;
 
@@ -1778,7 +1766,7 @@ HMESSAGEWRITE CLTClient::StartHMessageWrite()
 }
 
 // FUNCTION: LITHTECH 0x00407800
-HMODELANIM CLTClient::GetModelAnimation(HOBJECT hObj)
+inline HMODELANIM CLTClient::GetModelAnimation(HOBJECT hObj)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1795,7 +1783,7 @@ HMODELANIM CLTClient::GetModelAnimation(HOBJECT hObj)
 }
 
 // FUNCTION: LITHTECH 0x00407840
-void CLTClient::SetModelAnimation(HOBJECT hObj, HMODELANIM hAnim)
+inline void CLTClient::SetModelAnimation(HOBJECT hObj, HMODELANIM hAnim)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1807,7 +1795,7 @@ void CLTClient::SetModelAnimation(HOBJECT hObj, HMODELANIM hAnim)
 }
 
 // FUNCTION: LITHTECH 0x00407870
-LTRESULT CLTClient::ResetModelAnimation(HOBJECT hObj)
+inline LTRESULT CLTClient::ResetModelAnimation(HOBJECT hObj)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1824,7 +1812,7 @@ LTRESULT CLTClient::ResetModelAnimation(HOBJECT hObj)
 }
 
 // FUNCTION: LITHTECH 0x004078a0
-uint32 CLTClient::GetModelPlaybackState(HOBJECT hObj)
+inline uint32 CLTClient::GetModelPlaybackState(HOBJECT hObj)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1841,7 +1829,7 @@ uint32 CLTClient::GetModelPlaybackState(HOBJECT hObj)
 }
 
 // FUNCTION: LITHTECH 0x004078e0
-LTBOOL CLTClient::GetModelLooping(HOBJECT hObj)
+inline LTBOOL CLTClient::GetModelLooping(HOBJECT hObj)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1855,7 +1843,7 @@ LTBOOL CLTClient::GetModelLooping(HOBJECT hObj)
 }
 
 // FUNCTION: LITHTECH 0x00407920
-void CLTClient::SetModelLooping(HOBJECT hObj, LTBOOL bLoop)
+inline void CLTClient::SetModelLooping(HOBJECT hObj, LTBOOL bLoop)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1867,7 +1855,7 @@ void CLTClient::SetModelLooping(HOBJECT hObj, LTBOOL bLoop)
 }
 
 // FUNCTION: LITHTECH 0x00407950
-LTBOOL CLTClient::GetModelPlaying(HLOCALOBJ hObj)
+inline LTBOOL CLTClient::GetModelPlaying(HLOCALOBJ hObj)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1881,7 +1869,7 @@ LTBOOL CLTClient::GetModelPlaying(HLOCALOBJ hObj)
 }
 
 // FUNCTION: LITHTECH 0x00407990
-void CLTClient::SetModelPlaying(HLOCALOBJ hObj, LTBOOL bPlaying)
+inline void CLTClient::SetModelPlaying(HLOCALOBJ hObj, LTBOOL bPlaying)
 {
 	ILTModel *pModelLT = GetModelLT();
 	LTAnimTracker *pTracker;
@@ -1893,13 +1881,13 @@ void CLTClient::SetModelPlaying(HLOCALOBJ hObj, LTBOOL bPlaying)
 }
 
 // FUNCTION: LITHTECH 0x004079c0
-LTRESULT CLTClient::FreeUnusedModels()
+inline LTRESULT CLTClient::FreeUnusedModels()
 {
 	return m_pClientMgr->FreeUnusedModels();
 }
 
 // FUNCTION: LITHTECH 0x004079d0
-void CLTClient::CPrint(char *pMsg, ...)
+inline void CLTClient::CPrint(char *pMsg, ...)
 {
 	va_list marker;
 	char str[500];
@@ -1914,7 +1902,7 @@ void CLTClient::CPrint(char *pMsg, ...)
 static void ci_GetPointContainersCB(WorldTreeObj *pObj, void *pUser);
 
 // FUNCTION: LITHTECH 0x00407a10
-uint32 CLTClient::GetPointContainers(LTVector *pPoint, HOBJECT *pList, uint32 maxListSize)
+inline uint32 CLTClient::GetPointContainers(LTVector *pPoint, HOBJECT *pList, uint32 maxListSize)
 {
 	WorldTree *pWorldTree = &g_pClientMgr->m_World.m_WorldTree;
 	TempObjArray theArray;
@@ -1934,7 +1922,7 @@ uint32 CLTClient::GetPointContainers(LTVector *pPoint, HOBJECT *pList, uint32 ma
 }
 
 // FUNCTION: LITHTECH 0x00407a90
-LTBOOL CLTClient::GetContainerCode(HOBJECT hObj, uint16 *pCode)
+inline LTBOOL CLTClient::GetContainerCode(HOBJECT hObj, uint16 *pCode)
 {
 	ContainerInstance *pContainer = (ContainerInstance*)hObj;
 
@@ -1946,7 +1934,7 @@ LTBOOL CLTClient::GetContainerCode(HOBJECT hObj, uint16 *pCode)
 }
 
 // FUNCTION: LITHTECH 0x00407ac0
-HSTRING CLTClient::FormatString(int messageCode, ...)
+inline HSTRING CLTClient::FormatString(int messageCode, ...)
 {
 	uint8 *pBuffer;
 	int bufferLen;
@@ -1988,7 +1976,7 @@ HSTRING CLTClient::FormatString(int messageCode, ...)
 }
 
 // FUNCTION: LITHTECH 0x00407b70
-HSTRING CLTClient::CopyString(HSTRING hString)
+inline HSTRING CLTClient::CopyString(HSTRING hString)
 {
 	if(hString)
 		return str_CopyString(hString);
@@ -1997,7 +1985,7 @@ HSTRING CLTClient::CopyString(HSTRING hString)
 }
 
 // FUNCTION: LITHTECH 0x00407b90
-HSTRING CLTClient::CreateString(char *pString)
+inline HSTRING CLTClient::CreateString(char *pString)
 {
 	if(pString)
 		return str_CreateStringAnsi(pString);
@@ -2005,13 +1993,13 @@ HSTRING CLTClient::CreateString(char *pString)
 		return LTNULL;
 }
 
-void CLTClient::FreeString(HSTRING hString)
+inline void CLTClient::FreeString(HSTRING hString)
 {
 	ic_FreeString(hString);
 }
 
 // FUNCTION: LITHTECH 0x00407bb0
-LTBOOL CLTClient::CompareStrings(HSTRING hString1, HSTRING hString2)
+inline LTBOOL CLTClient::CompareStrings(HSTRING hString1, HSTRING hString2)
 {
 	if(hString1 && hString2)
 		return str_CompareStrings(hString1, hString2);
@@ -2022,7 +2010,7 @@ LTBOOL CLTClient::CompareStrings(HSTRING hString1, HSTRING hString2)
 }
 
 // FUNCTION: LITHTECH 0x00407be0
-LTBOOL CLTClient::CompareStringsUpper(HSTRING hString1, HSTRING hString2)
+inline LTBOOL CLTClient::CompareStringsUpper(HSTRING hString1, HSTRING hString2)
 {
 	if(hString1 && hString2)
 		return str_CompareStringsUpper(hString1, hString2);
@@ -2033,7 +2021,7 @@ LTBOOL CLTClient::CompareStringsUpper(HSTRING hString1, HSTRING hString2)
 }
 
 // FUNCTION: LITHTECH 0x00407c10
-char* CLTClient::GetStringData(HSTRING hString)
+inline char* CLTClient::GetStringData(HSTRING hString)
 {
 	if(hString)
 		return str_GetStringData(hString);
@@ -2042,7 +2030,7 @@ char* CLTClient::GetStringData(HSTRING hString)
 }
 
 // FUNCTION: LITHTECH 0x00407c30
-float CLTClient::GetVarValueFloat(HCONSOLEVAR hVar)
+inline float CLTClient::GetVarValueFloat(HCONSOLEVAR hVar)
 {
 	if(hVar)
 		return ((LTCommandVar*)hVar)->floatVal;
@@ -2051,7 +2039,7 @@ float CLTClient::GetVarValueFloat(HCONSOLEVAR hVar)
 }
 
 // FUNCTION: LITHTECH 0x00407c50
-char* CLTClient::GetVarValueString(HCONSOLEVAR hVar)
+inline char* CLTClient::GetVarValueString(HCONSOLEVAR hVar)
 {
 	if(hVar)
 		return ((LTCommandVar*)hVar)->pStringVal;
@@ -2060,19 +2048,19 @@ char* CLTClient::GetVarValueString(HCONSOLEVAR hVar)
 }
 
 // FUNCTION: LITHTECH 0x00407c70
-LTFLOAT CLTClient::GetTime()
+inline LTFLOAT CLTClient::GetTime()
 {
 	return g_pClientMgr->m_CurTime;
 }
 
 // FUNCTION: LITHTECH 0x00407c80
-LTFLOAT CLTClient::GetFrameTime()
+inline LTFLOAT CLTClient::GetFrameTime()
 {
 	return g_pClientMgr->m_FrameTime;
 }
 
 // FUNCTION: LITHTECH 0x00407c90
-LTRESULT CLTClient::RemoveObject(HOBJECT hObj)
+inline LTRESULT CLTClient::RemoveObject(HOBJECT hObj)
 {
 	if(!hObj)
 	{
@@ -2088,17 +2076,53 @@ LTRESULT CLTClient::RemoveObject(HOBJECT hObj)
 }
 
 // The Talon server shares these (/OPT:ICF folds them with the server's copies).
-HMODELANIM CLTClient::GetAnimIndex(HOBJECT hObj, char *pAnimName)
+inline HMODELANIM CLTClient::GetAnimIndex(HOBJECT hObj, char *pAnimName)
 {
 	return ic_GetAnimIndex(hObj, pAnimName);
 }
 
-uint32 CLTClient::GetObjectFlags(HOBJECT hObj)
+inline uint32 CLTClient::GetObjectFlags(HOBJECT hObj)
 {
 	uint32 flags;
 
 	m_pCommonLT->GetObjectFlags(hObj, OFT_Flags, flags);
 	return flags;
+}
+
+// Defined after the members: with an earlier destructor (or one in the class) VC6 emits ??_G
+// right after ci_CreateClientInterface; with both defined here, at the constructor.
+inline CLTClient::~CLTClient()
+{
+	if(m_pDirectMusicMgr)
+	{
+		delete m_pDirectMusicMgr;
+		m_pDirectMusicMgr = LTNULL;
+	}
+}
+
+inline CLTClient::CLTClient(CClientMgr *pClientMgr)
+	: m_CommonLT(pClientMgr), m_PhysicsLT(pClientMgr), m_VideoMgr(pClientMgr),
+	m_ModelLT(pClientMgr), m_LightAnimLT(pClientMgr), m_TexMod(pClientMgr),
+	m_CursorLT(pClientMgr)
+{
+	m_CommonLT.m_pTransformLT = &m_TransformLT;
+	m_CommonLT.m_pModelLT = &m_ModelLT;
+	m_CommonLT.SetMathLT(&m_MathLT);
+
+	m_pCommonLT = &m_CommonLT;
+	m_pPhysicsLT = &m_PhysicsLT;
+	m_pVideoMgr = &m_VideoMgr;
+	m_pDirectMusicMgr = pClientMgr->m_pDirectMusicMgr;
+	m_pModelLT = &m_ModelLT;
+	m_pTransformLT = &m_TransformLT;
+	m_pLightAnimLT = &m_LightAnimLT;
+	m_pTexMod = &m_TexMod;
+	m_pSoundMgr = &pClientMgr->m_SoundMgr;
+	m_pCursorLT = &m_CursorLT;
+	m_hVideo = LTNULL;
+
+	ci_Init(this);
+	m_pClientMgr = pClientMgr;
 }
 
 // FUNCTION: LITHTECH 0x00407d30 ??_GCLTClient@@UAEPAXI@Z
@@ -3549,15 +3573,6 @@ void ci_GetListener(LTBOOL *bListenerInClient, LTVector *pPos, LTRotation *pRot)
 		mListener.SetBasisVectors(&vRight, &vUp, &vForward);
 		quat_ConvertFromMatrix((float*)pRot, mListener.m);
 	}
-}
-
-// FUNCTION: LITHTECH 0x004049c0
-LTBOOL ci_IntersectSegment(ClientIntersectQuery *pQuery, ClientIntersectInfo *pInfo)
-{
-	if(g_pClientMgr && g_pClientMgr->m_pCurShell)
-		return i_IntersectSegment(pQuery, pInfo, &g_pClientMgr->m_World.m_WorldTree, LTFALSE);
-
-	return LTFALSE;
 }
 
 // FUNCTION: LITHTECH 0x0040a320
