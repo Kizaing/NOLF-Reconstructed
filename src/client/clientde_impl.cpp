@@ -2083,7 +2083,7 @@ inline HMODELANIM CLTClient::GetAnimIndex(HOBJECT hObj, char *pAnimName)
 
 inline uint32 CLTClient::GetObjectFlags(HOBJECT hObj)
 {
-	uint32 flags;
+	uint32 flags = 0;	// as the server's copy: /OPT:ICF folded the two (0x0047d140), so the original's client copy zeroes it too
 
 	m_pCommonLT->GetObjectFlags(hObj, OFT_Flags, flags);
 	return flags;
