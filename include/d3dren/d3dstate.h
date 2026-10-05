@@ -13,30 +13,21 @@
 // GLOBAL: D3DREN 0x100528d8
 extern int g_bChromaKeyPass;	// guess: set by d3d_SetChromaKeyPass (flag read by the world polygon draw code)
 
-// guess types for the texture binding code (the texture object and its renderer data; d3dtexture.h of W8 will name them)
-struct UnkType_TexData
-{
-	uint8					m_Pad00[0x14];
-	int						m_Unk14;	// guess: size in bytes (added to the per-frame texture byte counter)
-	uint32					m_Unk18;	// guess: frame code of the last use
-	IDirectDrawSurface7		*m_Unk1c;	// guess: the texture surface
-	int						m_Unk20;	// guess: non-zero when the surface exists
-};
-
-struct UnkType_Tex
-{
-	uint8					m_Pad00[0x48];
-	UnkType_TexData			*m_Unk48;	// 0x48
-};
+// The texture binding code binds RTextures (d3dtexture.h) and lightmap pages (lightmap.h), both RTextureBase; a world poly
+// holds its lightmap page at 0x48 (WORLDPOLY_LMPAGE, lightmap.h).  Only declared here: including lightmap.h in every
+// drawing unit changes the inline budget of some (unit unk/10007930).
+class RTextureBase;
+struct LightmapPage;
+struct WorldPoly;
 
 // GLOBAL: D3DREN 0x100617d8
-extern UnkType_TexData *g_pBoundTextures[8];	// guess: the texture data currently bound on each device stage
+extern RTextureBase *g_pBoundTextures[8];	// the texture (RTexture or lightmap page) currently bound on each device stage
 // GLOBAL: D3DREN 0x100577a0
 // NAME: g_CurFrameCode: Jupiter common_draw.cpp / names_proposal high (defined in sys/d3d/common_draw)
 extern uint16 g_CurFrameCode;	// the current texture frame code (RenderStruct::IncCurTextureFrameCode)
 
-// Binds the texture data of pTex on device stage nStage unless it is already there (d3d_SetLightmapTexture); returns 0 when pTex has none.
-int d3d_SetLightmapTexture(UnkType_Tex *pTex, int nStage);
+// Binds pPoly's lightmap page on device stage nStage unless it is already there; returns 0 when the poly has no page.
+int d3d_SetLightmapTexture(WorldPoly *pPoly, int nStage);
 
 // d3d_DisableTexture (d3d_texture.h): unbinds the texture of device stage nStage.  FUN_1000a27b is the exe's out-of-line copy of it, which
 // d3d_FullDrawScene calls (unit unk/100098d0 defines it as a wrapper of the inline).

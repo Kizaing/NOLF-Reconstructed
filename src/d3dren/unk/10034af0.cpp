@@ -145,7 +145,7 @@ int UnkType_LMLock::FUN_10034c7c(int bUpload)
 		dl_Remove(&pTexture->m_Link);
 		dl_Insert(m_Unk4c->m_pPrev, &pTexture->m_Link);
 
-		g_pBoundTextures[DAT_1005c838] = (UnkType_TexData *)pTexture;
+		g_pBoundTextures[DAT_1005c838] = (RTextureBase *)pTexture;
 		g_pD3DDevice->SetTexture(DAT_1005c838, pTexture->m_Data.m_pSurface);
 
 		float fInvSize = 1.0f / (float)DAT_1004bf3c[m_Unk08];

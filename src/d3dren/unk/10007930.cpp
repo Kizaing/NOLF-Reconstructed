@@ -191,7 +191,7 @@ void FUN_10007a89(RTexture *pRTexture)
 {
 	UnkType_RTexView *pTex = (UnkType_RTexView *)pRTexture;
 
-	g_pBoundTextures[pTex->m_Unk42] = (UnkType_TexData *)pTex;
+	g_pBoundTextures[pTex->m_Unk42] = (RTextureBase *)pTex;
 	if (pTex->m_Unk14 != g_CurFrameCode)
 	{
 		pTex->m_Unk1c.Remove();

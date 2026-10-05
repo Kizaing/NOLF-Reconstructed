@@ -220,7 +220,7 @@ int DrawPolyMgr::FUN_10029ccb(WorldPoly *pPoly, int iStage, int a3)
 // FUNCTION: D3DREN 0x10029ce6
 int DrawPolyMgr::FUN_10029ce6(WorldPoly *pPoly, int iStage, int a3)
 {
-	return d3d_SetLightmapTexture((UnkType_Tex *)pPoly, iStage);
+	return d3d_SetLightmapTexture(pPoly, iStage);
 }
 
 // guess: binds the detail texture (the surface texture's linked texture) on the stage and sets the detail scale from the stage's

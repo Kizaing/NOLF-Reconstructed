@@ -14,6 +14,7 @@
 // FLAGS: /O1
 #define D3DREN_SETTEXTURE_EXTERN	// d3d_texture.h: the plain inline changes ClipPolyNear / ClipPolyLeft; keep calling the out-of-line copy
 #include "d3dren/d3dstate.h"
+#include "d3dren/lightmap.h"	// LightmapPage, WORLDPOLY_LMPAGE (d3d_SetLightmapTexture)
 #include "d3dren/polydraw.h"
 #include "d3dren/setupmodel.h"
 #include "d3dren/staticlight.h"
@@ -193,7 +194,7 @@ void FUN_100099b9(WorldPoly *pPoly)
 		pNode->m_Unk14 = 3;
 		if (bLightmapTexture)
 		{
-			if (d3d_SetLightmapTexture((UnkType_Tex *)pPoly, DAT_1005c838))
+			if (d3d_SetLightmapTexture(pPoly, DAT_1005c838))
 				bLightmapTexture = 0;
 		}
 		if (!bLightmapTexture)
@@ -249,7 +250,7 @@ void FUN_100099b9(WorldPoly *pPoly)
 	{
 		if (bLightmapTexture)
 		{
-			if (!d3d_SetLightmapTexture((UnkType_Tex *)pPoly, DAT_1005c838))
+			if (!d3d_SetLightmapTexture(pPoly, DAT_1005c838))
 			{
 				FUN_10013ef0(pPoly);
 				return;
@@ -312,21 +313,21 @@ void FUN_10009e80(MainWorld *pWorld, WorldPoly *pPoly)
 // (The `return 1` inside the inner block and at the end is what keeps both callee-saved registers pushed at entry and the
 // single epilogue of the exe: a plain `else` block or a bool-like return gives the shrink-wrapped or the setne form.)
 // FUNCTION: D3DREN 0x10009ea5
-int d3d_SetLightmapTexture(UnkType_Tex *pTex, int nStage)
+int d3d_SetLightmapTexture(WorldPoly *pPoly, int nStage)
 {
-	UnkType_TexData *pData = pTex->m_Unk48;
-	if (pData == 0)
+	LightmapPage *pPage = WORLDPOLY_LMPAGE(pPoly);
+	if (pPage == 0)
 		return 0;
-	if (pData != g_pBoundTextures[nStage] && pData->m_Unk20)
+	if (pPage != g_pBoundTextures[nStage] && pPage->m_Unk20)
 	{
-		if (pData->m_Unk18 != g_CurFrameCode)
+		if (pPage->m_Unk18 != g_CurFrameCode)
 		{
 			// RenderStruct bytes 0x48-0x6f are unnamed in include/renderstruct.h: +0x4c is a per-frame texture byte counter.
-			*(int *)((uint8 *)g_pStruct + 0x4c) += pData->m_Unk14;
-			pData->m_Unk18 = g_CurFrameCode;
+			*(int *)((uint8 *)g_pStruct + 0x4c) += pPage->m_Unk14;
+			pPage->m_Unk18 = g_CurFrameCode;
 		}
-		g_pD3DDevice->SetTexture(nStage, pData->m_Unk1c);
-		g_pBoundTextures[nStage] = pData;
+		g_pD3DDevice->SetTexture(nStage, pPage->m_Unk1c);
+		g_pBoundTextures[nStage] = pPage;
 		return 1;
 	}
 	return 1;

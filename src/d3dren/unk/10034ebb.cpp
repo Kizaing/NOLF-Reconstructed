@@ -209,7 +209,7 @@ int FUN_10035071(WorldPoly *pPoly)
 
 	if (!WORLDPOLY_UNK30(pPoly) || !FUN_10020ff0(pPoly, 0))
 	{
-		if (!d3d_SetLightmapTexture((UnkType_Tex *)pPoly, DAT_1005c838))
+		if (!d3d_SetLightmapTexture(pPoly, DAT_1005c838))
 			goto Fallback;
 	}
 	else if (pVerts == verts)
