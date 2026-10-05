@@ -35,7 +35,7 @@
 #endif
 
 // FUN_10033210 (unit unk/100329b0): builds the lightmap of a polygon from the light animations that touch it and writes it
-// into its page; bPageIn is 1 when the pages are being built (FUN_10034597).  Declared here for unit unk/10034000.
+// into its page; bPageIn is 1 when the pages are being built (PageInLightmaps).  Declared here for unit unk/10034000.
 int FUN_10033210(MainWorld *pWorld, WorldPoly *pPoly, int bPageIn);
 
 // ---- renderer data inside the engine's WorldPoly / SPolyVertex (padding there) --------------------------------------------
@@ -183,7 +183,7 @@ void SetupLMPlaneVectors(uint32 iPlane, const LTVector &N, LTVector &P, LTVector
 
 // guess: builds the lightmap pages of the context's world (0 = failed, pages freed again); called by CreateContext (0x1001b700)
 // and RebindLightmaps (0x1001b790).
-int FUN_10034597(RenderContext *pContext);					// 0x10034597
+int PageInLightmaps(RenderContext *pContext);					// 0x10034597
 // guess: frees the pages of the context and forgets them in the world's polygons (DeleteContext, RebindLightmaps).
 void FreeLightmapPages(RenderContext *pContext);					// 0x100347ac
 
