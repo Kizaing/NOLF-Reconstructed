@@ -77,10 +77,18 @@ extern PhysicsSphere g_EndSphere;
 extern LTVector g_MovePts[2][NUM_BOX_POINTS];
 
 // The sphere enclosing the whole movement, which FindPoliesTouchingBox (serverde_impl) reuses.
+// DoesBoxIntersectBSP passes (PhysicsSphere*)&g_BoxFindRadius: the radius must be directly followed by the center, as in
+// the original (0x004e245c/0x004e2460).  VC6 lays out a file's uninitialised globals in its own order, so each gets a .bss
+// subsection of its own: the linker merges .bss$bf1 and .bss$bf2 into .bss in that order, 4 bytes apart (no code change).
+// Without it a source-only link separates them and the whole-movement sphere test reads a garbage center: small
+// downward moves go through floors and the player jitters.
+#pragma bss_seg(".bss$bf1")
 // GLOBAL: LITHTECH 0x004e245c
 float g_BoxFindRadius;
+#pragma bss_seg(".bss$bf2")
 // GLOBAL: LITHTECH 0x004e2460
 LTVector g_BoxFindCenter;
+#pragma bss_seg()
 
 // The planes of the box (their distances are set by SetupBox and si_FindPoliesTouchingBox).
 // GLOBAL: LITHTECH 0x004e2f10
