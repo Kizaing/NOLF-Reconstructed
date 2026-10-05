@@ -85,18 +85,18 @@ void d3d_DrawNoZSprites()
 		BaseObjectSet *pSet = &d3d_GetVisibleSet()->m_NoZSprites;
 		if (pSet->m_nObjects > 0)
 		{
-			DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZENABLE, 0);
+			g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZENABLE, 0);
 			pSet->Draw(&g_ViewParams, d3d_DrawSprite);
-			DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZENABLE, DAT_1005c9a0);
+			g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZENABLE, DAT_1005c9a0);
 		}
 	}
 }
 
 
 // guess: Jupiter polyclip.h's clipper dispatch as an inline function of the original (the exe expands it in several of this unit's
-// functions; unit unk/100098d0 has the out-of-line copy FUN_1000afb1): the polygon *ppVerts / *pnVerts is clipped against the planes
+// functions; unit unk/100098d0 has the out-of-line copy ClipPoly): the polygon *ppVerts / *pnVerts is clipped against the planes
 // of nFlags; with the UseD3DClip console variable set only the near plane is.
-static inline int FUN_1000afb1_Inline(uint32 nFlags, TLVertex **ppVerts, int *pnVerts)
+static inline int ClipPoly_Inline(uint32 nFlags, TLVertex **ppVerts, int *pnVerts)
 {
 	TLVertex *pOut;
 	TLVertex *pVerts;
@@ -109,15 +109,15 @@ static inline int FUN_1000afb1_Inline(uint32 nFlags, TLVertex **ppVerts, int *pn
 		if (!nFlags)
 			return 1;
 	}
-	pOut = DAT_1005627c;
+	pOut = g_pClipScratchVerts;
 	pVerts = *ppVerts;
 	nVerts = *pnVerts;
-	if (((nFlags & 1) == 0 || FUN_1000b0cd(&c0, &pVerts, &nVerts, &pOut))
-		&& ((nFlags & 4) == 0 || FUN_1000b20c(&c1, &pVerts, &nVerts, &pOut))
-		&& ((nFlags & 8) == 0 || FUN_100063e0(&c2, &pVerts, &nVerts, &pOut))
-		&& ((nFlags & 0x10) == 0 || FUN_10006670(&c3, &pVerts, &nVerts, &pOut))
-		&& ((nFlags & 0x20) == 0 || FUN_10006900(&c4, &pVerts, &nVerts, &pOut))
-		&& ((nFlags & 2) == 0 || FUN_10006ba0(&c5, &pVerts, &nVerts, &pOut)))
+	if (((nFlags & 1) == 0 || ClipPolyNear(&c0, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 4) == 0 || ClipPolyLeft(&c1, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 8) == 0 || ClipPolyTop(&c2, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 0x10) == 0 || ClipPolyRight(&c3, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 0x20) == 0 || ClipPolyBottom(&c4, &pVerts, &nVerts, &pOut))
+		&& ((nFlags & 2) == 0 || ClipPolyFar(&c5, &pVerts, &nVerts, &pOut)))
 	{
 		*ppVerts = pVerts;
 		*pnVerts = nVerts;
@@ -146,10 +146,10 @@ void d3d_DrawSprite(ViewParams *pParams, LTObject *pObject)
 
 	if (pAnim && pFrame && pFrame->m_pTex)
 	{
-		DAT_10056274 = 0x3f;
+		g_ClipFlags = 0x3f;
 
-		DAT_1005de30->GetRenderState(D3DRENDERSTATE_FOGCOLOR, &dwFogColor);
-		DAT_1005de30->GetRenderState(D3DRENDERSTATE_FOGENABLE, &dwFog);
+		g_pD3DDevice->GetRenderState(D3DRENDERSTATE_FOGCOLOR, &dwFogColor);
+		g_pD3DDevice->GetRenderState(D3DRENDERSTATE_FOGENABLE, &dwFog);
 		if ((pObject->m_Flags & FLAG_FOGDISABLE) && pObject->m_ObjectType != OT_MODEL)
 			dwFog = 0;
 
@@ -353,7 +353,7 @@ int d3d_ClipSprite(SpriteInstance *pInstance, HPOLY hPoly, TLVertex **ppPoints, 
 
 
 // guess: transforms the 0x20-byte vertices *ppVerts (*pnVerts of them) to camera space, clips them against the planes of the current
-// clip mask (DAT_10056274; 0 when nothing is left) and projects them to the screen; the z (and the reciprocal w) is that of the vertex
+// clip mask (g_ClipFlags; 0 when nothing is left) and projects them to the screen; the z (and the reciprocal w) is that of the vertex
 // moved fBias along z, but not in front of the near plane (the sprite bias: Jupiter SPRITE_POSITION_ZBIAS).  The fourth argument is not
 // used (the callers pass 0, as for FUN_1000af16, its sibling without the bias).
 // NAME: guess_d3d_ProjectBiasedSpriteVerts (names_proposal.csv, low)
@@ -370,13 +370,13 @@ int FUN_1002f010(TLVertex **ppVerts, int *pnVerts, ViewParams *pParams, int a4, 
 	pVert = *ppVerts;
 	for (i = *pnVerts; i != 0; i--)
 	{
-		MatVMul_InPlace(&pParams->m_Unk15c, &pVert->m_Vec);
+		MatVMul_InPlace(&pParams->m_mClipTransform, &pVert->m_Vec);
 		pVert++;
 	}
 
-	if (DAT_10056274 != 0)
+	if (g_ClipFlags != 0)
 	{
-		if (!FUN_1000afb1_Inline(DAT_10056274, ppVerts, pnVerts))
+		if (!ClipPoly_Inline(g_ClipFlags, ppVerts, pnVerts))
 			return 0;
 	}
 
@@ -435,7 +435,7 @@ static inline int SpriteSetTexture(SharedTexture *pTexture, uint32 nStage)
 			break;
 	}
 
-	if (pRTexture && pRTexture == (RTexture *)DAT_100617d8[nStage])
+	if (pRTexture && pRTexture == (RTexture *)g_pBoundTextures[nStage])
 	{
 	}
 	else
@@ -550,16 +550,16 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 
 	if (pInstance->m_Flags & FLAG_REALLYCLOSE)
 	{
-		MatVMul(&vCam, &pParams->m_Unk2dc, pPos);
+		MatVMul(&vCam, &pParams->m_mReallyCloseClipTransform, pPos);
 		fNearZ = g_CV_ReallyCloseNearZ.m_Unk04;
 	}
 	else
 	{
-		MatVMul(&vCam, &pParams->m_Unk15c, pPos);
+		MatVMul(&vCam, &pParams->m_mClipTransform, pPos);
 		fNearZ = g_CV_NearZ.m_Unk04;
 	}
 
-	DAT_1005872c(&pInstance->m_Pos, &nSpecular);
+	g_pfnCalcFogAlpha(&pInstance->m_Pos, &nSpecular);
 	if (vCam.z <= fNearZ)
 		return;
 
@@ -571,7 +571,7 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 	if (!SpriteSetTexture(pTexture, g_NormalTextureStage))
 		return;
 
-	pBound = (RTexture *)DAT_100617d8[g_NormalTextureStage];
+	pBound = (RTexture *)g_pBoundTextures[g_NormalTextureStage];
 	fWidth = (float)pBound->m_Data.GetBaseWidth();
 	fHeight = (float)pBound->m_Data.GetBaseHeight();
 	uMin = DAT_10061810[0].m_Unk00 + DAT_10061810[0].m_Unk00;
@@ -580,7 +580,7 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 	vMax = (fHeight - 2.0f) * DAT_10061810[0].m_Unk04;
 
 	fHalfX = fWidth * pParams->m_Unk94 * fScaleX;
-	fHalfY = fHeight * pParams->m_Unk98 * fScaleY;
+	fHalfY = fHeight * pParams->m_fFovYScale * fScaleY;
 	if (pInstance->m_Flags & FLAG_GLOWSPRITE)
 	{
 		float fFactor = (vCam.z - SPRITE_MINFACTORDIST) / (SPRITE_MAXFACTORDIST - SPRITE_MINFACTORDIST);
@@ -641,7 +641,7 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 			aVerts[i].tu = fDV * mRot[1][0] + fDU * mRot[0][0] + fCenterU;
 			aVerts[i].tv = fDV * mRot[1][1] + fDU * mRot[0][1] + fCenterV;
 		}
-		DAT_1005de30->SetTextureStageState(0, D3DTSS_ADDRESS, D3DTADDRESS_CLAMP);
+		g_pD3DDevice->SetTextureStageState(0, D3DTSS_ADDRESS, D3DTADDRESS_CLAMP);
 	}
 
 	fSavedNearPlane = g_ViewParams.m_NearZ;
@@ -650,14 +650,14 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 	if (pInstance->m_Flags & FLAG_REALLYCLOSE)
 		g_ViewParams.m_NearZ = g_CV_ReallyCloseNearZ.m_Unk04;
 
-	if (FUN_1000afb1_Inline(DAT_10056274, &pVerts, &nVerts))
+	if (ClipPoly_Inline(g_ClipFlags, &pVerts, &nVerts))
 	{
 		if (!(pInstance->m_Flags & FLAG_SPRITEBIAS))
 		{
 			if (!(pInstance->m_Flags & FLAG_REALLYCLOSE))
 			{
 				for (i = nVerts; i != 0; i--)
-					FUN_10008895(&pVerts[nVerts - i].m_Vec.x, &g_ViewParams);
+					ProjectVertexToScreen(&pVerts[nVerts - i].m_Vec.x, &g_ViewParams);
 			}
 			else
 			{
@@ -704,11 +704,11 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 		DAT_10063c90.FUN_10021da6();
 		if (pTexture->m_pStateChange)
 			DAT_10063c90.FUN_10021db7(pTexture->m_pStateChange, g_NormalTextureStage);
-		DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+		g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
 	}
 
 	if (pInstance->m_Flags2 & FLAG2_SPRITE_TROTATE)
-		DAT_1005de30->SetTextureStageState(0, D3DTSS_ADDRESS, D3DTADDRESS_WRAP);
+		g_pD3DDevice->SetTextureStageState(0, D3DTSS_ADDRESS, D3DTADDRESS_WRAP);
 	g_ViewParams.m_NearZ = fSavedNearPlane;
 }
 
@@ -758,11 +758,11 @@ void d3d_DrawRotatableSprite(ViewParams *pParams, SpriteInstance *pInstance, LTV
 	if (pTexture->m_pStateChange)
 		DAT_10063c90.FUN_10021db7(pTexture->m_pStateChange, g_NormalTextureStage);
 
-	pBound = (RTexture *)DAT_100617d8[g_NormalTextureStage];
+	pBound = (RTexture *)g_pBoundTextures[g_NormalTextureStage];
 	fWidth = (float)(pBound->m_Data.GetBaseWidth() >> pTexture->m_Unknown3C);
 	fHeight = (float)(pBound->m_Data.GetBaseHeight() >> pTexture->m_Unknown3C);
 
-	DAT_1005872c(&pInstance->m_Pos, &nSpecular);
+	g_pfnCalcFogAlpha(&pInstance->m_Pos, &nSpecular);
 
 	uMin = DAT_10061810[0].m_Unk00 + DAT_10061810[0].m_Unk00;
 	uMax = (fWidth - 2.0f) * DAT_10061810[0].m_Unk00;

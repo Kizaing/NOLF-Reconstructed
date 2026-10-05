@@ -45,7 +45,7 @@ extern uint16 DAT_100577b8;		// guess: current texture frame code (stored into S
 // Finds or creates the RTexture of pTexture for the stage, binds it and sets its LOD; returns 0 when there is no texture.
 // dwMaxLOD: the argument of IDirectDrawSurface7::SetLOD, which is the only thing the third argument is used for.
 //
-// A unit whose currently matching functions change when the plain inline is expanded (unk/100098d0: FUN_1000b0cd, FUN_1000b20c; d3d_draw:
+// A unit whose currently matching functions change when the plain inline is expanded (unk/100098d0: ClipPolyNear, ClipPolyLeft; d3d_draw:
 // the STLport node allocator copies) defines D3DREN_SETTEXTURE_EXTERN before including this header and keeps calling the out-of-line copy.
 #ifdef D3DREN_SETTEXTURE_EXTERN
 int d3d_SetTexture(SharedTexture *pTexture, uint32 nStage, uint32 dwMaxLOD);		// 0x100079e4
@@ -66,7 +66,7 @@ inline int d3d_SetTexture(SharedTexture *pTexture, uint32 nStage, uint32 dwMaxLO
 			break;
 	}
 
-	if (pRTexture && pRTexture == (UnkType_RTexView *)DAT_100617d8[nStage])
+	if (pRTexture && pRTexture == (UnkType_RTexView *)g_pBoundTextures[nStage])
 	{
 	}
 	else
@@ -103,10 +103,10 @@ inline int d3d_SetTexture(SharedTexture *pTexture, uint32 nStage, uint32 dwMaxLO
 // Unbinds the texture of device stage nStage.
 inline void d3d_DisableTexture(uint32 nStage)
 {
-	if (DAT_100617d8[nStage])
+	if (g_pBoundTextures[nStage])
 	{
-		DAT_1005de30->SetTexture(nStage, 0);
-		DAT_100617d8[nStage] = 0;
+		g_pD3DDevice->SetTexture(nStage, 0);
+		g_pBoundTextures[nStage] = 0;
 	}
 }
 
@@ -114,7 +114,7 @@ inline void d3d_DisableTexture(uint32 nStage)
 // extra inline call site (the inline budget of the vector operators in d3d_WarpToScreen3D and DrawModelShadows depends on it).
 inline void d3d_SetTextureDirect(IDirectDrawSurface7 *pTexture, uint32 nStage)
 {
-	DAT_1005de30->SetTexture(nStage, pTexture);
+	g_pD3DDevice->SetTexture(nStage, pTexture);
 }
 
 #endif

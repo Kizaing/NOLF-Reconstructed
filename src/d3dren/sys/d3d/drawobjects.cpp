@@ -211,10 +211,10 @@ void d3d_FlushObjectQueues()
 			s_TransObjList.FUN_100289b0(&g_ViewParams);
 			for (i = 0; i < s_TransObjList.m_Unk14; i++)
 			{
-				if (g_ViewParams.m_Unk4d4 == 0 || (s_TransObjList[i].m_pObject->m_Flags2 & FLAG2_PORTALINVISIBLE) == 0)
+				if (g_ViewParams.m_bPortalView == 0 || (s_TransObjList[i].m_pObject->m_Flags2 & FLAG2_PORTALINVISIBLE) == 0)
 				{
 					if ((s_TransObjList[i].m_pObject->m_Flags & FLAG_VISIBLE) ||
-						(g_ViewParams.m_Unk4d4 != 0 && (s_TransObjList[i].m_pObject->m_Flags & FLAG_PORTALVISIBLE)))
+						(g_ViewParams.m_bPortalView != 0 && (s_TransObjList[i].m_pObject->m_Flags & FLAG_PORTALVISIBLE)))
 					{
 						s_TransObjList[i].m_pDrawFn(&g_ViewParams, s_TransObjList[i].m_pObject);
 					}

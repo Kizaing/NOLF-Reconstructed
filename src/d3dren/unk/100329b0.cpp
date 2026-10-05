@@ -285,14 +285,14 @@ int FUN_10033210(MainWorld *pWorld, WorldPoly *pPoly, int bPageIn)
 	FMConvertRequest request;
 	uint32 accum[0x400];
 	uint32 temp[0x400];
-	UnkType_LMPage *pPage;
+	LightmapPage *pPage;
 	int bStatic;
 	int bMulti;
 	int nLayers;
 	uint32 nTexels, nBytes;
 	uint32 iRef, i;
 
-	pPage = WORLDPOLY_UNK48(pPoly);
+	pPage = WORLDPOLY_LMPAGE(pPoly);
 	if (!pPage)
 		return 0;
 	if (!DAT_10062878)

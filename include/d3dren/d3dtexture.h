@@ -20,7 +20,7 @@
 #include "pixelformat.h"
 #include "de_world.h"		// SharedTexture
 #include "dtxmgr.h"			// TextureData
-#include "d3dren/lightmap.h"	// UnkType_RTextureBase (the abstract interface of RTexture and of the lightmap pages)
+#include "d3dren/lightmap.h"	// RTextureBase (the abstract interface of RTexture and of the lightmap pages)
 
 // Indices into the texture format table (Jupiter CTextureManager::ETEXTURE_FORMATS; the strings of the Talon code agree:
 // "FORMAT_FULLBRITE texture format missing.", "FORMAT_4444 ...", "FORMAT_NORMAL ...", "FORMAT_INTERFACE ...",
@@ -72,12 +72,12 @@ class RTexture;
 // The vtable and 0x1001e900 (constructor: vptr only) belong to this class; RTexture holds it as its first member and the
 // virtuals reach the rest of the RTexture through m_pOwner.  1001fff0/10021290 build one on the stack (a 0x1c byte
 // object whose vptr is wiped by the zero fill and whose members 10020fb0 copies into the new RTexture).
-class UnkType_RTextureData : public UnkType_RTextureBase
+class UnkType_RTextureData : public RTextureBase
 {
 public:
 	UnkType_RTextureData() {}										// 0x1001e900 (out of line copy: vptr only)
 
-	virtual int		FUN_vslot1();									// 0x1001e6f0: returns 1
+	virtual int		IsRTexture();									// 0x1001e6f0: returns 1
 	virtual int		IsFullbrite();									// 0x1001e700
 	virtual int		GetBaseWidth();									// 0x1001e710
 	virtual int		GetBaseHeight();								// 0x1001e720

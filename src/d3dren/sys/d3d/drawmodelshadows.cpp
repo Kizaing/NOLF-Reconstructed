@@ -156,7 +156,7 @@ void ModelDraw::FUN_10025078(ShadowLightInfo *pInfo, WorldPoly *pPoly)
 		int iPlane;
 		pClipVerts = pVerts;
 		nClip = nVerts;
-		pClipOut = (UnkType_Vertex36 *)DAT_1005627c;
+		pClipOut = (UnkType_Vertex36 *)g_pClipScratchVerts;
 		pPlane = pInfo->m_FrustumPlanes;
 		for (iPlane = 0; iPlane < 6; iPlane++)
 		{
@@ -186,7 +186,7 @@ void ModelDraw::FUN_10025078(ShadowLightInfo *pInfo, WorldPoly *pPoly)
 		pVert->m_Unk20 = pInfo->m_Unk60.m[3][0] * pVert->m_Vec.x + pInfo->m_Unk60.m[3][1] * pVert->m_Vec.y + pInfo->m_Unk60.m[3][2] * pVert->m_Vec.z + pInfo->m_Unk60.m[3][3];
 	}
 
-	DAT_10056274 = 0x3f;
+	g_ClipFlags = 0x3f;
 	if (FUN_10026412(&pVerts, &nVerts, &g_ViewParams, 0))
 	{
 		for (iDraw = 0; iDraw < nVerts; iDraw++)
@@ -198,7 +198,7 @@ void ModelDraw::FUN_10025078(ShadowLightInfo *pInfo, WorldPoly *pPoly)
 			aOut[iDraw].tu = pVerts[iDraw].tu / pVerts[iDraw].m_Unk20;
 			aOut[iDraw].tv = pVerts[iDraw].tv / pVerts[iDraw].m_Unk20;
 		}
-		DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, aOut, nVerts, 0);
+		g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, aOut, nVerts, 0);
 	}
 }
 
@@ -299,8 +299,8 @@ void ModelDraw::DrawModelShadows()
 	}
 
 	{
-	DAT_1005de30->GetTexture(0, &pOldTexture);
-	DAT_1005de30->SetTexture(0, DAT_1006287c);
+	g_pD3DDevice->GetTexture(0, &pOldTexture);
+	g_pD3DDevice->SetTexture(0, DAT_1006287c);
 	StateSet alphaBlend(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
 	StateSet zWrite(D3DRENDERSTATE_ZWRITEENABLE, 0);
 
@@ -473,7 +473,7 @@ int FUN_10026412(UnkType_Vertex36 **ppVerts, int *pnVerts, ViewParams *pViewPara
 	UnkType_Vertex36 *pVert;
 	int n;
 
-	if (DAT_10056274 == 0)
+	if (g_ClipFlags == 0)
 	{
 		pVert = *ppVerts;
 		for (n = *pnVerts; n != 0; n--)
@@ -487,15 +487,15 @@ int FUN_10026412(UnkType_Vertex36 **ppVerts, int *pnVerts, ViewParams *pViewPara
 		pVert = *ppVerts;
 		for (n = *pnVerts; n != 0; n--)
 		{
-			FUN_10008719(&pVert->m_Vec.x, &pViewParams->m_Unk15c.m[0][0]);
+			FUN_10008719(&pVert->m_Vec.x, &pViewParams->m_mClipTransform.m[0][0]);
 			pVert++;
 		}
-		if (!FUN_100264ad(DAT_10056274, ppVerts, pnVerts))
+		if (!FUN_100264ad(g_ClipFlags, ppVerts, pnVerts))
 			return 0;
 		pVert = *ppVerts;
 		for (n = *pnVerts; n != 0; n--)
 		{
-			FUN_10008895(&pVert->m_Vec.x, pViewParams);
+			ProjectVertexToScreen(&pVert->m_Vec.x, pViewParams);
 			pVert++;
 		}
 	}
@@ -512,7 +512,7 @@ int FUN_100264ad(uint32 flags, UnkType_Vertex36 **ppVerts, int *pnVerts)
 	if (g_CV_UseD3DClip.m_Unk00 && !(flags &= 1))
 		return 1;
 
-	pOut = (UnkType_Vertex36 *)DAT_1005627c;
+	pOut = (UnkType_Vertex36 *)g_pClipScratchVerts;
 	pVerts = *ppVerts;
 	nVerts = *pnVerts;
 
@@ -784,7 +784,7 @@ int FUN_10026a9c(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkTyp
 	return 1;
 }
 
-// far plane z <= g_ViewParams.m_Unk90 (flag bit 2)
+// far plane z <= g_ViewParams.m_ClipFarZ (flag bit 2)
 // FUNCTION: D3DREN 0x10026bd2
 int FUN_10026bd2(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkType_Vertex36 **ppOut)
 {
@@ -800,7 +800,7 @@ int FUN_10026bd2(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkTyp
 	pInside = DAT_10093f00;
 	while (pCur != pEnd)
 	{
-		*pInside = pCur->m_Vec.z <= g_ViewParams.m_Unk90;
+		*pInside = pCur->m_Vec.z <= g_ViewParams.m_ClipFarZ;
 		nInside += *pInside;
 		++pInside;
 		++pCur;
@@ -904,7 +904,7 @@ void ModelDraw::FUN_10026d6a(ShadowLightInfo *pInfo, WorldPoly *pPoly, float fDi
 		int iPlane;
 		pClipVerts = pVerts;
 		nClip = nVerts;
-		pClipOut = (UnkType_Vertex36 *)DAT_1005627c;
+		pClipOut = (UnkType_Vertex36 *)g_pClipScratchVerts;
 		pPlane = pInfo->m_FrustumPlanes;
 		for (iPlane = 6; iPlane > 0; iPlane--)
 		{
@@ -938,7 +938,7 @@ void ModelDraw::FUN_10026d6a(ShadowLightInfo *pInfo, WorldPoly *pPoly, float fDi
 		pVert->specular = 0;
 	}
 
-	DAT_10056274 = 0x3f;
+	g_ClipFlags = 0x3f;
 	if (FUN_10026412(&pVerts, &nVerts, &g_ViewParams, 0))
 	{
 		for (iDraw = 0; iDraw < nVerts; iDraw++)
@@ -950,7 +950,7 @@ void ModelDraw::FUN_10026d6a(ShadowLightInfo *pInfo, WorldPoly *pPoly, float fDi
 			aOut[iDraw].tu = pVerts[iDraw].tu / pVerts[iDraw].m_Unk20;
 			aOut[iDraw].tv = pVerts[iDraw].tv / pVerts[iDraw].m_Unk20;
 		}
-		DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, aOut, nVerts, 0);
+		g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, aOut, nVerts, 0);
 	}
 }
 
@@ -990,7 +990,7 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 	// find the nearest lights
 	{
 		float aLightDist[NUM_MODEL_SHADOWS];
-		for (i = 0; i < (uint32)m_Unk2bc; i++)
+		for (i = 0; i < (uint32)m_nModelLights; i++)
 		{
 			UnkType_ModelLight *pLight = &m_Unk3c[i];
 			LTVector vLight = pLight->m_Unk00;
@@ -1046,23 +1046,23 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 	IDirectDrawSurface7 *pOldTexture;
 	DWORD oldRS[6];
 	DWORD oldTSS[7];
-	DAT_1005de30->GetTexture(0, &pOldTexture);
-	DAT_1005de30->SetTexture(0, NULL);
-	DAT_1005de30->SetTexture(1, NULL);
-	DAT_1005de30->GetTextureStageState(0, D3DTSS_ADDRESS, &oldTSS[0]);
-	DAT_1005de30->GetTextureStageState(0, D3DTSS_COLORARG1, &oldTSS[1]);
-	DAT_1005de30->GetTextureStageState(0, D3DTSS_COLORARG2, &oldTSS[2]);
-	DAT_1005de30->GetTextureStageState(0, D3DTSS_COLOROP, &oldTSS[3]);
-	DAT_1005de30->GetTextureStageState(0, D3DTSS_ALPHAARG1, &oldTSS[4]);
-	DAT_1005de30->GetTextureStageState(0, D3DTSS_ALPHAARG2, &oldTSS[5]);
-	DAT_1005de30->GetTextureStageState(0, D3DTSS_ALPHAOP, &oldTSS[6]);
-	DAT_1005de30->GetRenderState(D3DRENDERSTATE_ZENABLE, &oldRS[0]);
-	DAT_1005de30->GetRenderState(D3DRENDERSTATE_ZWRITEENABLE, &oldRS[1]);
-	DAT_1005de30->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &oldRS[2]);
-	DAT_1005de30->GetRenderState(D3DRENDERSTATE_FOGENABLE, &oldRS[3]);
-	DAT_1005de30->GetRenderState(D3DRENDERSTATE_SRCBLEND, &oldRS[4]);
-	DAT_1005de30->GetRenderState(D3DRENDERSTATE_DESTBLEND, &oldRS[5]);
-	DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGENABLE, 0);
+	g_pD3DDevice->GetTexture(0, &pOldTexture);
+	g_pD3DDevice->SetTexture(0, NULL);
+	g_pD3DDevice->SetTexture(1, NULL);
+	g_pD3DDevice->GetTextureStageState(0, D3DTSS_ADDRESS, &oldTSS[0]);
+	g_pD3DDevice->GetTextureStageState(0, D3DTSS_COLORARG1, &oldTSS[1]);
+	g_pD3DDevice->GetTextureStageState(0, D3DTSS_COLORARG2, &oldTSS[2]);
+	g_pD3DDevice->GetTextureStageState(0, D3DTSS_COLOROP, &oldTSS[3]);
+	g_pD3DDevice->GetTextureStageState(0, D3DTSS_ALPHAARG1, &oldTSS[4]);
+	g_pD3DDevice->GetTextureStageState(0, D3DTSS_ALPHAARG2, &oldTSS[5]);
+	g_pD3DDevice->GetTextureStageState(0, D3DTSS_ALPHAOP, &oldTSS[6]);
+	g_pD3DDevice->GetRenderState(D3DRENDERSTATE_ZENABLE, &oldRS[0]);
+	g_pD3DDevice->GetRenderState(D3DRENDERSTATE_ZWRITEENABLE, &oldRS[1]);
+	g_pD3DDevice->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &oldRS[2]);
+	g_pD3DDevice->GetRenderState(D3DRENDERSTATE_FOGENABLE, &oldRS[3]);
+	g_pD3DDevice->GetRenderState(D3DRENDERSTATE_SRCBLEND, &oldRS[4]);
+	g_pD3DDevice->GetRenderState(D3DRENDERSTATE_DESTBLEND, &oldRS[5]);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_FOGENABLE, 0);
 
 	IShadowTexture *pTexB = FUN_1003244f(nRes, nRes);
 	UnkType_ShadowPolys aPolys[NUM_MODEL_SHADOWS];
@@ -1109,9 +1109,9 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 
 		// draw the silhouette of the model in the corner of the backbuffer
 		pTexB->FUN_1001d836(0, 0);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZENABLE, 0);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, 0);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 0);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZENABLE, 0);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, 0);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 0);
 
 		float fRes = (float)nRes;
 		UnkType_ShadowVertex quad[4];
@@ -1134,14 +1134,14 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 		quad[3].m_Vec.x = fRes;
 		quad[3].m_Vec.y = 0.0f;
 		quad[3].m_Vec.z = 0.0f;
-		DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, D3DFVF_TLVERTEX, quad, 4, 0);
+		g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, D3DFVF_TLVERTEX, quad, 4, 0);
 		for (j = 0; j < 4; j++)
 			quad[j].color = 0;
 
 		float fMaxX = 0.0f;
 		float fMaxY = 0.0f;
 		TLVertex *pVerts = m_Unk82c;
-		LTMatrix mInvView = g_ViewParams.m_Unk15c.MakeInverse();
+		LTMatrix mInvView = g_ViewParams.m_mClipTransform.MakeInverse();
 
 		uint32 iPiece;
 		for (iPiece = 0; iPiece < m_pModel->NumPieces(); iPiece++)
@@ -1151,7 +1151,7 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 			if (pLOD != NULL)
 			{
 				PieceLOD *pLOD2 = pLOD;
-				if (m_Unk610)
+				if (m_bLODBlend)
 					pLOD2 = pPiece->GetLOD(nLOD + 1);
 				if ((m_pInstance->m_HiddenPieces & (1 << iPiece)) == 0)
 				{
@@ -1216,7 +1216,7 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 							quad[0].m_Vec.y += fHalf;
 							quad[1].m_Vec.y += fHalf;
 							quad[2].m_Vec.y += fHalf;
-							DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLELIST, D3DFVF_TLVERTEX, quad, 3, 0);
+							g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLELIST, D3DFVF_TLVERTEX, quad, 3, 0);
 							pTri++;
 						}
 					}
@@ -1293,8 +1293,8 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 
 		// draw it onto the polygons
 		pTexA->FUN_1001d4ab();
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZENABLE, 1);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, 0);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZENABLE, 1);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, 0);
 		for (j = 0; j < aPolys[i].m_nPolys; j++)
 		{
 			WorldPoly *pPoly = aPolys[i].m_Polys[j];
@@ -1309,18 +1309,18 @@ void ModelDraw::FUN_1002701e(uint32 nMaxShadows)
 	}
 
 	// restore the device state
-	DAT_1005de30->SetTextureStageState(0, D3DTSS_ADDRESS, oldTSS[0]);
-	DAT_1005de30->SetTextureStageState(0, D3DTSS_COLORARG1, oldTSS[1]);
-	DAT_1005de30->SetTextureStageState(0, D3DTSS_COLORARG2, oldTSS[2]);
-	DAT_1005de30->SetTextureStageState(0, D3DTSS_COLOROP, oldTSS[3]);
-	DAT_1005de30->SetTextureStageState(0, D3DTSS_ALPHAARG1, oldTSS[4]);
-	DAT_1005de30->SetTextureStageState(0, D3DTSS_ALPHAARG2, oldTSS[5]);
-	DAT_1005de30->SetTextureStageState(0, D3DTSS_ALPHAOP, oldTSS[6]);
-	DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZENABLE, oldRS[0]);
-	DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, oldRS[1]);
-	DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, oldRS[2]);
-	DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGENABLE, oldRS[3]);
-	DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, oldRS[4]);
-	DAT_1005de30->SetRenderState(D3DRENDERSTATE_DESTBLEND, oldRS[5]);
-	DAT_1005de30->SetTexture(0, pOldTexture);
+	g_pD3DDevice->SetTextureStageState(0, D3DTSS_ADDRESS, oldTSS[0]);
+	g_pD3DDevice->SetTextureStageState(0, D3DTSS_COLORARG1, oldTSS[1]);
+	g_pD3DDevice->SetTextureStageState(0, D3DTSS_COLORARG2, oldTSS[2]);
+	g_pD3DDevice->SetTextureStageState(0, D3DTSS_COLOROP, oldTSS[3]);
+	g_pD3DDevice->SetTextureStageState(0, D3DTSS_ALPHAARG1, oldTSS[4]);
+	g_pD3DDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, oldTSS[5]);
+	g_pD3DDevice->SetTextureStageState(0, D3DTSS_ALPHAOP, oldTSS[6]);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZENABLE, oldRS[0]);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, oldRS[1]);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, oldRS[2]);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_FOGENABLE, oldRS[3]);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_SRCBLEND, oldRS[4]);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_DESTBLEND, oldRS[5]);
+	g_pD3DDevice->SetTexture(0, pOldTexture);
 }

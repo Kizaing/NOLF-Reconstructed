@@ -198,12 +198,12 @@ void d3d_InitViewBox2(ViewBoxDef *pDef,
 // FUNCTION: D3DREN 0x1000f6de
 void FUN_1000f6de(ViewParams *pParams)
 {
-	pParams->m_Unk31c = pParams->m_DeviceTimesProjection.m[0][0];
-	pParams->m_Unk320 = pParams->m_DeviceTimesProjection.m[0][2];
-	pParams->m_Unk324 = pParams->m_DeviceTimesProjection.m[1][1];
-	pParams->m_Unk328 = pParams->m_DeviceTimesProjection.m[1][2];
-	pParams->m_Unk32c = pParams->m_DeviceTimesProjection.m[2][2];
-	pParams->m_Unk330 = pParams->m_DeviceTimesProjection.m[2][3];
+	pParams->m_fProjXScale = pParams->m_DeviceTimesProjection.m[0][0];
+	pParams->m_fProjXOffset = pParams->m_DeviceTimesProjection.m[0][2];
+	pParams->m_fProjYScale = pParams->m_DeviceTimesProjection.m[1][1];
+	pParams->m_fProjYOffset = pParams->m_DeviceTimesProjection.m[1][2];
+	pParams->m_fProjZScale = pParams->m_DeviceTimesProjection.m[2][2];
+	pParams->m_fProjZOffset = pParams->m_DeviceTimesProjection.m[2][3];
 }
 
 // Sky helper (0x100102b9, below) and the SDK inlines that the exe has out of line.
@@ -215,7 +215,7 @@ void d3d_SetupPerspectiveMatrix(LTMatrix *pMatrix, float nearZ, float farZ);
 // pMat is the viewer matrix and vScale an extra scale that scales all the coordinates up.
 // STUB: D3DREN 0x1000f72b
 // Remaining difference (21 of 952 instructions, same size 2766): instruction scheduling at statement boundaries only.
-// (1) The copies of the matrix products into pParams (rep movsd of m_Unk29c/m_Unk15c) are emitted right after the MatMul
+// (1) The copies of the matrix products into pParams (rep movsd of m_mShearView/m_mClipTransform) are emitted right after the MatMul
 // call by us, the exe delays each one past the pushes of the next MatMul call; (2) the store of mDevice.m[1][1] and the
 // store of fRange are placed after a push by us and before it in the exe.  Statement order of the device matrix stores,
 // explicit MatMul temporaries and nested assignments were tried (worse).  The frame slots then differ by constant offsets
@@ -235,7 +235,7 @@ LTBOOL d3d_InitFrustum2(ViewParams *pParams,
 	uint32 i;
 	LTVector forwardVec, zPlanePos;
 
-	pParams->m_Unk4d4 = 0;
+	pParams->m_bPortalView = 0;
 	pParams->m_mIdentity.Identity();
 	pParams->m_mInvView = *pMat;
 
@@ -243,13 +243,13 @@ LTBOOL d3d_InitFrustum2(ViewParams *pParams,
 
 	memcpy(&pParams->m_ViewBox, pViewBox, sizeof(pParams->m_ViewBox));
 	pMat->GetTranslation(pParams->m_Pos);
-	pParams->FUN_1000f1a0(pParams->m_Pos);
+	pParams->SetupFogViewPosition(pParams->m_Pos);
 
 	pParams->m_FarZ = pViewBox->m_FarZ;
 	if (pParams->m_FarZ < 3.0f) pParams->m_FarZ = 3.0f;
 	if (pParams->m_FarZ > 100000.0f) pParams->m_FarZ = 100000.0f;
 	pParams->m_NearZ = pViewBox->m_NearZ;
-	pParams->m_Unk90 = pParams->m_FarZ;
+	pParams->m_ClipFarZ = pParams->m_FarZ;
 
 	pParams->m_Rect.left = (int)RoundFloatToInt(screenMinX);
 	pParams->m_Rect.top = (int)RoundFloatToInt(screenMinY);
@@ -289,7 +289,7 @@ LTBOOL d3d_InitFrustum2(ViewParams *pParams,
 	MatMul(&pParams->m_mView, &mScale, &mTempWorld);
 
 	// Shear so the center of projection is (0,0,COP.z)
-	pParams->m_Unk25c.Init(
+	pParams->m_mShear.Init(
 		1.0f, 0.0f, -pViewBox->m_COP.x/pViewBox->m_COP.z, 0.0f,
 		0.0f, 1.0f, -pViewBox->m_COP.y/pViewBox->m_COP.z, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
@@ -297,21 +297,21 @@ LTBOOL d3d_InitFrustum2(ViewParams *pParams,
 
 	// Figure out X and Y scale to get frustum into unit slopes.
 	pParams->m_Unk94 = pViewBox->m_COP.z / pViewBox->m_WindowSize[0];
-	pParams->m_Unk98 = pViewBox->m_COP.z / pViewBox->m_WindowSize[1];
+	pParams->m_fFovYScale = pViewBox->m_COP.z / pViewBox->m_WindowSize[1];
 
 	pParams->m_Unk4c = MATH_PI - 2.0f * (float)atan(pParams->m_Unk94);
-	pParams->m_Unk50 = MATH_PI - 2.0f * (float)atan(pParams->m_Unk98);
+	pParams->m_Unk50 = MATH_PI - 2.0f * (float)atan(pParams->m_fFovYScale);
 
 	// Squash the sides to 45 degree angles.
 	mFOVScale.Init(
 		pParams->m_Unk94, 0.0f, 0.0f, 0.0f,
-		0.0f, pParams->m_Unk98, 0.0f, 0.0f,
+		0.0f, pParams->m_fFovYScale, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f);
 
-	pParams->m_Unk29c = pParams->m_Unk25c * pParams->m_mView;
-	pParams->m_Unk15c = mFOVScale * pParams->m_Unk29c;
-	pParams->m_Unk2dc = mFOVScale * pParams->m_Unk25c;
+	pParams->m_mShearView = pParams->m_mShear * pParams->m_mView;
+	pParams->m_mClipTransform = mFOVScale * pParams->m_mShearView;
+	pParams->m_mReallyCloseClipTransform = mFOVScale * pParams->m_mShear;
 
 	// Setup the projection transform.
 	d3d_SetupPerspectiveMatrix(&mProjectionTransform, pViewBox->m_NearZ, g_ViewParams.m_FarZ);
@@ -323,25 +323,25 @@ LTBOOL d3d_InitFrustum2(ViewParams *pParams,
 	pParams->m_Unk60 = pParams->m_fScreenHeight * 0.5f;
 	pParams->m_Unk64 = 1.0f / pParams->m_Unk5c;
 	pParams->m_Unk68 = 1.0f / pParams->m_Unk60;
-	pParams->m_Unk6c = pParams->m_Unk5c + screenMinX;
-	pParams->m_Unk70 = pParams->m_Unk60 + screenMinY;
-	pParams->m_Unk74 = pParams->m_Unk5c * pParams->m_Unk94;
-	pParams->m_Unk78 = pParams->m_Unk60 * pParams->m_Unk98;
-	pParams->m_Unk7c = 1.0f / pParams->m_Unk74;
-	pParams->m_Unk80 = 1.0f / pParams->m_Unk78;
-	pParams->m_Unk84 = pParams->m_Unk78 * pParams->m_Unk74;
+	pParams->m_fScreenCenterX = pParams->m_Unk5c + screenMinX;
+	pParams->m_fScreenCenterY = pParams->m_Unk60 + screenMinY;
+	pParams->m_fProjectionScaleX = pParams->m_Unk5c * pParams->m_Unk94;
+	pParams->m_fProjectionScaleY = pParams->m_Unk60 * pParams->m_fFovYScale;
+	pParams->m_fInvProjectionScaleX = 1.0f / pParams->m_fProjectionScaleX;
+	pParams->m_fInvProjectionScaleY = 1.0f / pParams->m_fProjectionScaleY;
+	pParams->m_fProjectionScaleProduct = pParams->m_fProjectionScaleY * pParams->m_fProjectionScaleX;
 
 	// Setup the device transform.  It subtracts a little to account for the FP tendency
 	// to slip above and below 0.5.
 	mDevice.Identity();
 	mDevice.m[0][0] = pParams->m_Unk5c - 0.0001f;
-	mDevice.m[0][3] = pParams->m_Unk6c;
+	mDevice.m[0][3] = pParams->m_fScreenCenterX;
 	mDevice.m[1][1] = -(pParams->m_Unk60 - 0.0001f);
-	mDevice.m[1][3] = pParams->m_Unk70;
+	mDevice.m[1][3] = pParams->m_fScreenCenterY;
 
 	// Precalculate useful matrices.
 	pParams->m_DeviceTimesProjection = mDevice * mProjectionTransform;
-	pParams->m_FullTransform = pParams->m_DeviceTimesProjection * pParams->m_Unk15c;
+	pParams->m_FullTransform = pParams->m_DeviceTimesProjection * pParams->m_mClipTransform;
 
 	FUN_1000f6de(pParams);
 
@@ -357,7 +357,7 @@ LTBOOL d3d_InitFrustum2(ViewParams *pParams,
 		0, 1, 0, 0,
 		0, 0, 1.0f / fRange, -((fInvFarZ * pViewBox->m_NearZ) / fRange),
 		0, 0, 1, 0);
-	pParams->m_Unk11c = mFarProj * mFarScale * mFOVScale * pParams->m_Unk25c;
+	pParams->m_mProjection = mFarProj * mFarScale * mFOVScale * pParams->m_mShear;
 
 	/////// Setup the view frustum points in camera space.
 
@@ -437,8 +437,8 @@ LTBOOL d3d_InitFrustum2(ViewParams *pParams,
 	pParams->m_ClipPlanes[1].m_Dist =
 		pParams->m_ClipPlanes[1].m_Normal.Dot(zPlanePos);
 
-	memcpy(pParams->m_Unk430, pParams->m_CSClipPlanes, sizeof(pParams->m_CSClipPlanes));
-	pParams->m_Unk430[0].m_Dist = g_CV_ReallyCloseNearZ.m_Unk04;
+	memcpy(pParams->m_ReallyCloseClipPlanes, pParams->m_CSClipPlanes, sizeof(pParams->m_CSClipPlanes));
+	pParams->m_ReallyCloseClipPlanes[0].m_Dist = g_CV_ReallyCloseNearZ.m_Unk04;
 	pParams->m_Unk4cc = 0;
 	pParams->m_Unk4d0 = 1.0f;
 
@@ -564,10 +564,10 @@ extern int DAT_10057794;
 extern int DAT_10056278;
 // GLOBAL: D3DREN 0x10055cdc
 extern int DAT_10055cdc;
-// DAT_1005626c, DAT_1005668c, DAT_10056274, DAT_1005627c: include/d3dren/viewparams.h
+// DAT_1005626c, DAT_1005668c, g_ClipFlags, g_pClipScratchVerts: include/d3dren/viewparams.h
 
 // NAME: d3d_InitFrame: Jupiter common_draw.cpp d3d_InitFrame (names_proposal medium); the Talon form takes two more arguments (the
-// scratch vertex buffer of the polygon clippers, stored in DAT_1005627c, and an int stored in DAT_1005625c) and has Jupiter's
+// scratch vertex buffer of the polygon clippers, stored in g_pClipScratchVerts, and an int stored in DAT_1005625c) and has Jupiter's
 // d3d_InitFrustum inlined (it has no copy of its own in d3d.ren).
 // STUB: D3DREN 0x100103c2
 // Remaining difference: 864 instead of 949 bytes (511 bytes differ, same statements, calls, globals and constants).  The exe
@@ -595,7 +595,7 @@ LTBOOL d3d_InitFrame(SceneDesc *pDesc, TLVertex *pScratchVerts, int nUnk)
 	d3d_ReadConsoleVariables();
 
 	DAT_10057b58++;
-	DAT_1005627c = pScratchVerts;
+	g_pClipScratchVerts = pScratchVerts;
 	g_pSceneDesc = pDesc;
 	DAT_1005625c = nUnk;
 	DAT_10055ce0 = g_pStruct->m_TextureRefs;
@@ -620,7 +620,7 @@ LTBOOL d3d_InitFrame(SceneDesc *pDesc, TLVertex *pScratchVerts, int nUnk)
 
 	g_CurObjectFrameCode = g_pStruct->IncObjectFrameCode();
 	DAT_100577b8 = g_pStruct->IncCurTextureFrameCode();
-	DAT_10056274 = 0x3f;
+	g_ClipFlags = 0x3f;
 
 	DAT_100577a8 = pDesc->m_Unknown38;
 	DAT_100566a0 = pDesc->m_Unknown44;

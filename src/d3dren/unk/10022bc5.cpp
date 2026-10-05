@@ -80,11 +80,11 @@ inline void TLVertex_SetTCoords(TLVertex *pVert, float inTU, float inTV)
 // FUNCTION: D3DREN 0x10022be4
 void FUN_10022be4(WorldPoly *pPoly)
 {
-	FUN_10007ddb(pPoly, &DAT_10058c90, 1)->m_Unk0c = DAT_10056274;
+	FUN_10007ddb(pPoly, &DAT_10058c90, 1)->m_Unk0c = g_ClipFlags;
 }
 
 // guess: builds the TL vertices of a poly (nVerts of them, 0x20 bytes each) from its vertices with the multipass lighting tables
-// (DAT_10059d04..), the vertex alpha DAT_10057774 and the fog hook DAT_1005872c; the texture coordinates of the poly vertex are the first set.
+// (DAT_10059d04..), the vertex alpha DAT_10057774 and the fog hook g_pfnCalcFogAlpha; the texture coordinates of the poly vertex are the first set.
 // FUNCTION: D3DREN 0x1002329f
 void FUN_1002329f(TLVertex *pDest, UnkType_PolyVertex *pSrc, int nVerts)
 {
@@ -99,7 +99,7 @@ void FUN_1002329f(TLVertex *pDest, UnkType_PolyVertex *pSrc, int nVerts)
 		pDest->rgb.g = DAT_10059e04[pSrc->m_Color[1]];
 		pDest->rgb.b = DAT_10059f04[pSrc->m_Color[0]];
 		pDest->rgb.a = DAT_10057774;
-		DAT_1005872c(&pDest->m_Vec, &pDest->specular);
+		g_pfnCalcFogAlpha(&pDest->m_Vec, &pDest->specular);
 		TLVertex_SetTCoords(pDest, pSrc->m_U, pSrc->m_V);
 		pSrc++;
 		pDest++;
@@ -121,7 +121,7 @@ void FUN_1002331b(TLVertex *pDest, UnkType_PolyVertex *pSrc, int nVerts)
 		pDest->rgb.g = DAT_1005a104[pSrc->m_Color[1]];
 		pDest->rgb.b = DAT_1005a204[pSrc->m_Color[0]];
 		pDest->rgb.a = DAT_10057774;
-		DAT_1005872c(&pDest->m_Vec, &pDest->specular);
+		g_pfnCalcFogAlpha(&pDest->m_Vec, &pDest->specular);
 		TLVertex_SetTCoords(pDest, pSrc->m_U, pSrc->m_V);
 		pSrc++;
 		pDest++;
@@ -147,8 +147,8 @@ void FUN_100235bb(int nMode)
 {
 	if (nMode == 0)
 	{
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_SRCALPHA);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_ONE);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_SRCALPHA);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_ONE);
 	}
 }
 
@@ -223,7 +223,7 @@ void FUN_10022c01(WorldPoly *pPoly, int bSaturate)
 	else
 		FUN_1002329f(pVerts, pSrc, nVerts);
 
-	if (DAT_10056274 && !bEnvMap)
+	if (g_ClipFlags && !bEnvMap)
 	{
 		if (!FUN_1000af16(&pVerts, &nVerts, &g_ViewParams, 0))
 			return;
@@ -244,25 +244,25 @@ void FUN_10022c01(WorldPoly *pPoly, int bSaturate)
 		return;
 	memcpy(pDest, pVerts, nVerts << 5);
 
-	if (FUN_100099b3())
+	if (d3d_GetChromaKeyPass())
 	{
 		pNode = FUN_10007ddb(pPoly, &DAT_1005a308, 0);
 		pNode->m_Unk04 = DAT_100587e4;
 		pNode->m_Unk08 = nVerts;
-		pNode->m_Unk0c = DAT_10056274;
+		pNode->m_Unk0c = g_ClipFlags;
 		pNode->m_Unk14 = 3;
 		FUN_1000ac7b();
-		DAT_1005de30->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &dwOldAlphaBlend);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
-		DAT_1005de30->GetRenderState(D3DRENDERSTATE_ALPHAFUNC, &dwOldAlphaFunc);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, D3DCMP_ALWAYS);
+		g_pD3DDevice->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &dwOldAlphaBlend);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
+		g_pD3DDevice->GetRenderState(D3DRENDERSTATE_ALPHAFUNC, &dwOldAlphaFunc);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, D3DCMP_ALWAYS);
 		if (DAT_100578ec && bSaturate)
-			DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
+			g_pD3DDevice->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_DESTCOLOR);
 		else
-			DAT_1005de30->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_SRCCOLOR);
-		DAT_1005de30->GetRenderState(D3DRENDERSTATE_ZFUNC, &dwOldZFunc);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZFUNC, D3DCMP_EQUAL);
+			g_pD3DDevice->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ZERO);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_SRCCOLOR);
+		g_pD3DDevice->GetRenderState(D3DRENDERSTATE_ZFUNC, &dwOldZFunc);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZFUNC, D3DCMP_EQUAL);
 	}
 
 	if (!g_CV_LMFullBright.m_Unk00)
@@ -271,28 +271,28 @@ void FUN_10022c01(WorldPoly *pPoly, int bSaturate)
 		StateSet ssFog(D3DRENDERSTATE_FOGCOLOR, dwFogColor);
 
 		FUN_1000a27b(g_NormalTextureStage);
-		DAT_1005de30->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG2);
+		g_pD3DDevice->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG2);
 		if (bEnvMap)
 			FUN_1000ad48(pDest, nVerts, &g_ViewParams, 0x1c4);
 		else
-			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pDest, nVerts, 0);
+			g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pDest, nVerts, 0);
 		if (POLY_LIGHTS(pPoly))
 			FUN_10022f85(pPoly, pVerts, nVerts);
-		DAT_1005de30->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		g_pD3DDevice->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 	}
 
-	if (FUN_100099b3())
+	if (d3d_GetChromaKeyPass())
 	{
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, dwOldAlphaBlend);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, dwOldAlphaFunc);
-		DAT_1005de30->SetRenderState(D3DRENDERSTATE_ZFUNC, dwOldZFunc);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, dwOldAlphaBlend);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, dwOldAlphaFunc);
+		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ZFUNC, dwOldZFunc);
 	}
 	else
 	{
 		pNode = FUN_10007ddb(pPoly, &DAT_1005a308, 0);
 		pNode->m_Unk04 = DAT_100587e4;
 		pNode->m_Unk08 = nVerts;
-		pNode->m_Unk0c = DAT_10056274;
+		pNode->m_Unk0c = g_ClipFlags;
 		pNode->m_Unk14 = (bSaturate ? 2 : 0) | 1;
 		if (g_CV_FixSparkleys.m_Unk00)
 			FUN_1000ac7b();
@@ -363,9 +363,9 @@ void FUN_10022f85(WorldPoly *pPoly, TLVertex *pVerts, int nVerts)
 						pVert->tv = (Q.z * vDelta.z + Q.y * vDelta.y + Q.x * vDelta.x) * fScale + 0.5f;
 						pVert++;
 					}
-					DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+					g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
 					if (DAT_100578ec)
-						DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+						g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
 				}
 			}
 		}
@@ -420,11 +420,11 @@ void FUN_10023398(WorldPoly *pPoly)
 	else
 	{
 		FUN_1002358b(pVerts, nVerts);
-		if (((RTexture *)DAT_100617d8[g_NormalTextureStage])->IsFullbrite() && DAT_10058d00)
+		if (((RTexture *)g_pBoundTextures[g_NormalTextureStage])->IsFullbrite() && DAT_10058d00)
 		{
-			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+			g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
 			if (DAT_1005849c)
-				DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGENABLE, 0);
+				g_pD3DDevice->SetRenderState(D3DRENDERSTATE_FOGENABLE, 0);
 
 			color.rgb.a = 0xff;
 			color.rgb.r = DAT_10059d04[255];
@@ -441,18 +441,18 @@ void FUN_10023398(WorldPoly *pPoly)
 				}
 			}
 
-			DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
-			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
-			DAT_1005de30->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 0);
+			g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
+			g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+			g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, 0);
 			if (DAT_1005849c)
-				DAT_1005de30->SetRenderState(D3DRENDERSTATE_FOGENABLE, 1);
+				g_pD3DDevice->SetRenderState(D3DRENDERSTATE_FOGENABLE, 1);
 		}
 		else
 		{
 			StateChange *pChange = ((Surface *)pPoly->m_pSurface)->m_pTexture->m_pStateChange;
 			if (pChange)
 				DAT_10063c90.FUN_10021db7(pChange, 0);
-			DAT_1005de30->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+			g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
 			DAT_10063c90.FUN_10021da6();
 		}
 		DAT_100566ac++;
@@ -479,7 +479,7 @@ void FUN_100235e2(void)
 			UnkType_PoolBucket *pNext = pBucket->m_Unk08;
 
 			FUN_1002362a((UnkType_PoolNode *)pBucket->m_Unk04);
-			((UnkType_LMPage *)pBucket->m_Unk00)->m_Unk20 = 0;
+			((LightmapPage *)pBucket->m_Unk00)->m_Unk20 = 0;
 			sb_Free(&DAT_10058c98, pBucket);
 			pBucket = pNext;
 		} while (pBucket);
@@ -499,7 +499,7 @@ void FUN_1002362a(UnkType_PoolNode *pNode)
 			UnkType_PoolNode *pNext;
 
 			pNext = pNode->m_Unk10;
-			DAT_10056274 = pNode->m_Unk0c;
+			g_ClipFlags = pNode->m_Unk0c;
 			if (g_CV_MultipassGouraud.m_Unk00)
 			{
 				FUN_10022c01((WorldPoly *)pNode->m_Unk00, 1);
@@ -561,7 +561,7 @@ void FUN_100236ae(WorldPoly *pPoly)
 		pNode = FUN_10007ddb(pPoly, &DAT_1005a308, 0);
 		pNode->m_Unk04 = DAT_100587e4;
 		pNode->m_Unk08 = nVerts;
-		pNode->m_Unk0c = DAT_10056274;
+		pNode->m_Unk0c = g_ClipFlags;
 		pNode->m_Unk14 = 4;
 		DAT_100587e4 += nVerts;
 		DAT_100566ac++;

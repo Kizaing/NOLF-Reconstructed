@@ -98,7 +98,7 @@ void FUN_100261f9(UnkType_Vertex36 *pPrev, UnkType_Vertex36 *pCur, UnkType_Verte
 int FUN_100260ce(UnkType_PlaneClipper *pClipper, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkType_Vertex36 **ppOut);	// 0x100260ce
 
 // guess: the same view-space clippers for the six view frustum planes (flag bit 1 near z == g_ViewParams.m_NearZ, 4 left x+z == 0, 8 y == z,
-// 0x10 x == z, 0x20 y == -z, 2 far z == g_ViewParams.m_Unk90); the first argument is unused (the address of a dummy local). cdecl; same contract
+// 0x10 x == z, 0x20 y == -z, 2 far z == g_ViewParams.m_ClipFarZ); the first argument is unused (the address of a dummy local). cdecl; same contract
 // as FUN_100260ce.
 int FUN_100265c9(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkType_Vertex36 **ppOut);	// 0x100265c9 near
 int FUN_10026700(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkType_Vertex36 **ppOut);	// 0x10026700 left
@@ -107,11 +107,11 @@ int FUN_10026969(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkTyp
 int FUN_10026a9c(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkType_Vertex36 **ppOut);	// 0x10026a9c y == -z
 int FUN_10026bd2(char *pUnused, UnkType_Vertex36 **ppVerts, int *pnVerts, UnkType_Vertex36 **ppOut);	// 0x10026bd2 far
 
-// guess: clips the polygon against the planes selected by the bits of flags (DAT_10056274 holds 0x3f when the shadow code calls it).
+// guess: clips the polygon against the planes selected by the bits of flags (g_ClipFlags holds 0x3f when the shadow code calls it).
 // With the console variable that makes the renderer use the D3D clipper (DAT_1005c818) only bit 1 is processed.
 int FUN_100264ad(uint32 flags, UnkType_Vertex36 **ppVerts, int *pnVerts);	// 0x100264ad
 
-// guess: transforms the polygon into view space and clips it like Jupiter's polyclip, or only projects it when DAT_10056274 is 0
+// guess: transforms the polygon into view space and clips it like Jupiter's polyclip, or only projects it when g_ClipFlags is 0
 // (the vertex type counterpart of FUN_100085f2).  pViewParams is g_ViewParams (0x10055cf8).  The fourth argument is not used.
 int FUN_10026412(UnkType_Vertex36 **ppVerts, int *pnVerts, ViewParams *pViewParams, int nUnused);	// 0x10026412
 

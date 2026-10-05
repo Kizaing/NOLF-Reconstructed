@@ -18,11 +18,11 @@
 
 // Both renderers use this for the render contexts (Jupiter common_stuff.h RenderContext, whose only member is
 // m_CurFrameCode; the Talon object holds the world's render data and has the frame code at +0xc).
-struct UnkType_LMPage;		// d3dren/lightmap.h
+struct LightmapPage;		// d3dren/lightmap.h
 class MainWorld;
 struct RenderContext
 {
-	UnkType_LMPage	*m_Unk00;			// 0x00 guess: first lightmap page of the list (0 = none) (W9, lightmap.h)
+	LightmapPage	*m_Unk00;			// 0x00 guess: first lightmap page of the list (0 = none) (W9, lightmap.h)
 	uint32			m_Unk04;			// 0x04 guess: number of lightmap pages
 	MainWorld		*m_Unk08;			// 0x08 guess: the world (RenderContextInit::m_pWorld)
 	uint16			m_CurFrameCode;		// 0x0c

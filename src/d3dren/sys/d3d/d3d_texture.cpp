@@ -97,10 +97,10 @@ RTexture::RTexture()
 }
 
 // FUNCTION: D3DREN 0x1001e6d0 ??_GUnkType_RTextureData@@UAEPAXI@Z
-// (the scalar deleting destructors of RTexture's data class and of UnkType_RTextureBase are the same code: folded by the linker)
+// (the scalar deleting destructors of RTexture's data class and of RTextureBase are the same code: folded by the linker)
 
-// FUNCTION: D3DREN 0x1001e6f0 ?FUN_vslot1@UnkType_RTextureData@@UAEHXZ
-int UnkType_RTextureData::FUN_vslot1()
+// FUNCTION: D3DREN 0x1001e6f0 ?IsRTexture@UnkType_RTextureData@@UAEHXZ
+int UnkType_RTextureData::IsRTexture()
 {
 	return 1;
 }
@@ -311,18 +311,18 @@ void FUN_1001eb80()
 int FUN_1001ec50()
 {
 	memset(DAT_10062830, 0, sizeof(DAT_10062830));
-	DAT_100617d8[0] = 0;
-	DAT_100617d8[1] = 0;
+	g_pBoundTextures[0] = 0;
+	g_pBoundTextures[1] = 0;
 	DAT_100613a8.m_nElements = 0;
-	DAT_100617d8[2] = 0;
-	DAT_100617d8[3] = 0;
+	g_pBoundTextures[2] = 0;
+	g_pBoundTextures[3] = 0;
 	DAT_10062858.TieOff();
 	DAT_100613a8.m_Head.TieOff();
 	g_Textures.TieOff();
 	DAT_1007abe4.FUN_10034e3d();
 	DAT_100617e8.Init(0x40, 0);
 	DAT_10062874 = 1;
-	DAT_1005de30->EnumTextureFormats(FUN_1001f0d0, 0);
+	g_pD3DDevice->EnumTextureFormats(FUN_1001f0d0, 0);
 
 	// The wanted formats (bits of red, green, blue, alpha; one of these DDPF_ flags; none of these) in the order of preference.
 	UnkType_TextureFormatSpec spec32[1] = { { 8, 8, 8, 8, DDPF_ALPHAPIXELS, DDPF_LUMINANCE } };
@@ -652,8 +652,8 @@ void FUN_1001f850(RTexture *pTexture, int bChained)
 
 	for (int i = 0; i < 2; i++)
 	{
-		if (pTexture == (RTexture *)DAT_100617d8[i])
-			DAT_100617d8[i] = 0;
+		if (pTexture == (RTexture *)g_pBoundTextures[i])
+			g_pBoundTextures[i] = 0;
 	}
 
 	if (pTexture->m_Data.m_pSurface)
@@ -1389,7 +1389,7 @@ int FUN_10020ff0(WorldPoly *pPoly, int bFirst)
 
 	if (bFirst)
 	{
-		RTexture *pBound = (RTexture *)DAT_100617d8[DAT_1005c838];
+		RTexture *pBound = (RTexture *)g_pBoundTextures[DAT_1005c838];
 		if (!pBound)
 			return 1;
 
