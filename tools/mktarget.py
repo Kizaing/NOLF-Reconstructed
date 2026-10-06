@@ -123,6 +123,7 @@ class SymTab:
     def __init__(self):
         self.funcs, self.tables, self.imports, self.data = [], {}, {}, []
         self.source = None
+        self.interior = {}      # va -> start of the symbol matching code references it through (va = symbol + addend)
 
     @classmethod
     def load(cls, path, img):
@@ -283,6 +284,9 @@ class Resolver:
         st = self.st
         if va in self.namemap:
             return self._name(va, None), va
+        k = st.interior.get(va)
+        if k is not None and k in self.namemap:     # a member of a struct global (g_Render+0x58), as matching code has it
+            return self._name(k, None), k
         if va in st.imports:
             return self.import_name(va)
         if self.img.text_lo <= va < self.img.text_hi:
