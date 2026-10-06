@@ -2,8 +2,9 @@
 #
 # The build needs VC6 SP5 + Processor Pack, lithtech.exe and the Talon SDK / lithshared / Jupiter headers, none of
 # which can be in this repository, so CI does not build: `python tools/build.py` followed by
-# `python tools/build.py report` writes progress/lithtech_1.0.9.6/report.json locally, it is committed, and this
-# workflow uploads it as the artifact decomp.dev reads (<version>_report).
+# `python tools/build.py report` writes progress/lithtech_1.0.9.6/report.json locally (`--module d3dren report`:
+# progress/d3dren_1.0.9.6/report.json for the renderer), they are committed, and this
+# workflow uploads each as the artifact decomp.dev reads (<version>_report).
 name: Progress
 
 on:
@@ -19,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: [lithtech_1.0.9.6]
+        version: [lithtech_1.0.9.6, d3dren_1.0.9.6]
     steps:
       - uses: actions/checkout@v4
 

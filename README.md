@@ -12,11 +12,16 @@ function.
 | Engine code | 90.5% | |
 | Inventoried lithshared, WONAPI, VC6 CRT functions | 100% | |
 
+Most of the unmatched functions in that count are not engine functions: 173 of them, 1,869 bytes in all, are the
+compiler-generated exception funclets and destructor thunks at the end of `.text`. No unit owns them, so objdiff
+lists them in one auto-generated block (`unassigned/004c0000`) and never pairs them with source. The other 43 are
+the 41 stubs and two inline copies.
+
 - 3,669 annotated functions pass the byte and relocation-consistency checks.
 - 41 functions are written but not yet matching (`// STUB:`); most differ only in register allocation,
   instruction scheduling or inlining decisions, and behave the same as the original (checked by a behaviour
   audit).
-- 314 of 341 report units are complete. The mixed relink currently reproduces 117 of 119 eligible source units
+- 315 of 341 report units are complete. The mixed relink currently reproduces 117 of 119 eligible source units
   byte-for-byte; ftserv and l_allocator still have function-order differences.
 - No source stand-ins remain. The default mixed relink retains 21 compiler-generated exception helpers
   (573 bytes) and 21 metadata sections (852 bytes) from six compiled source units. An original-guided check
@@ -30,8 +35,18 @@ These are function-code metrics, not whole-executable completion. The source exc
 and do not increase function-code coverage. The mixed relink supplies unfinished regions from the original
 executable; it is a layout check, not a standalone rebuilt game.
 
-Live progress: [decomp.dev](https://decomp.dev) (version `lithtech_1.0.9.6`), from the report in
-`progress/lithtech_1.0.9.6/report.json`.
+Matching bytes do not by themselves prove that the source behaves like the original once it is linked on its own:
+the compiler and linker choose the data layout, and a field read through a separately declared global gets its
+own storage. An experimental link of the source alone (not yet in this repository) has found and fixed bugs of
+this kind, for example:
+- `g_BoxFindRadius` must directly precede `g_BoxFindCenter`, because the box/BSP test reads them as one sphere;
+  the wrong order made the player jitter;
+- the global light, pan textures and renderer profile counters are `RenderStruct` members, not separate globals;
+- `CLTClient::GetObjectFlags` did not zero its result;
+- the DirectMusic performance needed `IID_IDirectMusicPerformance8`.
+
+Live progress: [decomp.dev](https://decomp.dev), versions `lithtech_1.0.9.6` (the engine) and `d3dren_1.0.9.6`
+(the renderer), from the reports in `progress/<version>/report.json`.
 
 ## The renderer: `d3d.ren` (module `d3dren`, in progress)
 
@@ -41,7 +56,7 @@ second module next to the engine, with the same tools: `--module d3dren` (or `DE
 checker, permuter and helpers at `src/d3dren/`, `include/d3dren/`, `config/d3dren/` and `build/d3dren/`
 (`tools/modcfg.py` holds everything module-specific). The engine module is the default. The renderer compiles
 against the engine's headers in `include/`, so a change to a shared structure can break either module's matches;
-`tools/gate.py` checks both against recorded baselines.
+`tools/gate.py` checks both against recorded baselines (`config/lithtech_gate.json`, `config/d3dren/gate.json`).
 
 The DLL was built with a different compiler from the engine: the VC6 RTM front ends and optimising back end
 (12.00.8168, as its Rich header records), not the SP5 + Processor Pack compiler used for `lithtech.exe`.
@@ -53,14 +68,18 @@ The DLL was built with a different compiler from the engine: the VC6 RTM front e
 | Function code matched by source | 137,180 of 280,684 bytes (48.9%) |
 | Written but not yet matching (`// STUB:`) | 90 functions (96,326 bytes) |
 | Prebuilt library code (VC6 RTM CRT) | 469 functions, 41,550 bytes (14.8%) |
-| objdiff | 63.55% of code, 1,638 of 1,729 functions |
+| objdiff | 63.55% of code, 1,638 of 1,729 functions, 146 of 178 units complete |
 
 The source is organised as the DLL's 52 original object files, recovered from the binary's layout. Work is paused
 at the checkpoint above. Still to do: the remaining stubs, the data sections (initialisers, vtables, ownership and
 order), removing the last three stand-in definitions, and a relink of the DLL itself. Its string resource and its
 three exports are already reconstructed (`config/d3dren/d3dren.rc`, `d3dren.def`) and verified against the
-original by `tools/test_d3dren_resources.py`; no complete renderer DLL has been linked yet. The renderer is not
-yet part of the decomp.dev report.
+original by `tools/test_d3dren_resources.py`; no complete renderer DLL has been linked yet.
+
+The renderer's names come from its Ghidra project: `config/d3dren/symbols.csv` is the Ghidra export, and the
+scripts in `tools/ghidra/` export, apply and sync names and fix function boundaries (`SyncNamesPE.java` brings
+renames made in the source back into Ghidra). Many renderer type and field names came from
+[burmaraider's fork](https://github.com/burmaraider/AVP2-Reconstructed).
 
 ## How it works
 
@@ -91,6 +110,7 @@ src/d3dren/ decompiled renderer source (d3d.ren), one .cpp per original object f
 include/    reconstructed engine headers (include/d3dren/: the renderer's)
 config/     unit boundaries, symbol table exported from Ghidra, renames, library matches (config/d3dren/: the renderer's)
 tools/      build driver, checker, target-object writer, relinker, behaviour audit, matching aids
+tools/ghidra/ Ghidra scripts for the renderer (symbol export, name apply/sync, boundary fixes)
 progress/   the committed objdiff progress report
 ```
 
@@ -107,14 +127,15 @@ inputs the build needs, and none are provided:
   (for native library-data verification);
 - the DirectX 8.0 SDK headers (the renderer's DirectDraw 7 / Direct3D 7 headers).
 
-The tools currently expect these at fixed paths on the author's machine (see the constants at the top of
-`tools/build.py` and `scripts\vc6cl.bat`). With them in place:
+The tools currently expect these at fixed paths on the author's machine (see `tools/modcfg.py` and the constants
+at the top of `tools/build.py`). The engine's compiler wrapper is `scripts\vc6cl.bat` in the workspace directory
+above the repository; set `VC6CL` to use another. With them in place:
 
 ```bash
 python tools/build.py              # compile, check, write target objects, objdiff.json and the report
 python tools/build.py check <unit> # compile and check one unit
 python tools/build.py diff <func>  # side-by-side disassembly against the original
-python tools/build.py report       # refresh progress/lithtech_1.0.9.6/report.json
+python tools/build.py report       # refresh progress/lithtech_1.0.9.6/report.json (--module d3dren: d3dren_1.0.9.6)
 python tools/source_eh.py          # verify source EH helpers against the original; writes build/source_eh.json
 python tools/library_data.py       # verify native library data separately from function-code coverage
 python -m unittest discover -s tools/tests -v # run verifier regression tests

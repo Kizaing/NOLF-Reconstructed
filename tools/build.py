@@ -13,7 +13,7 @@ r"""decomp build driver for lithtech.exe (default) and d3d.ren (`--module d3dren
   python tools/build.py parked [-a]     write PARKED.md: every parked STUB (-a: every STUB) with its scores, audit and notes
   python tools/build.py relink         layout gate: mixed relink of every fully matched unit (tools/relink_gate.py)
   python tools/build.py base <obj>      rebuild one base object (objdiff's "custom make" entry point)
-  python tools/build.py report          progress/lithtech_1.0.9.6/report.json from the last full build (decomp.dev)
+  python tools/build.py report          progress/<module version>/report.json from the last full build (decomp.dev)
   python tools/build.py target <F>      rewrite the target object(s) of the unit(s) matching F from the last full build's
                                         namemap (per-unit, safe while others work; the unfiltered build rewrites all)
   --module d3dren                       work on d3d.ren: src/d3dren, config/d3dren, build/d3dren (default module: lithtech;
@@ -494,6 +494,7 @@ class Result:
         self.target_size = None    # split-aware symbol extent; size remains the compiled body length
         self.unverified = []    # (va, base symbol name) reloc targets not confirmed by name or content
         self.bad_relocs = []    # (offset, base name, expected va, exe va)
+        self.interior = []      # (referenced va, symbol va) for relocations with a nonzero addend (g_Render+0x58)
 
 
 def bind_symbols(units, obj):
@@ -746,6 +747,8 @@ def check_function(a, o, exe, symtab, name2va, ghidra_conflicts, local=None, imp
             if tva != expect:
                 r.bad_relocs.append((off, s.name, expect, tva))
             continue
+        if addend and typ == REL_DIR32:
+            r.interior.append((tva + addend, tva))
         if s.cls == 2 and s.secno == 0 and s.name in (import_bindings or {}):
             known = import_bindings[s.name]
         else:
@@ -875,9 +878,12 @@ def run_check(units, exe, symtab, verbose=False, filt=None, libs=None, scope=Non
             results.append(r)
     # names learned from fully matching functions name the targets of their relocations
     learned, clash, learned_at, icf_seen = {}, [], {}, {}
+    INTERIOR.clear()
     for r in results:
         if r.status != 'MATCH':
             continue
+        for va, sva in r.interior:
+            INTERIOR.setdefault(va, sva)
         for tva, n in r.unverified:
             if va2name.get(tva, n) != n or learned.get(tva, n) != n:
                 other = va2name.get(tva) or learned.get(tva)
@@ -1340,6 +1346,7 @@ OBJSYM = {}         # target object name -> {symbol name: VA} (names are unique 
 SYMCONFLICT = {}    # symbol name -> VAs, for names that mean different addresses in different objects
 SYMVA = {}          # symbol name -> VA for every name used in a target object (not the '$L' labels)
 _mk_symtab = None
+INTERIOR = {}       # VA -> start VA of the symbol a matching function references it through (member of a struct global)
 
 
 def symtab_for_mktarget():
@@ -1347,6 +1354,7 @@ def symtab_for_mktarget():
     if _mk_symtab is None:
         import mktarget
         _mk_symtab = mktarget.SymTab.load(SYMBOLS_CSV if os.path.exists(SYMBOLS_CSV) else SYMBOLS_FALLBACK, mktarget._image(EXE))
+        _mk_symtab.interior = INTERIOR
     return _mk_symtab
 
 
@@ -1444,17 +1452,14 @@ def write_objdiff_json(units_json):
     _replace(tmp, os.path.join(OBJDIFF_DIR, 'objdiff.json'))
 
 
-REPORT_VERSION ='lithtech_1.0.9.6'     # decomp.dev version id: the CI artifact is <REPORT_VERSION>_report
+REPORT_VERSION = modcfg.REPORT_VERSION     # decomp.dev version id: the CI artifact is <REPORT_VERSION>_report
 PUBLISHED_REPORT = os.path.join(ROOT, 'progress', REPORT_VERSION, 'report.json')
 
 
 def publish_report():
     """build.py report: regenerate the objdiff report from the last full build into progress/<version>/report.json
     (committed; .github/workflows/progress.yml uploads it for decomp.dev, since CI can't build without VC6 and
-    lithtech.exe). The engine only: d3d.ren is not published yet."""
-    if modcfg.NAME != 'lithtech':
-        print('build.py report publishes the lithtech module only')
-        return 1
+    lithtech.exe). Each module has its own version (`--module d3dren report` publishes the renderer)."""
     if not os.path.exists(os.path.join(OBJDIFF_DIR, 'objdiff.json')):
         print('no objdiff.json: run a full `python tools/build.py` first')
         return 1
@@ -1579,7 +1584,7 @@ def full_build_refused():
     return main_checkout and bool(os.environ.get('CLAUDECODE')) and not os.environ.get('DECOMP_LEAD')
 
 
-COMMANDS = ('all', 'check', 'diff', 'todo', 'audit', 'parked', 'target', 'relink', 'base')
+COMMANDS = ('all', 'check', 'diff', 'todo', 'audit', 'parked', 'target', 'relink', 'base', 'report')
 HELP_FLAGS = ('-h', '--help', '-?', '/?', 'help')
 
 

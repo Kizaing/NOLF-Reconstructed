@@ -58,6 +58,7 @@ if NAME == 'lithtech':
     CL_ENV = {}
     SHARED_CHECKOUTS = [os.path.join(AVP2, 'decomp')]
     OUT_IMAGE_NAME = 'lithtech.exe'
+    REPORT_VERSION = 'lithtech_1.0.9.6'      # decomp.dev version id (progress/<id>/report.json)
 else:
     TAG = 'D3DREN'
     IMAGE = os.path.join(AVP2, 'bin', 'talon', 'd3d.ren')
@@ -77,6 +78,7 @@ else:
     CL_ENV = {'DX8INC': os.environ.get('DX8INC') or DX8_INCLUDE}
     SHARED_CHECKOUTS = [os.path.join(AVP2, 'decomp_d3dren')]
     OUT_IMAGE_NAME = 'd3d.ren'
+    REPORT_VERSION = 'd3dren_1.0.9.6'
 
 SYMBOLS_CSV = os.path.join(CONFIG, 'symbols.csv')
 RENAMES_CSV = os.path.join(CONFIG, 'renames.csv')
