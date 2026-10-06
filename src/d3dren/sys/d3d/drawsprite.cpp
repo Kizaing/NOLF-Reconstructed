@@ -103,7 +103,7 @@ static inline int ClipPoly_Inline(uint32 nFlags, TLVertex **ppVerts, int *pnVert
 	int nVerts;
 	char c0, c1, c2, c3, c4, c5;
 
-	if (g_CV_UseD3DClip.m_Unk00)
+	if (g_CV_UseD3DClip.m_IntVal)
 	{
 		nFlags &= 1;
 		if (!nFlags)
@@ -388,8 +388,8 @@ int FUN_1002f010(TLVertex **ppVerts, int *pnVerts, ViewParams *pParams, int a4, 
 		float fBiasZ = fBias;
 		float fW, fWBiased;
 
-		if (fBias + pVert->m_Vec.z < g_CV_NearZ.m_Unk04)
-			fBiasZ = g_CV_NearZ.m_Unk04 - pVert->m_Vec.z;
+		if (fBias + pVert->m_Vec.z < g_CV_NearZ.m_FloatVal)
+			fBiasZ = g_CV_NearZ.m_FloatVal - pVert->m_Vec.z;
 
 		fW = MatVMul_H(&vProj, pMat, &pVert->m_Vec);
 		vBiased = pVert->m_Vec;
@@ -551,12 +551,12 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 	if (pInstance->m_Flags & FLAG_REALLYCLOSE)
 	{
 		MatVMul(&vCam, &pParams->m_mReallyCloseClipTransform, pPos);
-		fNearZ = g_CV_ReallyCloseNearZ.m_Unk04;
+		fNearZ = g_CV_ReallyCloseNearZ.m_FloatVal;
 	}
 	else
 	{
 		MatVMul(&vCam, &pParams->m_mClipTransform, pPos);
-		fNearZ = g_CV_NearZ.m_Unk04;
+		fNearZ = g_CV_NearZ.m_FloatVal;
 	}
 
 	g_pfnCalcFogAlpha(&pInstance->m_Pos, &nSpecular);
@@ -579,7 +579,7 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 	vMin = DAT_10061810[0].m_Unk04 + DAT_10061810[0].m_Unk04;
 	vMax = (fHeight - 2.0f) * DAT_10061810[0].m_Unk04;
 
-	fHalfX = fWidth * pParams->m_Unk94 * fScaleX;
+	fHalfX = fWidth * pParams->m_fFovXScale * fScaleX;
 	fHalfY = fHeight * pParams->m_fFovYScale * fScaleY;
 	if (pInstance->m_Flags & FLAG_GLOWSPRITE)
 	{
@@ -648,7 +648,7 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 	pVerts = aVerts;
 	nVerts = 4;
 	if (pInstance->m_Flags & FLAG_REALLYCLOSE)
-		g_ViewParams.m_NearZ = g_CV_ReallyCloseNearZ.m_Unk04;
+		g_ViewParams.m_NearZ = g_CV_ReallyCloseNearZ.m_FloatVal;
 
 	if (ClipPoly_Inline(g_ClipFlags, &pVerts, &nVerts))
 	{
@@ -669,7 +669,7 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 					LTVector vBiased = pVerts[i].m_Vec;
 					float fWBiased;
 
-					vBiased.z += g_CV_NearZ.m_Unk04;
+					vBiased.z += g_CV_NearZ.m_FloatVal;
 					fWBiased = MatVMul_H(&vProjBiased, pMat, &vBiased);
 					pVerts[i].m_Vec.x = vProj.x;
 					pVerts[i].m_Vec.y = vProj.y;
@@ -681,8 +681,8 @@ void FUN_1002d860(ViewParams *pParams, SpriteInstance *pInstance, LTVector *pPos
 		else
 		{
 			float fBias = SPRITE_POSITION_ZBIAS;
-			if (SPRITE_POSITION_ZBIAS + vCam.z < g_CV_NearZ.m_Unk04)
-				fBias = g_CV_NearZ.m_Unk04 - vCam.z;
+			if (SPRITE_POSITION_ZBIAS + vCam.z < g_CV_NearZ.m_FloatVal)
+				fBias = g_CV_NearZ.m_FloatVal - vCam.z;
 
 			for (i = 0; i < nVerts; i++)
 			{

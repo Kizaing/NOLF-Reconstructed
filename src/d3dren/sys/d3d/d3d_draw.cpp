@@ -175,9 +175,9 @@ void __fastcall FUN_100135c0(LTVector *pPos, uint32 *pSpecular)
 	int nZone;
 	float fFog;
 
-	if (pPos->y < g_CV_VFogMaxY.m_Unk04)
+	if (pPos->y < g_CV_VFogMaxY.m_FloatVal)
 	{
-		if (g_CV_VFogMinY.m_Unk04 < pPos->y)
+		if (g_CV_VFogMinY.m_FloatVal < pPos->y)
 			nZone = 2;
 		else
 			nZone = 0;
@@ -191,7 +191,7 @@ void __fastcall FUN_100135c0(LTVector *pPos, uint32 *pSpecular)
 
 		if (nZone == 2)
 		{
-			fDensity = (vPos.y - g_CV_VFogMinY.m_Unk04) * g_fInvVFogHeightRange * g_fVFogValueRange + g_ViewParams.m_fVFogViewDensity + g_CV_VFogMinYVal.m_Unk04;
+			fDensity = (vPos.y - g_CV_VFogMinY.m_FloatVal) * g_fInvVFogHeightRange * g_fVFogValueRange + g_ViewParams.m_fVFogViewDensity + g_CV_VFogMinYVal.m_FloatVal;
 			fFog = (vEye - vPos).Mag() * fDensity * g_fVFogDensityScale;
 		}
 		else
@@ -202,46 +202,46 @@ void __fastcall FUN_100135c0(LTVector *pPos, uint32 *pSpecular)
 	}
 	else
 	{
-		float fT = (g_CV_VFogMaxY.m_Unk04 - vEye.y) / (vPos.y - vEye.y);
+		float fT = (g_CV_VFogMaxY.m_FloatVal - vEye.y) / (vPos.y - vEye.y);
 		LTVector vCross;
 		float fFogA, fFogB;
 
 		vCross.x = (vPos.x - vEye.x) * fT + vEye.x;
-		vCross.y = g_CV_VFogMaxY.m_Unk04;
+		vCross.y = g_CV_VFogMaxY.m_FloatVal;
 		vCross.z = (vPos.z - vEye.z) * fT + vEye.z;
 
 		if (g_ViewParams.m_nVFogViewZone == 1)
 		{
 			// viewer above VFogMaxY, vertex below: the first part of the ray is at VFogMaxYVal
-			fFogA = g_CV_VFogMaxYVal.m_Unk04 + g_CV_VFogMaxYVal.m_Unk04;
+			fFogA = g_CV_VFogMaxYVal.m_FloatVal + g_CV_VFogMaxYVal.m_FloatVal;
 			fFogA = (vEye - vCross).Mag() * fFogA * g_fVFogDensityScale;
-			if (vPos.y <= g_CV_VFogMinY.m_Unk04)
-				fFogB = g_CV_VFogMinYVal.m_Unk04;
-			else if (vPos.y >= g_CV_VFogMaxY.m_Unk04)
-				fFogB = g_CV_VFogMaxYVal.m_Unk04;
+			if (vPos.y <= g_CV_VFogMinY.m_FloatVal)
+				fFogB = g_CV_VFogMinYVal.m_FloatVal;
+			else if (vPos.y >= g_CV_VFogMaxY.m_FloatVal)
+				fFogB = g_CV_VFogMaxYVal.m_FloatVal;
 			else
-				fFogB = (vPos.y - g_CV_VFogMinY.m_Unk04) * g_fInvVFogHeightRange * g_fVFogValueRange + g_CV_VFogMinYVal.m_Unk04;
-			fFogB = fFogB + g_CV_VFogMaxYVal.m_Unk04;
+				fFogB = (vPos.y - g_CV_VFogMinY.m_FloatVal) * g_fInvVFogHeightRange * g_fVFogValueRange + g_CV_VFogMinYVal.m_FloatVal;
+			fFogB = fFogB + g_CV_VFogMaxYVal.m_FloatVal;
 			fFog = (vCross - vPos).Mag() * fFogB;
 		}
 		else
 		{
-			if (vEye.y <= g_CV_VFogMinY.m_Unk04)
-				fFogB = g_CV_VFogMinYVal.m_Unk04;
-			else if (vEye.y >= g_CV_VFogMaxY.m_Unk04)
-				fFogB = g_CV_VFogMaxYVal.m_Unk04;
+			if (vEye.y <= g_CV_VFogMinY.m_FloatVal)
+				fFogB = g_CV_VFogMinYVal.m_FloatVal;
+			else if (vEye.y >= g_CV_VFogMaxY.m_FloatVal)
+				fFogB = g_CV_VFogMaxYVal.m_FloatVal;
 			else
-				fFogB = (vEye.y - g_CV_VFogMinY.m_Unk04) * g_fInvVFogHeightRange * g_fVFogValueRange + g_CV_VFogMinYVal.m_Unk04;
-			fFogB = fFogB + g_CV_VFogMaxYVal.m_Unk04;
+				fFogB = (vEye.y - g_CV_VFogMinY.m_FloatVal) * g_fInvVFogHeightRange * g_fVFogValueRange + g_CV_VFogMinYVal.m_FloatVal;
+			fFogB = fFogB + g_CV_VFogMaxYVal.m_FloatVal;
 			fFogA = (vEye - vCross).Mag() * fFogB * g_fVFogDensityScale;
-			fFogB = g_CV_VFogMaxYVal.m_Unk04 + g_CV_VFogMaxYVal.m_Unk04;
+			fFogB = g_CV_VFogMaxYVal.m_FloatVal + g_CV_VFogMaxYVal.m_FloatVal;
 			fFog = (vCross - vPos).Mag() * fFogB;
 		}
 		fFog = fFog * g_fVFogDensityScale + fFogA;
 	}
 
-	if (fFog > g_CV_VFogMax.m_Unk04)
-		fFog = g_CV_VFogMax.m_Unk04;
+	if (fFog > g_CV_VFogMax.m_FloatVal)
+		fFog = g_CV_VFogMax.m_FloatVal;
 	else if (fFog < 0.0f)
 		fFog = 0.0f;
 
@@ -348,7 +348,7 @@ void d3d_UnsetTranslucentObjectStates(int bChangeZ)
 // FUNCTION: D3DREN 0x10013e00
 void FUN_10013e00(void)
 {
-	if (g_CV_AlphaTest.m_Unk00)
+	if (g_CV_AlphaTest.m_IntVal)
 	{
 		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, 1);
 		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, D3DCMP_GREATER);
@@ -364,7 +364,7 @@ void FUN_10013e00(void)
 // FUNCTION: D3DREN 0x10013e40
 void FUN_10013e40(void)
 {
-	if (g_CV_AlphaTest.m_Unk00)
+	if (g_CV_AlphaTest.m_IntVal)
 	{
 		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, 0);
 	}
@@ -835,7 +835,7 @@ void FUN_100145f0(int a1)
 		}
 		DAT_10058c68 = 0;
 	}
-	if (g_CV_DrawPolyMgr.m_Unk00)
+	if (g_CV_DrawPolyMgr.m_IntVal)
 		g_DrawPolyMgr.FUN_1002a0c2();
 }
 
@@ -974,7 +974,7 @@ void d3d_FullDrawScene(SceneDesc *pDesc)
 {
 	Counter cUnused;
 
-	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_CLIPPING, g_CV_UseD3DClip.m_Unk00 != 0);
+	g_pD3DDevice->SetRenderState(D3DRENDERSTATE_CLIPPING, g_CV_UseD3DClip.m_IntVal != 0);
 	d3d_SetD3DMat(D3DTRANSFORMSTATE_WORLD, &g_ViewParams.m_mIdentity);
 	d3d_SetD3DMat(D3DTRANSFORMSTATE_VIEW, &g_ViewParams.m_mView);
 	d3d_SetD3DMat(D3DTRANSFORMSTATE_PROJECTION, &g_ViewParams.m_mProjection);
@@ -1022,7 +1022,7 @@ void d3d_FullDrawScene(SceneDesc *pDesc)
 			FUN_10014ce0(DAT_10058c68);
 			DAT_10058c68 = 0;
 		}
-		if (g_CV_DrawPolyMgr.m_Unk00)
+		if (g_CV_DrawPolyMgr.m_IntVal)
 			g_DrawPolyMgr.FUN_1002a0c2();
 	}
 
@@ -1422,7 +1422,7 @@ void FUN_10015820(SceneDesc *pDesc, VisibleSet *pSet)
 			g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
 			FUN_10015820_SetState(D3DRENDERSTATE_ZFUNC, D3DCMP_LESSEQUAL);
 
-			if (!DAT_10048c50 || g_CV_ShowPortalBounds.m_Unk00)
+			if (!DAT_10048c50 || g_CV_ShowPortalBounds.m_IntVal)
 			{
 				FUN_10015820_SetState(D3DRENDERSTATE_STENCILENABLE, 0);
 				FUN_10015820_SetState(D3DRENDERSTATE_STENCILFUNC, D3DCMP_EQUAL);
@@ -1430,17 +1430,17 @@ void FUN_10015820(SceneDesc *pDesc, VisibleSet *pSet)
 
 			backupView = g_ViewParams;
 			ViewBoxDef viewBox;
-			d3d_InitViewBox2(&viewBox, g_CV_NearZ.m_Unk04, pDesc->m_FarZ, g_ViewParams,
+			d3d_InitViewBox2(&viewBox, g_CV_NearZ.m_FloatVal, pDesc->m_FarZ, g_ViewParams,
 				vMin.x, vMin.y, vMax.x, vMax.y);
 			d3d_InitFrustum2(&g_ViewParams, &viewBox, vMin.x, vMin.y, vMax.x, vMax.y,
 				&copiedCamera, LTVector(1.0f, 1.0f, 1.0f));
 			*(LTVector *)g_ViewParams.m_Pad4d8 = pPoly->m_Center;
-			g_ViewParams.m_Unk4cc = !backupView.m_Unk4cc;
-			g_ViewParams.m_Unk4d0 = FUN_10015820_CullSign(g_ViewParams.m_Unk4cc);
+			g_ViewParams.m_bCullFlip = !backupView.m_bCullFlip;
+			g_ViewParams.m_fCullSign = FUN_10015820_CullSign(g_ViewParams.m_bCullFlip);
 			g_ViewParams.m_bPortalView = 1;
 
 			int oldLightMap = DAT_10048780;
-			if (!g_CV_PortalLightmap.m_Unk00)
+			if (!g_CV_PortalLightmap.m_IntVal)
 				DAT_10048780 = 0;
 			d3d_FullDrawScene(pDesc);
 			DAT_10048780 = oldLightMap;
@@ -1883,7 +1883,7 @@ int d3d_RenderScene(SceneDesc *pDesc)
 		return 0;
 	}
 
-	if (g_CV_RenderToFront.m_Unk00 != DAT_1005a378)
+	if (g_CV_RenderToFront.m_IntVal != DAT_1005a378)
 	{
 		IDirectDrawSurface7 *pOld = g_pOffscreen;
 
@@ -1892,10 +1892,10 @@ int d3d_RenderScene(SceneDesc *pDesc)
 		g_pOffscreen->AddAttachedSurface(g_pZBuffer);
 		g_pBackBuffer->DeleteAttachedSurface(0, g_pZBuffer);
 		g_pD3DDevice->SetRenderTarget(g_pOffscreen, 0);
-		DAT_1005a378 = g_CV_RenderToFront.m_Unk00;
+		DAT_1005a378 = g_CV_RenderToFront.m_IntVal;
 	}
 
-	if (g_CV_DrawPortals.m_Unk00)
+	if (g_CV_DrawPortals.m_IntVal)
 	{
 		int bPortals = CanDrawPortals();
 
@@ -1928,14 +1928,14 @@ int d3d_RenderScene(SceneDesc *pDesc)
 		DAT_100578a0 = DAT_10048744 - DAT_100584a0;
 		DAT_10057990 = (1.0f / DAT_100578a0) * 255.0f;
 
-		if (g_CV_TableFog.m_Unk00)
+		if (g_CV_TableFog.m_IntVal)
 			g_pfnCalcFogAlpha = d3d_NullPreFrameCallback;
-		else if (g_CV_VFog.m_Unk00)
+		else if (g_CV_VFog.m_IntVal)
 		{
-			g_fVFogValueRange = g_CV_VFogMaxYVal.m_Unk04 - g_CV_VFogMinYVal.m_Unk04;
+			g_fVFogValueRange = g_CV_VFogMaxYVal.m_FloatVal - g_CV_VFogMinYVal.m_FloatVal;
 			g_pfnCalcFogAlpha = FUN_100135c0;
-			g_fInvVFogHeightRange = 1.0f / (g_CV_VFogMaxY.m_Unk04 - g_CV_VFogMinY.m_Unk04);
-			g_fVFogDensityScale = 255.0f / g_CV_VFogDensity.m_Unk04;
+			g_fInvVFogHeightRange = 1.0f / (g_CV_VFogMaxY.m_FloatVal - g_CV_VFogMinY.m_FloatVal);
+			g_fVFogDensityScale = 255.0f / g_CV_VFogDensity.m_FloatVal;
 		}
 		else
 			g_pfnCalcFogAlpha = FUN_100134b0;
@@ -1974,7 +1974,7 @@ int d3d_RenderScene(SceneDesc *pDesc)
 		*(uint32 *)&g_pStruct->m_Pad48[0] = 0;
 
 		g_pD3DDevice->SetRenderState(D3DRENDERSTATE_FILLMODE, DAT_100584cc ? D3DFILL_WIREFRAME : D3DFILL_SOLID);
-		if (!g_CV_ShowPortalBounds.m_Unk00)
+		if (!g_CV_ShowPortalBounds.m_IntVal)
 		{
 			DAT_1006cd70 = FUN_100161c0;
 			d3d_FullDrawScene(pDesc);
@@ -2012,7 +2012,7 @@ int d3d_RenderScene(SceneDesc *pDesc)
 			g_pStruct->ConsolePrint("Overdraw: %.3f", DAT_10056694 / (float)((g_ViewParams.m_Rect.bottom - g_ViewParams.m_Rect.top) * (g_ViewParams.m_Rect.right - g_ViewParams.m_Rect.left)));
 		}
 
-		if (g_CV_ShowTexInfo.m_Unk00)
+		if (g_CV_ShowTexInfo.m_IntVal)
 		{
 			D3DDEVINFO_TEXTUREMANAGER info;
 
@@ -2032,9 +2032,9 @@ int d3d_RenderScene(SceneDesc *pDesc)
 	}
 
 	// Draw the world tree?
-	if ((int)g_CV_DrawWorldTree.m_Unk00 > -1 && DAT_10056770)
+	if ((int)g_CV_DrawWorldTree.m_IntVal > -1 && DAT_10056770)
 	{
-		int nDepth = g_CV_DrawWorldTree.m_Unk00;
+		int nDepth = g_CV_DrawWorldTree.m_IntVal;
 		WorldTreeNode *pTree = DAT_10056770->m_WorldTree.GetRootNode();
 		struct { D3DRENDERSTATETYPE m_Type; DWORD m_Val; } saved;
 		uint32 i;
@@ -2056,7 +2056,7 @@ int d3d_RenderScene(SceneDesc *pDesc)
 		g_pD3DDevice->SetRenderState(saved.m_Type, saved.m_Val);
 	}
 
-	if (g_CV_DrawTerrainSections.m_Unk00 && DAT_10056770)
+	if (g_CV_DrawTerrainSections.m_IntVal && DAT_10056770)
 		FUN_10017980(DAT_10056770);
 
 	d3d_NullCallback();

@@ -209,7 +209,7 @@ void ModelDraw::FUN_10024589(uint32 iSkin)
 	{
 		SharedTexture *pSkin = m_pInstance->m_pSkins[iSkin];
 
-		if (g_CV_ModelTexture.m_Unk00 && d3d_SetTexture(pSkin, m_Unk34, m_Unk8a4))
+		if (g_CV_ModelTexture.m_IntVal && d3d_SetTexture(pSkin, m_Unk34, m_Unk8a4))
 		{
 			// (written `DAT_1005de1c * scale`: that gives the exe's fld c / fld uv / fmul st(1); `scale * DAT_1005de1c` came out as fld c / fld st(0) / fmul uv)
 			DAT_1004eb40 = DAT_1005de1c * DAT_10061810[0].m_Unk00;
@@ -354,7 +354,7 @@ void ModelDraw::FUN_1002476b()
 		}
 		else
 		{
-			if (g_CV_ModelSpecular.m_Unk00 && DAT_1005c80c && m_pModel->m_bSpecularEnable && g_pSpecularTexture)
+			if (g_CV_ModelSpecular.m_IntVal && DAT_1005c80c && m_pModel->m_bSpecularEnable && g_pSpecularTexture)
 			{
 				m_Unk5e8 = 2;
 					g_pD3DDevice->GetTexture(1, &pOldTex);
@@ -393,7 +393,7 @@ void ModelDraw::FUN_1002476b()
 		FUN_1002421e();
 
 	if (m_ModelHookData.m_ObjectFlags & FLAG_REALLYCLOSE)
-		g_ViewParams.m_NearZ = g_CV_NearZ.m_Unk04;
+		g_ViewParams.m_NearZ = g_CV_NearZ.m_FloatVal;
 }
 
 // ---- FUN_10024c8b / FUN_10024cd7 -----------------------------------------------------------------------------------------

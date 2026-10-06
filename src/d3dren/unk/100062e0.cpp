@@ -63,7 +63,7 @@ static inline void ProjectPos(float *pDest, float *pSrc)
 		((UnkType_VBPoolDrawView *)m_Unk608)->Draw(g_pD3DDevice, D3DPT_TRIANGLELIST, nVertsOut); \
 	}
 
-// The body of the two clipping callbacks.  REALLYCLOSE adds the z bias g_CV_NearZ.m_Unk04 to the w of the z row (FUN_100062e0).
+// The body of the two clipping callbacks.  REALLYCLOSE adds the z bias g_CV_NearZ.m_FloatVal to the w of the z row (FUN_100062e0).
 // Per triangle: the clip planes of g_ClipFlags are tested vertex by vertex (count of vertices inside: none = skip the
 // triangle, not all = it has to be clipped), then the triangle is back face tested in 2D and projected.
 #define CLIPPED_CALLBACK(REALLYCLOSE) \
@@ -141,7 +141,7 @@ TestRight: \
 			float fY0 = (1.0f / pV0[2]) * pV0[1]; \
 			float fCross = ((1.0f / pV2[2]) * pV2[0] - fX0) * ((1.0f / pV1[2]) * pV1[1] - fY0) \
 				- ((1.0f / pV2[2]) * pV2[1] - fY0) * ((1.0f / pV1[2]) * pV1[0] - fX0); \
-			if (g_ViewParams.m_Unk4cc) \
+			if (g_ViewParams.m_bCullFlip) \
 				fCross = -fCross; \
 			if (0.0f < fCross) \
 			{ \
@@ -149,7 +149,7 @@ TestRight: \
 				for (int k = 0; k < 3; k++) \
 				{ \
 					if (REALLYCLOSE) \
-						FUN_100062e0(&pOut->m_Vec.x, apV[k], g_CV_NearZ.m_Unk04); \
+						FUN_100062e0(&pOut->m_Vec.x, apV[k], g_CV_NearZ.m_FloatVal); \
 					else \
 						ProjectPos(&pOut->m_Vec.x, apV[k]); \
 					pOut->color = ((TLVertex *)apV[k])->color; \
@@ -192,7 +192,7 @@ Clip: \
 				float *pP2 = (float *)(pPoly + nStride * 2); \
 				float fCross = ((1.0f / pP2[2]) * pP2[0] - fX0) * ((1.0f / pP1[2]) * pP1[1] - fY0) \
 					- ((1.0f / pP2[2]) * pP2[1] - fY0) * ((1.0f / pP1[2]) * pP1[0] - fX0); \
-				if (g_ViewParams.m_Unk4cc) \
+				if (g_ViewParams.m_bCullFlip) \
 					fCross = -fCross; \
 				if (0.0f < fCross) \
 				{ \
@@ -201,7 +201,7 @@ Clip: \
 					{ \
 						float vSrc[3] = { ((float *)pP)[0], ((float *)pP)[1], ((float *)pP)[2] }; \
 						if (REALLYCLOSE) \
-							FUN_100062e0((float *)pP, vSrc, g_CV_NearZ.m_Unk04); \
+							FUN_100062e0((float *)pP, vSrc, g_CV_NearZ.m_FloatVal); \
 						else \
 							ProjectPos((float *)pP, vSrc); \
 					} \

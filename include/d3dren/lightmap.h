@@ -75,13 +75,13 @@ struct LightmapPage : public RTextureBase
 
 	uint32					m_Unk04;			// 0x04 next page of the list of pages that have polys waiting (world poly queue, unit unk/100098d0)
 	uint32					m_Unk08;			// 0x08 the polys waiting for this page (pool nodes)
-	uint8					*m_Unk0c;			// 0x0c occupancy bitmap (dalloc_z(0x80)), freed by FreeLightmapPageBitmaps
-	uint32					m_Unk10;			// 0x10 texels of the page assigned so far (FUN_1003429b adds w*h)
-	uint32					m_Unk14;			// 0x14 size of the surface in bytes (FUN_10034142: bytes per pixel << 12)
+	uint8					*m_pOccupancyMap;			// 0x0c occupancy bitmap (dalloc_z(0x80)), freed by FreeLightmapPageBitmaps
+	uint32					m_nUsedTexels;			// 0x10 texels of the page assigned so far (FUN_1003429b adds w*h)
+	uint32					m_nMemoryUse;			// 0x14 size of the surface in bytes (FUN_10034142: bytes per pixel << 12)
 	uint32					m_Unk18;			// 0x18
-	IDirectDrawSurface7		*m_Unk1c;			// 0x1c the page's texture surface
+	IDirectDrawSurface7		*m_pSurface;			// 0x1c the page's texture surface
 	uint32					m_Unk20;			// 0x20 (set to 1 by the constructor; non-zero once the first draw has set the page up)
-	LightmapPage			*m_Unk24;			// 0x24 next page of the RenderContext list
+	LightmapPage			*m_pNext;			// 0x24 next page of the RenderContext list
 };
 
 // ---- the lightmap staging textures and the lock helper ---------------------------------------------------------------------------

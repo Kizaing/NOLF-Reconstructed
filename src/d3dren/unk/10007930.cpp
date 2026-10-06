@@ -271,7 +271,7 @@ void FUN_10007b41(WorldPoly *pPoly)
 		}
 
 		pVerts = aVerts;
-		if (!g_CV_LMDynamic.m_Unk00)
+		if (!g_CV_LMDynamic.m_IntVal)
 			FUN_100083ec(pPoly, aVerts, nVerts);
 
 		if (FUN_100085f2(&pVerts, &nVerts, &g_ViewParams, 0) &&
@@ -392,7 +392,7 @@ void __fastcall FUN_100083ae(CountAdder *pThis)
 // STUB: D3DREN 0x10007e5d
 void FUN_10007e5d(WorldPoly *pPoly, TLVertex *pVerts, int nVerts)
 {
-	if (g_CV_LMDynamic.m_Unk00)
+	if (g_CV_LMDynamic.m_IntVal)
 	{
 		CountAdder cTimer(g_pSceneDesc->m_pTicks_Render_PolyGrids);
 		struct SavedState { D3DRENDERSTATETYPE m_Type; DWORD m_Val; };
@@ -402,8 +402,8 @@ void FUN_10007e5d(WorldPoly *pPoly, TLVertex *pVerts, int nVerts)
 		LTMatrix mInvTransform;
 		UnkType_PolyLight *pLight;
 
-		pPoly->m_LMWidth = (uint8)g_CV_LMDynamicSize.m_Unk00;
-		pPoly->m_LMHeight = (uint8)g_CV_LMDynamicSize.m_Unk00;
+		pPoly->m_LMWidth = (uint8)g_CV_LMDynamicSize.m_IntVal;
+		pPoly->m_LMHeight = (uint8)g_CV_LMDynamicSize.m_IntVal;
 		SetupLMPlaneVectors((pPoly->m_Flags & 0x3800) >> 11, pPoly->m_pPlane->m_Normal, P, Q);
 
 		rsAlphaBlend.m_Type = D3DRENDERSTATE_ALPHABLENDENABLE;
@@ -438,7 +438,7 @@ void FUN_10007e5d(WorldPoly *pPoly, TLVertex *pVerts, int nVerts)
 				nBuild = FUN_100325e8(&setup, pPoly, pLight, 1.0f);
 				if (setup.FUN_10034c7c(nBuild) && nBuild)
 				{
-					float fScale = 1.0f / (pLight->m_pLight->GetLightRadius((uint32)pLight->m_pLight) * g_CV_LMDynamicScale.m_Unk04);
+					float fScale = 1.0f / (pLight->m_pLight->GetLightRadius((uint32)pLight->m_pLight) * g_CV_LMDynamicScale.m_FloatVal);
 					int n;
 					float *pUV = &pVerts->tu;
 
@@ -581,7 +581,7 @@ int FUN_10008779(uint32 flags, UnkType_TLVertex40 **ppVerts, int *pnVerts)
 	int nVerts;
 	char bUnused0, bUnused1, bUnused2, bUnused3, bUnused4, bUnused5;
 
-	if (g_CV_UseD3DClip.m_Unk00)
+	if (g_CV_UseD3DClip.m_IntVal)
 	{
 		flags &= 1;
 		if (!flags)

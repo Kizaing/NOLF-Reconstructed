@@ -90,18 +90,18 @@ static inline void SetUV(TLVertex *pVert, float u, float v)
 // FUNCTION: D3DREN 0x10001230
 void FUN_10001230(void)
 {
-	if (g_CV_ModelVBSize.m_Unk00 <= 1)
-		g_CV_ModelVBSize.m_Unk00 = 1;
-	if (g_CV_ModelVBCount.m_Unk00 <= 1)
-		g_CV_ModelVBCount.m_Unk00 = 1;
-	g_CV_ModelVBSize.m_Unk00 = ((g_CV_ModelVBSize.m_Unk00 + 2) / 3) * 3;
-	DAT_1004d620.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_Unk00, g_CV_ModelVBCount.m_Unk00, 0, DAT_10058494);
-	DAT_1004da80.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_Unk00, g_CV_ModelVBCount.m_Unk00, 0, DAT_10058494);
-	DAT_1004eb48.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_Unk00, g_CV_ModelVBCount.m_Unk00, 1, DAT_10058494);
-	DAT_1004dae0.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_Unk00, g_CV_ModelVBCount.m_Unk00, 1, DAT_10058494);
+	if (g_CV_ModelVBSize.m_IntVal <= 1)
+		g_CV_ModelVBSize.m_IntVal = 1;
+	if (g_CV_ModelVBCount.m_IntVal <= 1)
+		g_CV_ModelVBCount.m_IntVal = 1;
+	g_CV_ModelVBSize.m_IntVal = ((g_CV_ModelVBSize.m_IntVal + 2) / 3) * 3;
+	DAT_1004d620.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_IntVal, g_CV_ModelVBCount.m_IntVal, 0, DAT_10058494);
+	DAT_1004da80.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_IntVal, g_CV_ModelVBCount.m_IntVal, 0, DAT_10058494);
+	DAT_1004eb48.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_IntVal, g_CV_ModelVBCount.m_IntVal, 1, DAT_10058494);
+	DAT_1004dae0.FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_IntVal, g_CV_ModelVBCount.m_IntVal, 1, DAT_10058494);
 	UnkType_VertexBufferPool *pCache = &UnkType_ModelVBCacheHolder::DAT_10093b10;
-	pCache->FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_Unk00, g_CV_ModelVBCache.m_Unk00, 1, DAT_10058494);
-	UnkType_ModelVBCacheHolder::DAT_10093b10.m_Unk60 = g_CV_ModelVBCacheDelay.m_Unk00;
+	pCache->FUN_1003a83d(g_pD3D, g_CV_ModelVBSize.m_IntVal, g_CV_ModelVBCache.m_IntVal, 1, DAT_10058494);
+	UnkType_ModelVBCacheHolder::DAT_10093b10.m_Unk60 = g_CV_ModelVBCacheDelay.m_IntVal;
 }
 
 // guess: releases the two non-cache model pools and the cache (Term, slot 3).
@@ -125,8 +125,8 @@ void __fastcall FUN_10001390(UnkType_TLVertex40 *pDest, void *pSrc, float *pUV)
 {
 	pDest->tu = DAT_1004eb40 + pUV[0];
 	pDest->tv = DAT_1004eb44 + pUV[1];
-	pDest->tu2 = g_CV_ModelDetailTextureScale.m_Unk04 * pDest->tu;
-	pDest->tv2 = g_CV_ModelDetailTextureScale.m_Unk04 * pDest->tv;
+	pDest->tu2 = g_CV_ModelDetailTextureScale.m_FloatVal * pDest->tu;
+	pDest->tv2 = g_CV_ModelDetailTextureScale.m_FloatVal * pDest->tv;
 }
 
 // FUNCTION: D3DREN 0x100013d0
@@ -226,7 +226,7 @@ extern int DAT_10094d00[56];	// guess: bInside[] of the left plane, 0x28-byte ve
 int __fastcall FUN_10001530(uint32 flags, TLVertex **ppVerts, int *pnVerts)
 {
 	TLVertex *pOut = g_pClipScratchVerts;
-	if (g_CV_UseD3DClip.m_Unk00)	// guess: when set, only the near plane is clipped (flag bit 1)
+	if (g_CV_UseD3DClip.m_IntVal)	// guess: when set, only the near plane is clipped (flag bit 1)
 	{
 		flags &= 1;
 		if (!flags)
@@ -347,7 +347,7 @@ int __fastcall FUN_10001530(uint32 flags, TLVertex **ppVerts, int *pnVerts)
 int __fastcall FUN_10001b30(uint32 flags, UnkType_TLVertex40 **ppVerts, int *pnVerts)
 {
 	UnkType_TLVertex40 *pOut = (UnkType_TLVertex40 *)g_pClipScratchVerts;
-	if (g_CV_UseD3DClip.m_Unk00)	// guess: when set, only the near plane is clipped (flag bit 1)
+	if (g_CV_UseD3DClip.m_IntVal)	// guess: when set, only the near plane is clipped (flag bit 1)
 	{
 		flags &= 1;
 		if (!flags)
@@ -569,7 +569,7 @@ static inline void ProjectPos(float *pDest, float *pSrc)
 		((UnkType_VBPoolDrawView *)m_Unk608)->Draw(g_pD3DDevice, D3DPT_TRIANGLELIST, nVertsOut); \
 	}
 
-// The body of the two clipping callbacks.  REALLYCLOSE adds the z bias g_CV_NearZ.m_Unk04 to the w of the z row (FUN_100062e0).
+// The body of the two clipping callbacks.  REALLYCLOSE adds the z bias g_CV_NearZ.m_FloatVal to the w of the z row (FUN_100062e0).
 // Per triangle: the clip planes of g_ClipFlags are tested vertex by vertex (count of vertices inside: none = skip the
 // triangle, not all = it has to be clipped), then the triangle is back face tested in 2D and projected.
 #define CLIPPED_CALLBACK(REALLYCLOSE) \
@@ -647,7 +647,7 @@ TestRight: \
 			float fY0 = (1.0f / pV0[2]) * pV0[1]; \
 			float fCross = ((1.0f / pV2[2]) * pV2[0] - fX0) * ((1.0f / pV1[2]) * pV1[1] - fY0) \
 				- ((1.0f / pV2[2]) * pV2[1] - fY0) * ((1.0f / pV1[2]) * pV1[0] - fX0); \
-			if (g_ViewParams.m_Unk4cc) \
+			if (g_ViewParams.m_bCullFlip) \
 				fCross = -fCross; \
 			if (0.0f < fCross) \
 			{ \
@@ -655,7 +655,7 @@ TestRight: \
 				for (int k = 0; k < 3; k++) \
 				{ \
 					if (REALLYCLOSE) \
-						FUN_100062e0(&pOut->m_Vec.x, apV[k], g_CV_NearZ.m_Unk04); \
+						FUN_100062e0(&pOut->m_Vec.x, apV[k], g_CV_NearZ.m_FloatVal); \
 					else \
 						ProjectPos(&pOut->m_Vec.x, apV[k]); \
 					pOut->color = ((TLVertex *)apV[k])->color; \
@@ -698,7 +698,7 @@ Clip: \
 				float *pP2 = (float *)(pPoly + nStride * 2); \
 				float fCross = ((1.0f / pP2[2]) * pP2[0] - fX0) * ((1.0f / pP1[2]) * pP1[1] - fY0) \
 					- ((1.0f / pP2[2]) * pP2[1] - fY0) * ((1.0f / pP1[2]) * pP1[0] - fX0); \
-				if (g_ViewParams.m_Unk4cc) \
+				if (g_ViewParams.m_bCullFlip) \
 					fCross = -fCross; \
 				if (0.0f < fCross) \
 				{ \
@@ -707,7 +707,7 @@ Clip: \
 					{ \
 						float vSrc[3] = { ((float *)pP)[0], ((float *)pP)[1], ((float *)pP)[2] }; \
 						if (REALLYCLOSE) \
-							FUN_100062e0((float *)pP, vSrc, g_CV_NearZ.m_Unk04); \
+							FUN_100062e0((float *)pP, vSrc, g_CV_NearZ.m_FloatVal); \
 						else \
 							ProjectPos((float *)pP, vSrc); \
 					} \
@@ -785,7 +785,7 @@ int ModelDraw::FUN_100036d0(PieceLOD *pLOD, TLVertex *pVerts)
 			float fY0 = (1.0f / pV0->m_Vec.z) * pV0->m_Vec.y;
 			float fCross = ((1.0f / pV2->m_Vec.z) * pV2->m_Vec.x - fX0) * ((1.0f / pV1->m_Vec.z) * pV1->m_Vec.y - fY0)
 				- ((1.0f / pV2->m_Vec.z) * pV2->m_Vec.y - fY0) * ((1.0f / pV1->m_Vec.z) * pV1->m_Vec.x - fX0);
-			if (g_ViewParams.m_Unk4cc)
+			if (g_ViewParams.m_bCullFlip)
 				fCross = -fCross;
 			if (!(0.0f < fCross))
 				goto Skip;
@@ -849,9 +849,9 @@ int ModelDraw::FUN_10003b60(PieceLOD *pLOD, TLVertex *pVerts)
 		{
 			float fCross = (pV1->m_Vec.x - pV0->m_Vec.x) * (pV2->m_Vec.y - pV0->m_Vec.y)
 				- (pV2->m_Vec.x - pV0->m_Vec.x) * (pV1->m_Vec.y - pV0->m_Vec.y);
-			if (g_ViewParams.m_Unk4cc)
+			if (g_ViewParams.m_bCullFlip)
 				fCross = -fCross;
-			if (!(fCross > g_CV_ModelMinTri.m_Unk04))
+			if (!(fCross > g_CV_ModelMinTri.m_FloatVal))
 				goto Skip;
 		}
 		pOut->m_Vec = pV0->m_Vec;
@@ -918,9 +918,9 @@ int ModelDraw::FUN_10003e00(PieceLOD *pLOD, TLVertex *pVerts)
 			TLVertex *pV2 = &pVerts[pTri->m_Indices[2]];
 			float fCross = (pV1->m_Vec.x - pV0->m_Vec.x) * (pV2->m_Vec.y - pV0->m_Vec.y)
 				- (pV2->m_Vec.x - pV0->m_Vec.x) * (pV1->m_Vec.y - pV0->m_Vec.y);
-			if (g_ViewParams.m_Unk4cc)
+			if (g_ViewParams.m_bCullFlip)
 				fCross = -fCross;
-			if (fCross > g_CV_ModelMinTri.m_Unk04)
+			if (fCross > g_CV_ModelMinTri.m_FloatVal)
 			{
 				TLVertex *apV[3] = { pV0, pV1, pV2 };
 				for (int k = 0; k < 3; k++)
@@ -1021,7 +1021,7 @@ void ModelDraw::FUN_10004270(PFN_DrawPiece pfnDrawA, PFN_DrawPiece pfnDrawB, int
 		else
 			m_Unk608 = &DAT_1004da80;
 	}
-	if (m_Unk608->m_Unk20 != g_CV_ModelVBSize.m_Unk00 || m_Unk608->m_Unk24 != g_CV_ModelVBCount.m_Unk00)
+	if (m_Unk608->m_Unk20 != g_CV_ModelVBSize.m_IntVal || m_Unk608->m_Unk24 != g_CV_ModelVBCount.m_IntVal)
 	{
 		DAT_1004d620.FUN_1003a805();
 		DAT_1004da80.FUN_1003a805();
@@ -1048,7 +1048,7 @@ void ModelDraw::FUN_10004270(PFN_DrawPiece pfnDrawA, PFN_DrawPiece pfnDrawB, int
 	for (uint32 i = 0; i < m_pModel->m_Pieces.GetSize(); i++)
 	{
 		ModelPiece *pPiece = m_pModel->m_Pieces[i];
-		PieceLOD *pLOD = pPiece->GetLOD(m_Unk60c);
+		PieceLOD *pLOD = pPiece->GetLOD(m_nLOD);
 		if (pLOD && !(m_pInstance->m_HiddenPieces & (1 << (i & 31))) && !m_Unk2c4[i])
 		{
 			if (pPiece->m_TextureIndex != m_Unk4cc)
@@ -1064,10 +1064,10 @@ void ModelDraw::FUN_10004270(PFN_DrawPiece pfnDrawA, PFN_DrawPiece pfnDrawB, int
 			}
 			m_Unk62c = pPiece->m_SpecularPower;
 			m_Unk630 = pPiece->m_SpecularScale;
-			if (g_CV_SpecularPowerTest.m_Unk04 != 0.0f)
-				m_Unk62c = g_CV_SpecularPowerTest.m_Unk04;
-			if (g_CV_SpecularScaleTest.m_Unk04 != 0.0f)
-				m_Unk630 = g_CV_SpecularScaleTest.m_Unk04;
+			if (g_CV_SpecularPowerTest.m_FloatVal != 0.0f)
+				m_Unk62c = g_CV_SpecularPowerTest.m_FloatVal;
+			if (g_CV_SpecularScaleTest.m_FloatVal != 0.0f)
+				m_Unk630 = g_CV_SpecularScaleTest.m_FloatVal;
 			if (m_Unk630 != 0.0f && m_Unk5ec == (PFN_GenTexCoords)FUN_10001490)
 				d3d_BuildSpecularLookupTexture(m_Unk62c);
 			if (!m_Unk3c4[i])
@@ -1143,15 +1143,15 @@ void ModelDraw::FUN_10004660(PieceLOD *pLOD, PieceLOD *pLOD2, TLVertex *pDest, v
 {
 	void (__fastcall *pfn)(TLVertex *) = (void (__fastcall *)(TLVertex *))pfnPerVertex;
 	float fScale = m_DirLightAmount;
-	float fDx = fScale * m_Unk874.x;
-	float fDy = fScale * m_Unk874.y;
-	float fDz = fScale * m_Unk874.z;
-	float fBaseR = m_Unk850.x + m_Unk85c.x * m_Unk884.x;
-	float fBaseG = m_Unk85c.y * m_Unk884.y + m_Unk850.y;
-	float fBaseB = m_Unk85c.z * m_Unk884.z + m_Unk850.z;
-	float fLitR = m_Unk850.x + m_Unk85c.x * m_DirLightColor.x;
-	float fLitG = m_Unk85c.y * m_DirLightColor.y + m_Unk850.y;
-	float fLitB = m_Unk85c.z * m_DirLightColor.z + m_Unk850.z;
+	float fDx = fScale * m_DirLightDir.x;
+	float fDy = fScale * m_DirLightDir.y;
+	float fDz = fScale * m_DirLightDir.z;
+	float fBaseR = m_LightAdd.x + m_ObjectColor.x * m_AmbientLight.x;
+	float fBaseG = m_ObjectColor.y * m_AmbientLight.y + m_LightAdd.y;
+	float fBaseB = m_ObjectColor.z * m_AmbientLight.z + m_LightAdd.z;
+	float fLitR = m_LightAdd.x + m_ObjectColor.x * m_DirLightColor.x;
+	float fLitG = m_ObjectColor.y * m_DirLightColor.y + m_LightAdd.y;
+	float fLitB = m_ObjectColor.z * m_DirLightColor.z + m_LightAdd.z;
 	ModelVert *pVert = pLOD->m_Verts.GetArray();
 	int nVerts = pLOD->m_Verts.GetSize();
 
@@ -1202,16 +1202,16 @@ void ModelDraw::FUN_10005700()
 	for (uint32 i = 0; i < m_pModel->m_Pieces.GetSize(); i++)
 	{
 		ModelPiece *pPiece = m_pModel->m_Pieces[i];
-		PieceLOD *pLOD = pPiece->GetLOD(m_Unk60c);
+		PieceLOD *pLOD = pPiece->GetLOD(m_nLOD);
 		if (pLOD)
 		{
 			if (m_bLODBlend)
 			{
 				pLODB = pPiece;
-				if (m_Unk60c != 0xffffffff)
+				if (m_nLOD != 0xffffffff)
 				{
-					if (m_Unk60c < pPiece->m_LODs.GetSize())
-						pLODB = &pPiece->m_LODs[m_Unk60c];
+					if (m_nLOD < pPiece->m_LODs.GetSize())
+						pLODB = &pPiece->m_LODs[m_nLOD];
 					else
 						pLODB = 0;
 				}
@@ -1220,10 +1220,10 @@ void ModelDraw::FUN_10005700()
 			{
 				m_Unk62c = pPiece->m_SpecularPower;
 				m_Unk630 = pPiece->m_SpecularScale;
-				if (g_CV_SpecularPowerTest.m_Unk04 != 0.0f)
-					m_Unk62c = g_CV_SpecularPowerTest.m_Unk04;
-				if (g_CV_SpecularScaleTest.m_Unk04 != 0.0f)
-					m_Unk630 = g_CV_SpecularScaleTest.m_Unk04;
+				if (g_CV_SpecularPowerTest.m_FloatVal != 0.0f)
+					m_Unk62c = g_CV_SpecularPowerTest.m_FloatVal;
+				if (g_CV_SpecularScaleTest.m_FloatVal != 0.0f)
+					m_Unk630 = g_CV_SpecularScaleTest.m_FloatVal;
 				char bBounds;
 				if ((g_ClipFlags & 0x3f) == 0 || (m_pInstance->m_Flags & 0x40))
 					bBounds = 0;

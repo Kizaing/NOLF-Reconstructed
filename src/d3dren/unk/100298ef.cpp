@@ -102,7 +102,7 @@ DrawPolyMgr::~DrawPolyMgr()
 {
 }
 
-// (the float value of g_CV_DetailTextureScale at 0x1006e824 is g_CV_DetailTextureScale.m_Unk04)
+// (the float value of g_CV_DetailTextureScale at 0x1006e824 is g_CV_DetailTextureScale.m_FloatVal)
 // guess: finds/creates the RTexture of pTexture for the stage and returns its 1/width, 1/height in *pU, *pV (unit sys/d3d/d3d_texture)
 int FUN_10021a80(SharedTexture *pTexture, uint32 nStageFlags, float *pU, float *pV);
 
@@ -193,8 +193,8 @@ int DrawPolyMgr::FUN_10029c5b(WorldPoly *pPoly, int iStage)
 		{
 			if (FUN_10021a80(pDetail, iStage, &m_Unk770[iStage][0], &m_Unk770[iStage][1]))
 			{
-				m_Unk788 = g_CV_DetailTextureScale.m_Unk04 * m_Unk770[iStage][0];
-				m_Unk78c = g_CV_DetailTextureScale.m_Unk04 * m_Unk770[iStage][1];
+				m_Unk788 = g_CV_DetailTextureScale.m_FloatVal * m_Unk770[iStage][0];
+				m_Unk78c = g_CV_DetailTextureScale.m_FloatVal * m_Unk770[iStage][1];
 			}
 		}
 	}
@@ -234,8 +234,8 @@ int DrawPolyMgr::FUN_10029cf8(WorldPoly *pPoly, int iStage, int a3)
 		SharedTexture *pDetail = pTexture->m_pLinkedTexture;
 		if (pDetail && d3d_SetTexture(pDetail, iStage, 0))
 		{
-			m_Unk788 = g_CV_DetailTextureScale.m_Unk04 * DAT_10061810[iStage].m_Unk00;
-			m_Unk78c = g_CV_DetailTextureScale.m_Unk04 * DAT_10061810[iStage].m_Unk04;
+			m_Unk788 = g_CV_DetailTextureScale.m_FloatVal * DAT_10061810[iStage].m_Unk00;
+			m_Unk78c = g_CV_DetailTextureScale.m_FloatVal * DAT_10061810[iStage].m_Unk04;
 			return 1;
 		}
 	}
@@ -472,7 +472,7 @@ void DrawPolyMgr::FUN_1002a0c2()
 	g_pD3DDevice->GetRenderState(D3DRENDERSTATE_DESTBLEND, (unsigned long *)&oldDestBlend);
 
 	// reconfigure the built-in material for the TestGouraud / TestLightmap console variables
-	if (g_CV_TestGouraud.m_Unk00)
+	if (g_CV_TestGouraud.m_IntVal)
 	{
 		m_Passes[0].m_Unk00 = 0;
 		m_Passes[0].m_Unk14 = 0;
@@ -483,7 +483,7 @@ void DrawPolyMgr::FUN_1002a0c2()
 		m_Passes[0].m_Stages[0].m_Unk18 = 0;
 		m_Passes[0].m_Stages[0].m_Unk1c = 0;
 	}
-	else if (g_CV_TestLightmap.m_Unk00)
+	else if (g_CV_TestLightmap.m_IntVal)
 	{
 		m_nPasses = 2;
 		m_Passes[0].m_Unk00 = 0;

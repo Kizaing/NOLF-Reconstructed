@@ -96,7 +96,7 @@ int UnkType_LMLock::FUN_10034af0(WorldPoly *pPoly, int bClear, uint32 width, uin
 			rc.top = WORLDPOLY_UNK4F(pPoly);
 			rc.right = width + rc.left;
 			rc.bottom = height + rc.top;
-			hr = pSurface->BltFast(0, 0, WORLDPOLY_LMPAGE(pPoly)->m_Unk1c, &rc, DDBLTFAST_WAIT);
+			hr = pSurface->BltFast(0, 0, WORLDPOLY_LMPAGE(pPoly)->m_pSurface, &rc, DDBLTFAST_WAIT);
 		}
 
 		if (hr != DD_OK)

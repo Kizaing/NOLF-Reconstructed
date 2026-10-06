@@ -860,7 +860,7 @@ RTexture *FUN_1001fff0(SharedTexture *pSharedTexture, uint32 nStageFlags, uint8 
 		if (iGroup > 9)
 			iGroup = 9;
 		iStartMipmap = (&DAT_10057d44)[iGroup] + pTextureData->m_Header.m_Extra[4] + DAT_100584ac;
-		if (g_CV_S3TCEnable.m_Unk00 == 0)
+		if (g_CV_S3TCEnable.m_IntVal == 0)
 			iStartMipmap += pTextureData->m_Header.m_Extra[3];
 		if (iStartMipmap < 0)
 			iStartMipmap = 0;
@@ -1252,7 +1252,7 @@ int FUN_10020ab0(UnkType_RTextureBuild *pBuild, UnkType_RTextureData *pData, uin
 	{
 		bpp = 3;
 	}
-	else if (bpp != 3 && g_CV_S3TCEnable.m_Unk00 && InlineIsS3TCSupported(bpp))
+	else if (bpp != 3 && g_CV_S3TCEnable.m_IntVal && InlineIsS3TCSupported(bpp))
 	{
 		bSupported = 1;
 		memset(&ddsd.ddpfPixelFormat, 0, sizeof(ddsd.ddpfPixelFormat));
@@ -1289,7 +1289,7 @@ int FUN_10020ab0(UnkType_RTextureBuild *pBuild, UnkType_RTextureData *pData, uin
 
 ParseColorKey:
 	cParse.Init(pTextureData->m_Header.m_CommandString);
-	if (cParse.ParseFind("ColorKey", 0, 3) && !g_CV_AlphaTest.m_Unk00)
+	if (cParse.ParseFind("ColorKey", 0, 3) && !g_CV_AlphaTest.m_IntVal)
 	{
 		uint32 r = atoi(cParse.m_Args[1]);
 		uint32 g = atoi(cParse.m_Args[2]);
@@ -1512,7 +1512,7 @@ RTexture *FUN_10021290(UnkType_RTextureBuild *pBuild, int bAdditional)
 		if (iGroup > 9)
 			iGroup = 9;
 		iStart = (&DAT_10057d44)[iGroup] + pTextureData->m_Header.m_Extra[4] + DAT_100584ac;
-		if (g_CV_S3TCEnable.m_Unk00 == 0)
+		if (g_CV_S3TCEnable.m_IntVal == 0)
 			iStart += pTextureData->m_Header.m_Extra[3];
 		if (iStart < 0)
 			iStart = 0;
@@ -1555,7 +1555,7 @@ RTexture *FUN_10021290(UnkType_RTextureBuild *pBuild, int bAdditional)
 	{
 		bpp = BPP_32;
 	}
-	else if (bpp != BPP_32 && g_CV_S3TCEnable.m_Unk00 && FUN_10021a50((BPPIdent)bpp))
+	else if (bpp != BPP_32 && g_CV_S3TCEnable.m_IntVal && FUN_10021a50((BPPIdent)bpp))
 	{
 		memset(&ddsd.ddpfPixelFormat, 0, sizeof(ddsd.ddpfPixelFormat));
 		ddsd.ddpfPixelFormat.dwFlags |= DDPF_FOURCC;
@@ -1569,14 +1569,14 @@ RTexture *FUN_10021290(UnkType_RTextureBuild *pBuild, int bAdditional)
 
 ParseColorKey:
 	cParse.Init(pTextureData->m_Header.m_CommandString);
-	if (cParse.ParseFind("ColorKey", 0, 3) && !g_CV_AlphaTest.m_Unk00)
+	if (cParse.ParseFind("ColorKey", 0, 3) && !g_CV_AlphaTest.m_IntVal)
 	{
 		uint32 r = atoi(cParse.m_Args[1]);
 		uint32 g = atoi(cParse.m_Args[2]);
 		uint32 b = atoi(cParse.m_Args[3]);
 
 		colorValue = (((b << 8) | g) << 8) | r;
-		if (bpp != BPP_32 && g_CV_S3TCEnable.m_Unk00 && FUN_10021a50((BPPIdent)bpp))
+		if (bpp != BPP_32 && g_CV_S3TCEnable.m_IntVal && FUN_10021a50((BPPIdent)bpp))
 			cFormat.InitPValueFormat();
 		else
 			DDPFToPFormat(&ddsd.ddpfPixelFormat, &cFormat);
