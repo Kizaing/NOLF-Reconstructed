@@ -172,6 +172,21 @@ void FUN_10023398(WorldPoly *pPoly);
 void FUN_10023763(WorldPoly *pPoly);
 void FUN_100236ae(WorldPoly *pPoly);
 
+// layout of CountAdder (counter.h) without the inline destructor: the exe destroys the local through the
+// out-of-line copy (unit unk/10007930's FUN_100083ae); the class dtor cannot be kept out of line by source shape.
+struct UnkType_CountAdderRaw
+{
+	UnkType_CountAdderRaw(uint32 *pNum)
+	{
+		m_pNum = pNum;
+		cnt_StartCounter(m_Counter);
+	}
+
+	Counter		m_Counter;
+	uint32		*m_pNum;
+};
+void __fastcall FUN_100083ae(CountAdder *pThis);	// unit unk/10007930: the out-of-line CountAdder::~CountAdder copy
+
 // guess: the poly vertex scratch array of the multipass draw.  In the original it is a function-local static of FUN_10022c01 of a class that has a
 // destructor (the exe has the guard bit at 0x10067be0 and registers the empty stub 0x10023397 with atexit); the array itself is at 0x10065be0.
 struct UnkType_ScratchVerts
@@ -304,19 +319,18 @@ void FUN_10022c01(WorldPoly *pPoly, int bSaturate)
 
 // guess: dynamic lights of the poly (LMDynamic): for every light of the poly draws the poly again with additive blending and the
 // texture coordinates projected from the light position (the lightmap of the light is FUN_100325e8's).
-// STUB diagnosis: 801 of 794 bytes.  Same call sequence and the same slots for the four StateSets / two StageStateSets / lock object / copied matrices.
-//   (1) The exe destroys the CountAdder out of line (`lea ecx, [ebp-0x44]; call 0x100083ae`, the copy of CountAdder::~CountAdder) -- unit
-//   unk/10007930's FUN_10007e5d has the same difference -- ours expands the destructor inline (`push; call cnt_EndCounter; pop ecx; add [ecx], eax`).
-//   tools/inline_budget.py reports "build != exe" for this site and cannot price the other sites (cost unknown).  (2) frame slots: exe
-//   vWorld -0x38, CountAdder -0x44, Q -0x50, P -0x5c, the by-value copy of the light position -0x68; ours CountAdder -0x38, Q -0x44, P -0x50, copy
-//   -0x5c, vWorld -0x68 (declaration order variants of vWorld did not change the slots).  (3) the x87 products read `fld [P.z]; fmul st(2)` in the
-//   exe and `fld st(3); fmul [P.z]` in ours.
-// STUB: D3DREN 0x10022f85
+// The exe destroys the CountAdder out of line (`lea ecx, [ebp-0x44]; call 0x100083ae`, the COMDAT copy of CountAdder::~CountAdder emitted by
+// unit unk/10007930) -- unit unk/10007930's FUN_10007e5d has the same out-of-line dtor call, and no source shape tried (toys, decl order,
+// dead inline sites, inline_budget/inline_ballast probes) keeps counter.h's in-class dtor out of line with the RTM C1XX under /O1 /Ob2, so
+// the local is the layout-identical UnkType_CountAdderRaw (ctor inlined exactly like CountAdder's) plus an explicit call to FUN_100083ae at
+// the scope end.  The x87 products come from LTVector::Dot (`P.Dot(vDelta)`): written out as products they compile to `fld st(i); fmul [P]`
+// instead of the exe's `fld [P]; fmul st(i)`.  The StateSets/StageStateSets sit in their own block so their dtors run before the counter dtor.
+// FUNCTION: D3DREN 0x10022f85
 void FUN_10022f85(WorldPoly *pPoly, TLVertex *pVerts, int nVerts)
 {
 	if (g_CV_LMDynamic.m_IntVal)
 	{
-		CountAdder cTimer(g_pSceneDesc->m_pTicks_Render_PolyGrids);
+		UnkType_CountAdderRaw cTimer(g_pSceneDesc->m_pTicks_Render_PolyGrids);
 		LTVector P, Q;
 		LTMatrix mInvTransform;
 		UnkType_PolyLight *pLight;
@@ -325,50 +339,53 @@ void FUN_10022f85(WorldPoly *pPoly, TLVertex *pVerts, int nVerts)
 		pPoly->m_LMHeight = (uint8)g_CV_LMDynamicSize.m_IntVal;
 		SetupLMPlaneVectors((pPoly->m_Flags & 0x3800) >> 11, pPoly->m_pPlane->m_Normal, P, Q);
 
-		StateSet ssAlpha(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
-		StateSet ssSrc(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ONE);
-		StateSet ssDest(D3DRENDERSTATE_DESTBLEND, D3DBLEND_ONE);
-		StateSet ssFog(D3DRENDERSTATE_FOGCOLOR, 0);
-		StageStateSet ssAddress(0, D3DTSS_ADDRESS, D3DTADDRESS_CLAMP);
-		StageStateSet ssColorOp(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-
 		{
-			LTMatrix mCopy = g_ViewParams.m_FullTransform;
-			mCopy.Inverse();
-			mInvTransform = mCopy;
-		}
+			StateSet ssAlpha(D3DRENDERSTATE_ALPHABLENDENABLE, 1);
+			StateSet ssSrc(D3DRENDERSTATE_SRCBLEND, D3DBLEND_ONE);
+			StateSet ssDest(D3DRENDERSTATE_DESTBLEND, D3DBLEND_ONE);
+			StateSet ssFog(D3DRENDERSTATE_FOGCOLOR, 0);
+			StageStateSet ssAddress(0, D3DTSS_ADDRESS, D3DTADDRESS_CLAMP);
+			StageStateSet ssColorOp(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
 
-		for (pLight = POLY_LIGHTS(pPoly); pLight; pLight = pLight->m_pNext)
-		{
-			UnkType_LMLock lock;
-			int nBuild;
-
-			if (lock.FUN_10034af0(pPoly, 1, 0, 0))
 			{
-				nBuild = FUN_100325e8((UnkType_DynLMSetup *)&lock, pPoly, pLight, g_CV_MultipassGouraud.m_IntVal ? 1.0f : 2.0f);
-				if (lock.FUN_10034c7c(nBuild) && nBuild)
+				LTMatrix mCopy = g_ViewParams.m_FullTransform;
+				mCopy.Inverse();
+				mInvTransform = mCopy;
+			}
+
+			for (pLight = POLY_LIGHTS(pPoly); pLight; pLight = pLight->m_pNext)
+			{
+				UnkType_LMLock lock;
+				int nBuild;
+
+				if (lock.FUN_10034af0(pPoly, 1, 0, 0))
 				{
-					float fScale = 1.0f / (pLight->m_pLight->GetLightRadius((uint32)pLight->m_pLight) * g_CV_LMDynamicScale.m_FloatVal);
-					TLVertex *pVert = pVerts;
-					int n;
-
-					for (n = nVerts; n; n--)
+					nBuild = FUN_100325e8((UnkType_DynLMSetup *)&lock, pPoly, pLight, g_CV_MultipassGouraud.m_IntVal ? 1.0f : 2.0f);
+					if (lock.FUN_10034c7c(nBuild) && nBuild)
 					{
-						LTVector vWorld;
-						LTVector vDelta;
+						float fScale = 1.0f / (pLight->m_pLight->GetLightRadius((uint32)pLight->m_pLight) * g_CV_LMDynamicScale.m_FloatVal);
+						TLVertex *pVert = pVerts;
+						int n;
 
-						mInvTransform.Apply4x4(pVert->m_Vec, vWorld);
-						vDelta = vWorld - pLight->m_Pos;
-						pVert->tu = (P.z * vDelta.z + P.y * vDelta.y + P.x * vDelta.x) * fScale + 0.5f;
-						pVert->tv = (Q.z * vDelta.z + Q.y * vDelta.y + Q.x * vDelta.x) * fScale + 0.5f;
-						pVert++;
-					}
-					g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
-					if (DAT_100578ec)
+						for (n = nVerts; n; n--)
+						{
+							LTVector vWorld;
+							LTVector vDelta;
+
+							mInvTransform.Apply4x4(pVert->m_Vec, vWorld);
+							vDelta = vWorld - pLight->m_Pos;
+							pVert->tu = P.Dot(vDelta) * fScale + 0.5f;
+							pVert->tv = Q.Dot(vDelta) * fScale + 0.5f;
+							pVert++;
+						}
 						g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+						if (DAT_100578ec)
+							g_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLEFAN, 0x1c4, pVerts, nVerts, 0);
+					}
 				}
 			}
 		}
+		FUN_100083ae((CountAdder *)&cTimer);
 	}
 }
 

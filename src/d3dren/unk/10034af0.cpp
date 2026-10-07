@@ -54,13 +54,11 @@ int UnkType_LMLock::FUN_10034af0(WorldPoly *pPoly, int bClear, uint32 width, uin
 	RECT rc;
 	HRESULT hr;
 
-	if (width <= 0)
-		width = pPoly->m_LMWidth;
-	m_Unk44 = width;
+	m_Unk44 = width <= 0 ? pPoly->m_LMWidth : width;
+	width = m_Unk44;
 
-	if (height <= 0)
-		height = pPoly->m_LMHeight;
-	m_Unk48 = height;
+	m_Unk48 = height <= 0 ? pPoly->m_LMHeight : height;
+	height = m_Unk48;
 
 	m_Unk4c = 0;
 	i = 0;
@@ -94,8 +92,8 @@ int UnkType_LMLock::FUN_10034af0(WorldPoly *pPoly, int bClear, uint32 width, uin
 		{
 			rc.left = WORLDPOLY_UNK4E(pPoly);
 			rc.top = WORLDPOLY_UNK4F(pPoly);
-			rc.right = width + rc.left;
-			rc.bottom = height + rc.top;
+			rc.right = m_Unk44 + rc.left;
+			rc.bottom = m_Unk48 + rc.top;
 			hr = pSurface->BltFast(0, 0, WORLDPOLY_LMPAGE(pPoly)->m_pSurface, &rc, DDBLTFAST_WAIT);
 		}
 
@@ -105,7 +103,11 @@ int UnkType_LMLock::FUN_10034af0(WorldPoly *pPoly, int bClear, uint32 width, uin
 
 	memset(&ddsd, 0, sizeof(ddsd));
 	ddsd.dwSize = sizeof(ddsd);
-	RECT rcLock = { 0, 0, m_Unk44, m_Unk48 };
+	RECT rcLock;
+	rcLock.right = m_Unk44;
+	rcLock.top = 0;
+	rcLock.left = 0;
+	rcLock.bottom = m_Unk48;
 	if (pSurface->Lock(&rcLock, &ddsd, DDLOCK_WAIT | DDLOCK_NOSYSLOCK, NULL) != DD_OK)
 		return 0;
 

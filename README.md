@@ -64,11 +64,11 @@ The DLL was built with a different compiler from the engine: the VC6 RTM front e
 
 | d3d.ren | |
 |---|---|
-| Annotated functions matching | 1,172 of 1,172 (1,170 addresses) |
-| Function code matched by source | 137,180 of 280,684 bytes (48.9%) |
-| Written but not yet matching (`// STUB:`) | 90 functions (96,326 bytes) |
+| Annotated functions matching | 1,177 of 1,177 (1,175 addresses) |
+| Function code matched by source | 138,729 of 280,684 bytes (49.4%) |
+| Written but not yet matching (`// STUB:`) | 85 functions (94,803 bytes) |
 | Prebuilt library code (VC6 RTM CRT) | 469 functions, 41,550 bytes (14.8%) |
-| objdiff | 63.55% of code, 1,638 of 1,729 functions, 146 of 178 units complete |
+| objdiff | 64.11% of code, 1,643 of 1,729 functions, 150 of 178 units complete |
 
 The source is organised as the DLL's 52 original object files, recovered from the binary's layout. Work is paused
 at the checkpoint above. Still to do: the remaining stubs, the data sections (initialisers, vtables, ownership and

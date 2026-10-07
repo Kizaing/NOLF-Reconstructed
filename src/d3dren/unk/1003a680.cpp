@@ -298,16 +298,16 @@ int UnkType_VertexBufferCache::FUN_1003ab02(uint32 nKey1, uint32 nKey2, uint32 n
 	if (m_Unk5c != 0)
 		FUN_1003ac15();
 	i = m_Unk50;
-	for (;;)
+	while (m_Unk3c[i].m_Unk0c != 0)
 	{
-		if (m_Unk3c[i].m_Unk0c == 0)
-			break;
 		i++;
 		if (i >= m_Unk24)
 			i = 0;
 		if (i == m_Unk50)
-			goto Grow;
+			break;
 	}
+	if (i == m_Unk50)
+		goto Grow;
 	m_Unk18 = i;
 	if (m_Unk04[i])
 	{
@@ -336,7 +336,14 @@ Grow:
 			m_Unk24 = m_Unk24 + 1 > 0 ? m_Unk24 + 1 : m_Unk24;
 			UnkType_VBCacheEntry entry(nKey1, nKey2, nVertices, m_Unk60);
 			m_Unk3c.Append(entry);
-			goto Tail;
+			m_Unk50 = m_Unk18 + 1;
+			if (m_Unk50 >= m_Unk24)
+				m_Unk50 = 0;
+			m_Unk5c = 1;
+			m_Unk1c = 0;
+			m_Unk20 = nVertices > 0 ? nVertices : m_Unk20;
+			m_Unk3c[m_Unk18].m_Unk08 = nVertices;
+			return 1;
 		}
 	}
 	return 0;

@@ -185,30 +185,31 @@ int FUN_1003249f(uint32 *pIn, int nBytes, uint32 *pOut)
 	return 1;
 }
 
-// guess: expands run lengths (bytes, alternating between 0x00 and 0xff runs) into a 0x400 byte shadow mask; returns 0 on overflow.
-// PRAGMA EVIDENCE: the exe expands the variable-length memset of this function inline (`mov bh, bl; ... rep stosd; ... rep stosb`, the /Oi
-// intrinsic), while the memsets of FUN_1003273a / FUN_1003287a (same unit, 0x100325e8 on) are `call _memset`.
-//#pragma intrinsic(memset)
-// STUB diagnosis: the target extent is 128 bytes; the current body is 129 bytes (56 aligned instructions, 28 mismatches / 27 ignoring stack offsets).
-//   Target checks pRuns before initializing values, then copies pOut to EDI, stores values[1]=0xff and values[0]=0, and reuses the
-//   dead pOut slot [ebp+0x10] for iValue while pEnd is at [ebp-8]. In the loop it loads iValue, compares nRun with zero in EDX,
-//   reads values[iValue] into AL before the branch, and expands memset inline. Best of 19 natural declaration/initialization-order,
-//   local-pointer, and byte-hoist variants remained 129 bytes with 82 differing bytes and 23/23 aligned instruction mismatches.
-//   All four FUNCTIONs in this unit stayed MATCH in each private check; none of the candidates matched this STUB.
-// STUB: D3DREN 0x10032503
+// guess: expands run lengths (bytes, alternating between 0x00 and 0xff runs) into a 0x400 byte light-animation coverage mask
+// (callers pass LAPolyFrame::m_pLightmap/m_LightmapSize and a mask buffer); returns 0 when the runs would overflow the mask.
+// The exe expands the fill loop inline via the /Oi memset idiom recognition (`mov bh, bl; ... rep stosd; ... rep stosb`), while the
+// memsets of FUN_1003273a / FUN_1003287a (0x100325e8 on) are `call _memset`.  Matching details: values[1]/values[0] are assigned as
+// statements after the pRuns check (the array initializer puts the `or` store before it); pEnd must be assigned before iValue so
+// iValue gets the dead pOut argument home [ebp+0x10] and pEnd [ebp-8]; the persistent zero lives in EDX (re-xored after the
+// expansion's scratch use); the `!=` fill-loop guard compiles its zero-trip test as a second `je` that merges with the `if (nRun)`
+// branch (a `<` guard emits a separate `jbe` and a plain memset call sinks the value load into the branch).
+// FUNCTION: D3DREN 0x10032503
 int FUN_10032503(uint8 *pRuns, int nRuns, uint8 *pOut)
 {
-	uint8 values[2] = { 0x00, 0xff };
-	uint32 iValue;
+	uint8 values[2];
 	uint8 *pEnd;
+	uint32 iValue;
 	uint8 *pNext;
 	uint32 nRun;
+	uint8 nValue;
 
 	if (!pRuns)
 		return 0;
 
-	iValue = 0;
+	values[1] = 0xff;
+	values[0] = 0;
 	pEnd = pOut + 0x400;
+	iValue = 0;
 	while (nRuns)
 	{
 		nRuns--;
@@ -216,16 +217,18 @@ int FUN_10032503(uint8 *pRuns, int nRuns, uint8 *pOut)
 		pNext = pOut + nRun;
 		if (pNext > pEnd)
 			return 0;
+		nValue = values[iValue];
 		if (nRun)
 		{
-			memset(pOut, values[iValue], nRun);
+			uint32 i;
+			for (i = 0; i != nRun; i++)
+				pOut[i] = nValue;
 			pOut = pNext;
 		}
 		iValue = (iValue == 0);
 	}
 	return 1;
 }
-//#pragma function(memset)
 
 // ---- dynamic lightmap console variables -----------------------------------------------------------------------------------------
 #include "d3dren/rendererconsolevars.h"

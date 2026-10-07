@@ -209,7 +209,7 @@ int LightmapPage::GetBaseHeight()
 int FUN_1003429b(RenderContext *pContext, WorldPoly *pPoly)
 {
 	LightmapPage *pPage;
-	uint32 x, y;
+	int x, y;
 	uint32 i, j, iCell;
 	LTVector P, Q;
 	DDSURFACEDESC2 ddsd;
@@ -228,7 +228,7 @@ int FUN_1003429b(RenderContext *pContext, WorldPoly *pPoly)
 
 		pPoly->m_Flags = (pPoly->m_Flags & 0xffc1) | 1;
 
-		if (!FUN_10034000(pContext, pPoly->m_LMWidth, pPoly->m_LMHeight, &x, &y, &pPage))
+		if (!FUN_10034000(pContext, pPoly->m_LMWidth, pPoly->m_LMHeight, (uint32 *)&x, (uint32 *)&y, &pPage))
 		{
 			pPage = FUN_10034142(pContext);
 			if (!pPage)
@@ -248,7 +248,8 @@ int FUN_1003429b(RenderContext *pContext, WorldPoly *pPoly)
 			for (i = 0; i < pPoly->m_LMWidth; i++)
 			{
 				iCell = ((j + y) >> 2) * 0x40 + ((x + i) >> 2);
-				pCell = &pPage->m_pOccupancyMap[iCell >> 3];
+				uint8 *pBits = pPage->m_pOccupancyMap;
+				pCell = &pBits[iCell >> 3];
 				*pCell |= 1 << (iCell & 7);
 				pPage->m_nUsedTexels++;
 			}
@@ -261,11 +262,20 @@ int FUN_1003429b(RenderContext *pContext, WorldPoly *pPoly)
 		float fScale = 0.015625f;
 		while (pVert != pEnd)
 		{
-			LTVector d = *pVert->m_Vec - pPoly->m_Unknown38;
-			float fU = (P.y * d.y + P.x * d.x + P.z * d.z) / pContext->m_pWorld->m_LMGridSize + 0.5f;
+			LTVector *pVec = pVert->m_Vec;
+			float dx = pVec->x - pPoly->m_Unknown38.x;
+			float dy = pVec->y - pPoly->m_Unknown38.y;
+			float dz = pVec->z - pPoly->m_Unknown38.z;
+			float fU = P.y * dy;
+			fU += P.x * dx;
+			fU += P.z * dz;
+			fU = fU / pContext->m_pWorld->m_LMGridSize + 0.5f;
 			SPOLYVERTEX_UNK0C(pVert) = fU;
-			SPOLYVERTEX_UNK0C(pVert) = (fU + (float)(int)x) * fScale;
-			SPOLYVERTEX_UNK10(pVert) = ((Q.z * d.z + Q.y * d.y + Q.x * d.x) / pContext->m_pWorld->m_LMGridSize + (float)(int)y) * fScale + 0.0078125f;
+			SPOLYVERTEX_UNK0C(pVert) = (SPOLYVERTEX_UNK0C(pVert) + (float)(int)x) * fScale;
+			float fV = Q.z * dz;
+			fV += Q.y * dy;
+			fV += Q.x * dx;
+			SPOLYVERTEX_UNK10(pVert) = (fV / pContext->m_pWorld->m_LMGridSize + (float)(int)y) * fScale + 0.0078125f;
 			pVert++;
 		}
 

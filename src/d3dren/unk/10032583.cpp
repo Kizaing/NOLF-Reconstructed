@@ -180,10 +180,9 @@ int FUN_100325e8(UnkType_DynLMSetup *pSetup, WorldPoly *pPoly, UnkType_PolyLight
 
 // guess: fills the 16 bit (RGB 555) staging lightmap: pixel = colour * (1 - distance^2) for the pixels inside the unit circle of the
 // light (the border row and column stay black).
-// STUB diagnosis: 2 bytes of 235 differ.  The member loads, width test, and pixel setup now match; only the final y increment differs:
-//   the exe emits `fld fY; fadd fStepY`, ours emits `fld fStepY; fadd fY`.  Both source operand orders compile the same way; a named
-//   float temporary changes other instructions and was reverted.
-// STUB: D3DREN 0x1003273a
+// The x87 operand order of the y increment (`fld fY; fadd fStepY`) requires fStepY to be referenced before fY in the source
+// (first-reference rule, README wave 6): fStepY is computed before `fY = -1.0f`, making it the memory operand.
+// FUNCTION: D3DREN 0x1003273a
 void FUN_1003273a(void *pPixels, UnkType_DynLMSetup *pSetup, float fSqrDist, uint8 *pColor, int nUnused)
 {
 	uint32 nPitch;
@@ -199,8 +198,8 @@ void FUN_1003273a(void *pPixels, UnkType_DynLMSetup *pSetup, float fSqrDist, uin
 	memset(pPixels, 0, (uint32)pSetup->m_Unk04 * nHeight >> 2);
 	nWidth -= 2;
 	nHeight -= 2;
-	fY = -1.0f;
 	fStepY = 2.0f / (float)nHeight;
+	fY = -1.0f;
 	pRow = (uint16 *)pPixels + nPitch + 1;
 	fStepX = 2.0f / (float)nWidth;
 	for (y = nHeight; y; y--)
@@ -221,7 +220,7 @@ void FUN_1003273a(void *pPixels, UnkType_DynLMSetup *pSetup, float fSqrDist, uin
 				pPixel++;
 			} while (--x);
 		}
-		fY = fStepY + fY;
+		fY += fStepY;
 		pRow += nPitch;
 	}
 }
@@ -236,9 +235,8 @@ uint32 FUN_10032825(float fIntensity, uint8 *pColor)
 		(DAT_10082168.m_Unk00[iRow + pColor[0]] >> 3);
 }
 
-// guess: the 32 bit version of FUN_1003273a.
-// STUB diagnosis: 2 bytes of 236 differ, the same y-increment x87 operand order as FUN_1003273a.
-// STUB: D3DREN 0x1003287a
+// guess: the 32 bit version of FUN_1003273a (same fStepY-before-fY first-reference order).
+// FUNCTION: D3DREN 0x1003287a
 void FUN_1003287a(void *pPixels, UnkType_DynLMSetup *pSetup, float fSqrDist, uint8 *pColor, int nUnused)
 {
 	uint32 nPitch;
@@ -254,8 +252,8 @@ void FUN_1003287a(void *pPixels, UnkType_DynLMSetup *pSetup, float fSqrDist, uin
 	memset(pPixels, 0, (uint32)pSetup->m_Unk04 * nHeight >> 2);
 	nWidth -= 2;
 	nHeight -= 2;
-	fY = -1.0f;
 	fStepY = 2.0f / (float)nHeight;
+	fY = -1.0f;
 	pRow = (uint32 *)pPixels + nPitch + 1;
 	fStepX = 2.0f / (float)nWidth;
 	for (y = nHeight; y; y--)
@@ -276,7 +274,7 @@ void FUN_1003287a(void *pPixels, UnkType_DynLMSetup *pSetup, float fSqrDist, uin
 				pPixel++;
 			} while (--x);
 		}
-		fY = fStepY + fY;
+		fY += fStepY;
 		pRow += nPitch;
 	}
 }

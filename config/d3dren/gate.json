@@ -1,11 +1,11 @@
 {
- "annotated": 1172,
+ "annotated": 1177,
  "lib_bytes": 41550,
  "lib_functions": 469,
  "lib_objects": 125,
- "match_bytes": 137180,
- "matching": 1172,
- "stub_bytes": 96326,
- "stubs": 90,
+ "match_bytes": 138729,
+ "matching": 1177,
+ "stub_bytes": 94803,
+ "stubs": 85,
  "text_function_bytes": 280684
 }

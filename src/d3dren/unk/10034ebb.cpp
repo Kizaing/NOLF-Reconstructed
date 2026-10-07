@@ -480,10 +480,9 @@ void FUN_100356b8(WorldPoly *pPoly)
 
 // guess: sets the texture stage states of the lightmap passes: stage 0 modulates the diffuse colour with the base texture,
 // stage 1 (unless DAT_100584e0) modulates the lightmap with it (add when DAT_1007d424).
-// Not matching (69 vs 65 instructions, 87 aligned mismatches): the exe computes the constants 1 and 2 once into esi/edi (`push 1; pop esi`,
-// `push 2; pop edi`) and keeps 0 in ebx for the whole function; our compile of the same eleven SetTextureStageState calls loads each
-// constant separately (permuter, 1500 candidates: best 40 aligned mismatches).
-// STUB: D3DREN 0x100356d5
+// The stage 1 setup calls are written out in both branches and the compiler tail-merges the two shared ones; written as a
+// single copy after the if/else, the constant 2 is not CSE'd into edi (it needs 6 uses; the merged copy shows only 5 pushes).
+// FUNCTION: D3DREN 0x100356d5
 void FUN_100356d5()
 {
 	uint32 op;
@@ -497,12 +496,17 @@ void FUN_100356d5()
 		op = D3DTOP_MODULATE2X;
 
 	if (DAT_100584e0)
+	{
 		g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+		g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+		g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLORARG2, D3DTA_CURRENT);
+	}
 	else
+	{
 		g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLOROP, op);
-
-	g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-	g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLORARG2, D3DTA_CURRENT);
+		g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+		g_pD3DDevice->SetTextureStageState(1, D3DTSS_COLORARG2, D3DTA_CURRENT);
+	}
 }
 
 // guess: restores the texture stage states after the lightmap passes.
